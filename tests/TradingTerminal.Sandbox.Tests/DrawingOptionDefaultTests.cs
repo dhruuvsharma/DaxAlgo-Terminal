@@ -93,6 +93,8 @@ public sealed class DrawingOptionDefaultTests
 
         public RenderCursor Cursor => new(0d, 0d, false, false);
 
+        public DateTime Now => DateTime.MinValue;
+
         public RenderColor Theme(RenderThemeColor token) => new(1, 2, 3);
 
         public void SetStyle(RenderStyle style) { }

@@ -80,7 +80,12 @@ internal static class AuthoredVisualizerComposition
             // The verbs a unit declares, and the way to run one. Without BOTH the buttons are built,
             // bound and never shown.
             actions: () => runtime.Actions,
-            invokeAction: id => runtime.InvokeActionAsync(id));
+            invokeAction: id => runtime.InvokeActionAsync(id),
+
+            // THE SAME clock the runtime hands the unit as context.Clock. That is the whole point: a
+            // unit stamps an event when it arrives and reads its age from surface.Now while drawing,
+            // and two clocks would make that subtraction plausible and wrong.
+            clock: () => clock.UtcNow);
 
         return (runtime, unit);
     }

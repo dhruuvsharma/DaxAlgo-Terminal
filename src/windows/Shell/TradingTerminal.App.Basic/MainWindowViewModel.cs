@@ -602,12 +602,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             // parameters and its instrument set are resolved from.
             var schema = SafeKernelSchema(registration) ?? new StrategyParameterSchema();
 
+            // One clock, resolved once, given to BOTH the runtime and the host: the unit reads it as
+            // context.Clock in its callbacks and as surface.Now while drawing, and an age computed
+            // across two different clocks is plausible and wrong.
+            var clock = _services.GetRequiredService<IClock>();
+
             var runtime = new SandboxStrategyRuntime(
                 registration.Create,
                 schema,
                 currentValues: null,
                 _services.GetRequiredService<IMarketDataHub>(),
-                _services.GetRequiredService<IClock>(),
+                clock,
                 // One account per declared instrument set. The simulator is single-instrument by
                 // design, so a multi-instrument kernel is refused here rather than silently netted.
                 instruments => new ModelPortfolioAccount(instruments),
@@ -628,7 +633,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                     if (pause) await runtime.PauseAsync();
                     else await runtime.ResumeAsync();
                 },
-                layout: runtime.GetLayout);
+                layout: runtime.GetLayout,
+                clock: () => clock.UtcNow);
 
             // The book row, live. Without this it renders zeroes for the life of the window, which
             // reads as a strategy that never trades rather than one nobody is reporting.

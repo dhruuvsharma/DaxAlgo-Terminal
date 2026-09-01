@@ -36,6 +36,12 @@ public partial class AuthoredUnitView : UserControl, IDisposable
             return;
 
         _presenter = presenter;
+
+        // Not a binding, because it is not a value the picture reads — it is the clock the surfaces are
+        // driven by, and it has to be the unit's own. Assigned here so every panel of this unit shares
+        // it, including the ones the layout host has already built.
+        Body.Clock = presenter.Clock;
+
         _presenter.PropertyChanged += OnPresenterChanged;
         _presenter.Log.CollectionChanged += OnLogChanged;
         _presenter.FrameRequested += OnFrameRequested;
@@ -126,5 +132,6 @@ public partial class AuthoredUnitView : UserControl, IDisposable
         DataContext = null;
         Body.Layout = null;
         Body.Draw = null;
+        Body.Clock = null;
     }
 }

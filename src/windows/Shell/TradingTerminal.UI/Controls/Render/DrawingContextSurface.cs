@@ -53,7 +53,8 @@ internal sealed class DrawingContextSurface : IRenderSurface
         Func<RenderThemeColor, Color> theme,
         int expectedPanels = 0,
         bool discovering = false,
-        (double Zoom, double PanX, double PanY) transform = default)
+        (double Zoom, double PanX, double PanY) transform = default,
+        DateTime now = default)
     {
         _context = context;
         _size = size;
@@ -65,7 +66,14 @@ internal sealed class DrawingContextSurface : IRenderSurface
         // default(ValueTuple) is a zero zoom, which would have every unit dividing its window by 0.
         // A surface built without a transform is unzoomed, not degenerate.
         _transform = transform.Zoom > 0d ? transform : (1d, 0d, 0d);
+        Now = now;
     }
+
+    /// <summary>The frame instant, sampled ONCE per frame by the view and handed to both passes — a
+    /// clock read here would give the discovery pass and the drawing pass different instants, and a
+    /// unit whose panel count depended on time would then be laid out against a frame it never
+    /// drew.</summary>
+    public DateTime Now { get; }
 
     private readonly (double Zoom, double PanX, double PanY) _transform;
 

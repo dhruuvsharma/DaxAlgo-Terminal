@@ -127,6 +127,8 @@ public sealed class RenderSurfaceContractTests
 
         public RenderCursor Cursor => new(0d, 0d, false, false);
 
+        public DateTime Now => DateTime.MinValue;
+
         public RenderColor Theme(RenderThemeColor token) => new(0, 0, 0);
 
         public void SetStyle(RenderStyle style) { }

@@ -29,6 +29,10 @@ public sealed class NullRenderSurface : IRenderSurface
 
     public RenderCursor Cursor => new(0d, 0d, IsInside: false, IsPressed: false);
 
+    /// <summary>No clock, so no time. A unit that animates draws its first frame, which is what it
+    /// must look sensible at anyway.</summary>
+    public DateTime Now => DateTime.MinValue;
+
     public RenderColor Theme(RenderThemeColor token) => new(0, 0, 0);
 
     public void SetStyle(RenderStyle style)

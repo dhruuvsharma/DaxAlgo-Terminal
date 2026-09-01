@@ -91,9 +91,38 @@ public sealed class AuthoredUnitLayoutHost : ContentControl
         foreach (var surface in _surfaces) surface.InvalidateVisual();
     }
 
+    private Func<DateTime>? _clock;
+
+    /// <summary>
+    /// The host clock every panel draws against, and it is deliberately ONE for the whole unit.
+    ///
+    /// <para>Per-panel clocks would be the obvious implementation and would be wrong twice over. The
+    /// views are constructed milliseconds apart as the tree is built and a rebuild replaces only some
+    /// of them, so two panels animating the same thing would sit permanently out of phase. And it has
+    /// to be the same clock the unit reads in its data callbacks: a unit stamps an event as it arrives
+    /// and computes the age while drawing, and two origins make that subtraction meaningless.</para>
+    ///
+    /// <para>Applied to every surface for the same reason <see cref="ThemeResolver"/> is — including
+    /// the ones already built, since the host is assembled before the clock is handed over.</para>
+    /// </summary>
+    public Func<DateTime>? Clock
+    {
+        get => _clock;
+        set
+        {
+            _clock = value;
+            foreach (var surface in _surfaces) surface.Clock = value;
+        }
+    }
+
     private RenderSurfaceView NewSurface(Action<IRenderSurface>? draw)
     {
-        var surface = new RenderSurfaceView { Draw = draw, ThemeResolver = _themeResolver };
+        var surface = new RenderSurfaceView
+        {
+            Draw = draw,
+            ThemeResolver = _themeResolver,
+            Clock = _clock,
+        };
         _surfaces.Add(surface);
         return surface;
     }

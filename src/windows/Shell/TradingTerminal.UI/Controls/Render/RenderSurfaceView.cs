@@ -47,6 +47,21 @@ public sealed class RenderSurfaceView : FrameworkElement
     /// <summary>Resolves theme roles to brushes, so a visualizer never names a literal colour.</summary>
     public Func<RenderThemeColor, Color>? ThemeResolver { get; set; }
 
+    /// <summary>
+    /// The host clock, which is what lets a unit animate.
+    ///
+    /// <para><b>Supplied by the host rather than started here</b>, for two reasons. A body built from
+    /// a <c>UnitLayout</c> is several of these views created milliseconds apart, so a clock per view
+    /// would leave two panels animating the same thing permanently out of phase. And it must be the
+    /// SAME clock the unit reads in its data callbacks (<c>context.Clock</c>) — a unit stamps an event
+    /// when it arrives and computes its age while drawing, and two unrelated origins would make that
+    /// subtraction meaningless.</para>
+    ///
+    /// <para>Null means no clock, and the surface reports <see cref="DateTime.MinValue"/> — right for
+    /// a preview or a still, and what a unit must already look sensible at.</para>
+    /// </summary>
+    public Func<DateTime>? Clock { get; set; }
+
     /// <summary>Primitives drawn in the last frame, for diagnostics and for spotting a runaway visualizer.</summary>
     public int LastFrameOperationCount { get; private set; }
 
@@ -259,8 +274,15 @@ public sealed class RenderSurfaceView : FrameworkElement
         //
         // It also removes an answer that was wrong anyway: during discovery no panel has its final
         // bounds, so every panel contains every point and each would have reported the same click.
+        // Sampled ONCE, here, and given to both passes. Reading the clock inside each surface would
+        // hand the discovery pass and the drawing pass different instants, and a unit whose panel
+        // count varied with time would then be laid out against a frame it never drew — the same
+        // failure the pointer-blind discovery pass exists to prevent, with a different input.
+        var now = Clock?.Invoke() ?? DateTime.MinValue;
+
         var discovery = new DrawingContextSurface(
-            drawingContext, size, scale, default, theme, discovering: true, transform: CurrentTransform);
+            drawingContext, size, scale, default, theme, discovering: true, transform: CurrentTransform,
+            now: now);
         try
         {
             draw(discovery);
@@ -278,7 +300,8 @@ public sealed class RenderSurfaceView : FrameworkElement
             cursor,
             theme,
             expectedPanels: discovery.PanelCount,
-            transform: CurrentTransform);
+            transform: CurrentTransform,
+            now: now);
 
         try
         {

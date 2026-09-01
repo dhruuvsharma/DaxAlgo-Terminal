@@ -93,6 +93,7 @@ void AxisY(double minimum, double maximum, string format = null)
 RenderCursor Cursor { get; }
 void Line(double x1, double y1, double x2, double y2)
 void Marker(double x, double y, RenderMarkerShape shape)
+DateTime Now { get; }
 IDisposable Panel(string title, RenderPanelKind kind)
 void Push(double x, double y)
 void Rect(double x, double y, double width, double height, bool filled = true)
@@ -108,6 +109,7 @@ RenderViewport Viewport { get; }
 - `Cursor` — Pointer state for the current panel.
 - `Line` — Strokes a line between two points.
 - `Marker` — Draws a single marker glyph.
+- `Now` — The instant this frame is being drawn at. This is how a picture moves. It is the same clock as `context.Clock.UtcNow`, which is the entire reason it is a timestamp rather than a "time since this unit appeared". A unit stamps an event when it arrives — `_sweptAt = context.Clock.UtcNow` in a data callback — and reads its age here as `Now - _sweptAt`. A separate render clock would have made that subtraction mix two unrelated origins and produce a number that looked plausible and meant nothing. Continuous motion works the same way: stamp `_startedAt` in `OnStartAsync` and read `(Now - _startedAt).TotalSeconds`. Derive from it; never integrate it. Write the frame as a function of this value — `alpha = 1 - age / fadeOver`, `x = start + speed * seconds` — and never as `x += step`. `Draw` is invoked more than once per frame (the host runs a discovery pass to count panels before the real one), so anything advanced by drawing advances twice. There is deliberately no "time since last frame" here for that reason: a delta is only useful for integrating, and integrating in `Draw` is the mistake. It is a read, like `Cursor` and `Zoom`, and for the same reason: the host owns it, the unit reads it. Sampled once per frame, so both passes of one frame see the same instant; shared by every panel of one unit, so a two-panel animation cannot drift out of phase. The host paces frames on its own timer, so a unit that draws from this animates without asking for anything. Keep `Draw` cheap — it runs whether or not data arrived. Under a replay clock it advances at replay speed, which is what makes an animated unit deterministic rather than dependent on how fast the machine happens to redraw. `MinValue` where there is no host clock — a headless surface, a still. A unit must look sensible on its first frame, so never treat "no time has passed" as an error state.
 - `Panel` — Opens a panel and returns a scope that closes it. Panels may be opened in sequence to stack several regions in one visualizer — a ladder beside a chart, say.
 - `Push` — Adds one point to the open series.
 - `Rect` — Draws a rectangle — filled by default, since cells and bars are the common case.

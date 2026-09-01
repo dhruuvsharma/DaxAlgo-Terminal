@@ -49,15 +49,22 @@ public sealed class RecordingRenderSurface : IRenderSurface
     /// that a unit scaling to the viewport degrades gracefully instead of dividing by it.</param>
     /// <param name="cursor">Pointer state. Defaults to outside, which is what a crosshair routine should
     /// treat as "draw nothing".</param>
-    public RecordingRenderSurface(RenderViewport? viewport = null, RenderCursor? cursor = null)
+    public RecordingRenderSurface(
+        RenderViewport? viewport = null, RenderCursor? cursor = null, DateTime? now = null)
     {
         Viewport = viewport ?? new RenderViewport(800d, 400d, 1d);
         Cursor = cursor ?? new RenderCursor(0d, 0d, IsInside: false, IsPressed: false);
+        Now = now ?? DateTime.MinValue;
     }
 
     public RenderViewport Viewport { get; }
 
     public RenderCursor Cursor { get; }
+
+    /// <summary>The instant the recorded frame is notionally being drawn at. Settable so a probe can
+    /// judge an animated unit at a realistic moment — judging every one at DateTime.MinValue would mark
+    /// a unit that fades something in as blank.</summary>
+    public DateTime Now { get; }
 
     /// <summary>Every call, in order.</summary>
     public IReadOnlyList<RenderCall> Calls => _calls;

@@ -32,6 +32,19 @@ public static class DrawProbe
     /// </summary>
     public const int MinimumMeaningfulPrimitives = 3;
 
+    /// <summary>
+    /// The instant the probe draws its frame at, matching the clock <c>SyntheticDrive</c> runs the unit
+    /// on, so a unit that stamped an event while being driven can compute its age here.
+    ///
+    /// <para>Thirty seconds AFTER the drive's clock, not <see cref="DateTime.MinValue"/>, and the
+    /// difference is not cosmetic. A unit computes <c>Now - stampedAt</c>; at the origin that is
+    /// negative by two thousand years, so a fade would come out at an enormous alpha and a position
+    /// derived from it would be non-finite — the probe would report a unit broken by the probe. Thirty
+    /// seconds is also long enough that a transient effect has finished, which is right: what must not
+    /// be blank is the steady picture, not a flash.</para>
+    /// </summary>
+    public static DateTime ProbeInstant { get; } = new(2026, 1, 1, 0, 0, 30, DateTimeKind.Utc);
+
     /// <summary>Runs the probe against a unit that has already been started and fed data.</summary>
     /// <param name="draw">The unit's draw call.</param>
     /// <param name="mustDraw">True for a visualizer, whose whole job is the picture. False for a strategy,
@@ -60,7 +73,7 @@ public static class DrawProbe
 
         var findings = new List<VerificationFinding>();
 
-        var surface = new RecordingRenderSurface();
+        var surface = new RecordingRenderSurface(now: ProbeInstant);
         try
         {
             draw(surface);

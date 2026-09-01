@@ -80,6 +80,21 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
     [ObservableProperty]
     private DaxAlgo.Sdk.Layout.UnitLayout _layout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
 
+    /// <summary>
+    /// The host clock every panel of this unit draws against — what makes <c>surface.Now</c> real and
+    /// therefore what lets a unit animate.
+    ///
+    /// <para>It travels with the presenter rather than being started by the view, because it must be
+    /// the SAME clock the unit reads in its data callbacks. A unit stamps an event as it arrives and
+    /// computes the age while drawing; a clock the view started for itself would make that subtraction
+    /// meaningless while looking entirely reasonable.</para>
+    ///
+    /// <para>Null renders every frame at <see cref="DateTime.MinValue"/>, which is correct for a
+    /// preview and is what a unit must already look sensible at.</para>
+    /// </summary>
+    [ObservableProperty]
+    private Func<DateTime>? _clock;
+
     /// <summary>True for a strategy, false for a visualizer. Drives the book row only.</summary>
     [ObservableProperty]
     private bool _hasBook;

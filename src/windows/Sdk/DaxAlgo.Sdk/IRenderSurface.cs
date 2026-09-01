@@ -167,6 +167,40 @@ public interface IRenderSurface
     /// <summary>Pointer state for the current panel.</summary>
     RenderCursor Cursor { get; }
 
+    /// <summary>
+    /// The instant this frame is being drawn at. This is how a picture moves.
+    ///
+    /// <para><b>It is the same clock as <c>context.Clock.UtcNow</c></b>, which is the entire reason it
+    /// is a timestamp rather than a "time since this unit appeared". A unit stamps an event when it
+    /// arrives — <c>_sweptAt = context.Clock.UtcNow</c> in a data callback — and reads its age here as
+    /// <c>Now - _sweptAt</c>. A separate render clock would have made that subtraction mix two
+    /// unrelated origins and produce a number that looked plausible and meant nothing. Continuous
+    /// motion works the same way: stamp <c>_startedAt</c> in <c>OnStartAsync</c> and read
+    /// <c>(Now - _startedAt).TotalSeconds</c>.</para>
+    ///
+    /// <para><b>Derive from it; never integrate it.</b> Write the frame as a function of this value —
+    /// <c>alpha = 1 - age / fadeOver</c>, <c>x = start + speed * seconds</c> — and never as
+    /// <c>x += step</c>. <c>Draw</c> is invoked <b>more than once per frame</b> (the host runs a
+    /// discovery pass to count panels before the real one), so anything advanced by drawing advances
+    /// twice. There is deliberately no "time since last frame" here for that reason: a delta is only
+    /// useful for integrating, and integrating in <c>Draw</c> is the mistake.</para>
+    ///
+    /// <para>It is a <b>read</b>, like <see cref="Cursor"/> and <see cref="RenderViewport.Zoom"/>, and
+    /// for the same reason: the host owns it, the unit reads it. Sampled once per frame, so both passes
+    /// of one frame see the same instant; shared by every panel of one unit, so a two-panel animation
+    /// cannot drift out of phase.</para>
+    ///
+    /// <para>The host paces frames on its own timer, so a unit that draws from this animates without
+    /// asking for anything. Keep <c>Draw</c> cheap — it runs whether or not data arrived. Under a
+    /// replay clock it advances at replay speed, which is what makes an animated unit deterministic
+    /// rather than dependent on how fast the machine happens to redraw.</para>
+    ///
+    /// <para><see cref="DateTime.MinValue"/> where there is no host clock — a headless surface, a
+    /// still. A unit must look sensible on its first frame, so never treat "no time has passed" as an
+    /// error state.</para>
+    /// </summary>
+    DateTime Now { get; }
+
     /// <summary>Resolves a theme role to the colour the host is currently using for it.</summary>
     RenderColor Theme(RenderThemeColor token);
 

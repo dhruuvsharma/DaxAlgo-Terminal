@@ -158,8 +158,27 @@ public sealed class BookPressureVisualizer : IVisualizer
         var side = TradeClassifier.Classify(trade, _quote);
         _flow.Update(trade.Size, side);
         _vpin.Update(trade.Size, side);
+
+        // A print big enough to move the book is worth pointing at, and pointing at it means marking
+        // it and letting the mark decay. STAMP IT HERE, from the host clock, because this is where the
+        // event happened; Draw computes the age from the same clock and never advances anything itself.
+        if (trade.Size >= _sweepSize)
+        {
+            _lastSweepAt = context.Clock.UtcNow;
+            _lastSweepSide = side;
+        }
+
         return Task.CompletedTask;
     }
+
+    /// <summary>When the last size-qualifying print landed, or null if none has. The pair of these two
+    /// fields is the entire state an animation needs — everything else is arithmetic at draw
+    /// time.</summary>
+    private DateTime? _lastSweepAt;
+    private TradeSide _lastSweepSide;
+
+    /// <summary>How long a sweep mark takes to fade out. Short, because it marks "just now".</summary>
+    private static readonly TimeSpan SweepFade = TimeSpan.FromSeconds(1.5d);
 
     public Task OnDepthAsync(
         InstrumentId instrument, DepthSnapshot depth, IVisualizerContext context, CancellationToken ct)
@@ -273,10 +292,41 @@ public sealed class BookPressureVisualizer : IVisualizer
             }
         }
 
+        DrawSweepFlash(surface, price);
+
         // Queue imbalance is already in [-1, 1], so it is a signed histogram about zero rather than a
         // line needing a scale of its own.
         Plot.Caption(surface, queue, "Queue imbalance");
         Histogram.Draw(surface, Column(static s => s.Queue, shown), area: queue);
+    }
+
+    /// <summary>
+    /// A bar down the right edge that appears when a sweep prints and fades out over
+    /// <see cref="SweepFade"/>. This is how a picture MOVES.
+    ///
+    /// <para><b>The age is derived, never accumulated.</b> <c>surface.Now</c> is the instant this frame
+    /// is drawn at, from the same clock <c>OnTradeAsync</c> stamped the event with, so the whole
+    /// animation is one subtraction. Nothing here is incremented — <c>Draw</c> is invoked more than
+    /// once per frame, so a counter advanced here would run at double speed and stutter.</para>
+    ///
+    /// <para>The host paces frames on its own timer, so this fades smoothly whether or not the feed is
+    /// sending anything. It also costs nothing when no sweep has happened, which is most of the
+    /// time.</para>
+    /// </summary>
+    private void DrawSweepFlash(IRenderSurface surface, PlotArea area)
+    {
+        if (_lastSweepAt is not { } at) return;
+
+        var age = surface.Now - at;
+        if (age < TimeSpan.Zero || age > SweepFade) return;
+
+        // Linear from 1 to 0 over the fade. Squared would look better and is not the lesson.
+        var alpha = 1d - age.TotalSeconds / SweepFade.TotalSeconds;
+        var colour = surface.Theme(
+            _lastSweepSide == TradeSide.Buy ? RenderThemeColor.Bullish : RenderThemeColor.Bearish);
+
+        surface.SetStyle(new RenderStyle(colour, Thickness: 3d, Alpha: alpha));
+        surface.Line(area.Right - 2d, area.Y, area.Right - 2d, area.Bottom);
     }
 
     private void DrawLadder(IRenderSurface surface) => DrawLadder(surface, PlotArea.Of(surface));

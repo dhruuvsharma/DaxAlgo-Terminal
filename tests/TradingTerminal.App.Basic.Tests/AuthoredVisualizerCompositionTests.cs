@@ -88,6 +88,23 @@ public sealed class AuthoredVisualizerCompositionTests
     }
 
     [WpfFact]
+    public void The_units_own_clock_reaches_the_window()
+    {
+        // Animation is `surface.Now` minus an instant the unit stamped in a data callback, so the two
+        // have to be ONE clock. The stub's is a fixed instant well away from any wall clock, which is
+        // what makes this fail both ways: null if the seam was not passed, and today's date if the
+        // window started a clock of its own.
+        var (runtime, unit) = Compose();
+        using (runtime)
+        using (unit)
+        {
+            var clock = unit.Presenter.Clock;
+            Assert.NotNull(clock);
+            Assert.Equal(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), clock!());
+        }
+    }
+
+    [WpfFact]
     public void The_layout_the_unit_declares_reaches_the_window()
     {
         // A unit could declare a multi-panel window, have it validated, see it in the preview, and

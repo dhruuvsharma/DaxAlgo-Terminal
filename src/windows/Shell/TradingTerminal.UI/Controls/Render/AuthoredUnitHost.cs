@@ -77,7 +77,8 @@ public sealed class AuthoredUnitHost : IDisposable
         Func<bool, Task>? setPaused = null,
         Func<DaxAlgo.Sdk.Layout.UnitLayout>? layout = null,
         Func<IReadOnlyList<UnitAction>>? actions = null,
-        Func<string, Task>? invokeAction = null)
+        Func<string, Task>? invokeAction = null,
+        Func<DateTime>? clock = null)
     {
         ArgumentNullException.ThrowIfNull(tryDraw);
         _tryDraw = tryDraw;
@@ -98,6 +99,10 @@ public sealed class AuthoredUnitHost : IDisposable
             Draw = surface => _tryDraw(surface),
             CanEditParameters = apply is not null,
             CanPause = setPaused is not null,
+
+            // The unit's OWN clock, so surface.Now and context.Clock.UtcNow are the same instant.
+            // Null draws every frame at DateTime.MinValue, which is what a preview is.
+            Clock = clock,
         };
 
         foreach (var parameter in schema?.Parameters ?? [])
