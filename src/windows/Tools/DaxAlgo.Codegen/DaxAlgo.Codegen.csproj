@@ -65,6 +65,13 @@
     <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\SpreadBandVisualizer.cs">
       <LogicalName>DaxAlgo.Codegen.Exemplars.SpreadBandVisualizer.cs</LogicalName>
     </EmbeddedResource>
+    <!-- The composed-scene STRATEGY, for a brief shaped like a screen rather than a chart: a grid
+         of verdicts, sorted, drawn from primitives. Every strategy brief used to be shown the cross,
+         which draws with seven widget calls and no primitives, so every generated strategy came out
+         as a chart with numbers under it whatever was asked for. -->
+    <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\RegimeMatrixKernel.cs">
+      <LogicalName>DaxAlgo.Codegen.Exemplars.RegimeMatrixKernel.cs</LogicalName>
+    </EmbeddedResource>
     <!-- The composed-scene visualizer, shown when the brief asks for a grid of values against a
          shared axis - a footprint, a cluster, a matrix. It is the exemplar for BUILDING a picture
          rather than calling one: every other sample delegates its drawing to a widget, which is what

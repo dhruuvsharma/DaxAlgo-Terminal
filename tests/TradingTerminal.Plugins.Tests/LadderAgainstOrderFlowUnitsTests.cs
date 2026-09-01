@@ -120,6 +120,37 @@ public sealed class LadderAgainstOrderFlowUnitsTests
     }
 
     [Fact]
+    public void TheStrategyMatrixExemplarClearsTheLadder()
+    {
+        // Every strategy brief was shown MovingAverageCrossKernel, which draws with seven widget calls
+        // and no primitives -- so every generated strategy came out as a chart with numbers under it,
+        // whatever was asked for. RegimeMatrixKernel is the strategy-side answer to that: a grid
+        // composed from Rect and Text, sorted so the agreement is readable.
+        //
+        // It has to clear the ladder for the same reason the visualizer one does. It also has to REACH
+        // the book -- a strategy exemplar that draws beautifully and never takes a position teaches a
+        // window, not a strategy.
+        IStrategyKernel exemplar = new RegimeMatrixKernel();
+        var drive = SyntheticDrive.Run(exemplar);
+
+        LifecycleProbe.Run(() => SyntheticDrive.Run(new RegimeMatrixKernel()), phase: "the exemplar")
+            .Outcome.Should().Be(VerificationOutcome.Passed);
+
+        SchemaCoherenceProbe.Run(
+                exemplar.Schema, drive.Parameters.KeysRead, drivenToCompletion: drive.Completed)
+            .Outcome.Should().Be(VerificationOutcome.Passed);
+
+        var picture = DrawProbe.RunLayout(
+            exemplar.Layout, exemplar.Draw, mustDraw: false, requirePicture: true);
+
+        picture.Outcome.Should().Be(
+            VerificationOutcome.Passed,
+            because: string.Join(" | ", picture.Findings.Select(f => f.ToString())));
+
+        drive.Book.Intents.Should().NotBeEmpty("a strategy exemplar has to reach its own virtual book");
+    }
+
+    [Fact]
     public void TheExemplarsOwnVerbActuallyWorks()
     {
         // The exemplar teaches the pattern, so every unit generated from an order-flow brief copies

@@ -160,7 +160,11 @@ public static class AuthoringExemplar
     /// </summary>
     private static string? Source(AuthoringKind kind, string? brief) => kind switch
     {
-        AuthoringKind.Strategy => "MovingAverageCrossKernel.cs",
+        // A strategy brief shaped like a SCREEN gets the composed one. Everything else keeps the
+        // cross, which teaches the kernel contract and a price chart correctly and simply.
+        AuthoringKind.Strategy => WantsCells(brief)
+            ? "RegimeMatrixKernel.cs"
+            : "MovingAverageCrossKernel.cs",
         AuthoringKind.Visualizer => WantsSpace(brief)
             ? "DepthLandscapeVisualizer.cs"
             : WantsCells(brief)
