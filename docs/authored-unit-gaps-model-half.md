@@ -364,7 +364,7 @@ two fixes above.
 Still absent: gestures (one incidental `Cursor` reference, no crosshair or hover readout) and any
 question at all.
 
-## Nothing has ever asked a question, and it is not a wiring fault
+## ~~Nothing has ever asked a question~~ — settled 2026-09-01, and the instruction was right all along
 
 The goal says Hyperion should **ask the user about the picture while it builds, iteratively**, because
 *"a unique UI cannot be specified in one line and the difference between a good window and a bad one
@@ -388,12 +388,37 @@ exactly wrong for a picture nobody has seen, where every answer changes a line a
 know which. The **"specification awaiting approval IS a question"** rule is the weakest lever in the
 pack: it asks a model to volunteer a checkpoint it has no incentive to add.
 
-**The experiment was run, and it did not answer the question — it found something else.** A
-deliberately vague brief (*"Show me what is happening in the order book."*), same model, same effort,
-only specificity varied: after **23.5 minutes** the provider returned `ProviderError`, no content at
-all, and therefore no answer about questioning either.
+### The controlled run: it asks
 
-The diagnosis is a real defect and is fixed:
+Held everything fixed — `minimax/minimax-m3:free`, Standard, visualizer, the same model as run 1 —
+and varied only the brief. *"Show me what is happening in the order book."*
+
+**14 seconds, one turn, one well-formed question with four options**, each carrying the consequence of
+choosing it:
+
+> **What should 'what is happening' show?**
+> Just the book · Book + tape · Book + flow stats · All of it
+
+and, unprompted, an account of what it deliberately did *not* ask:
+
+> *"I'll default the instrument and the data feeds (depth + tape + L1) — those are parameters, not
+> decisions. The scope is the one I need."*
+
+**So the instruction was right and the four silent runs were the model being right too.** The pack's
+own test is *"whether the answer changes what you write"*, and on a brief that names its three panels
+there is nothing whose answer would. The variable was never the model and never the prompt — it was
+brief specificity, which is the one thing that was confounded in every earlier comparison.
+
+It also confirms the whole adaptive-questioning path end to end on a live provider for the first time:
+the `questions` block was emitted, parsed, and came back as four options with details.
+
+**Cost of settling it: two runs and a suspected defect that was not one.** Twice I declined to change
+the prompt on the evidence available; the evidence now says the prompt did not need changing.
+
+### The first attempt, which found something else
+
+The same experiment on `glm-5.3-free` returned `ProviderError` after **23.5 minutes** with no content
+at all — no answer about questioning, and a real defect underneath.
 
 **A reasoning model streams its thinking as `reasoning_content`, a separate field from `content`, and
 the client read only `content`.** Verified against the provider directly — the first delta of an
@@ -406,9 +431,9 @@ providers ask that it not be displayed — and used for two things: an **empty t
 think does not read as a hang, and an honest failure that names reasoning as the cause and reports
 the tokens billed. `StalledStreamTests` pins both.
 
-**The questioning experiment is still open**, and now needs a model or effort that will actually reach
-an answer on a vague brief. That the vaguest brief tried so far could not be answered at all, at
-Standard effort on a free reasoning model, is itself worth knowing.
+And a second thing worth keeping: **a free reasoning model at Standard could not answer the vaguest
+brief at all**, while a lighter model answered it in fourteen seconds. Reasoning effort is not free
+and an open-ended brief is where it is spent worst.
 
 ## The delta table
 
@@ -427,5 +452,5 @@ Kept so the next run has something to move.
 | `Draw` fallback well-formed | ✗ — no panel scope | ✓ |
 | asked the user anything | ✗ — built directly | ✗ — built directly |
 
-Neither run drew a crosshair or a hover readout, and neither asked a question on this brief. Those are
-the two things to watch on run 3.
+Neither run drew a crosshair or a hover readout. Neither asked a question either, and that turned out
+to be correct behaviour on a brief this specific — see the settled section above.
