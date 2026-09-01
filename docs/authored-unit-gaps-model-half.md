@@ -337,6 +337,36 @@ now opens its panel in the same method as the drawing it guards, with a comment 
   Skill selection is keyword scoring, and the briefs that need the most help are the ones least likely
   to contain the keywords.
 
+## Nothing has ever asked a question, and it is not a wiring fault
+
+The goal says Hyperion should **ask the user about the picture while it builds, iteratively**, because
+*"a unique UI cannot be specified in one line and the difference between a good window and a bad one
+is mostly questions nobody asked."*
+
+**Three live runs. Zero questions.** Including the battlefield, which is genuinely underspecified —
+what does a soldier look like, how many, what happens when an order is cancelled, what marks a fill.
+
+**Checked before theorising, because this area's usual answer is that the instruction never arrived.**
+It arrives. Grepped in the saved `system-prompt.md` of every run: *"Ask before you guess"*, *"Ask as
+many as the job needs"* and *"A specification awaiting approval IS a question"* are all present, once
+each, in the composed prompt. This is the model reading the instruction and declining.
+
+The one run that ever asked — three well-formed questions with options, recorded 2026-08-31 — had a
+**vaguer brief and a different model**.
+
+So the honest reading is that the instruction is *balanced*, and a confident model resolves it toward
+building: *"The test for whether to ask is whether the answer changes what you write. If you cannot
+name the line of code that would differ, do not ask."* That is good advice for a specific brief and
+exactly wrong for a picture nobody has seen, where every answer changes a line and the model cannot
+know which. The **"specification awaiting approval IS a question"** rule is the weakest lever in the
+pack: it asks a model to volunteer a checkpoint it has no incentive to add.
+
+**Not acted on, because one confounded comparison is not evidence.** The two variables that differ
+between the run that asked and the three that did not — brief specificity and model — have never been
+separated. The experiment that would settle it is one run of a deliberately vague brief on the model
+that did not ask. Until then this is an observation with a plausible story attached, which is the kind
+of thing this file exists to keep apart from a finding.
+
 ## The delta table
 
 Kept so the next run has something to move.
