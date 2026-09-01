@@ -108,12 +108,14 @@ public sealed class BuildEffortTests
     [Fact]
     public void TheCheapPathIsStillCheap()
     {
-        // Quick must stay quick: one skill, one fix, no review, no ladder, one conversation. If it drifts
-        // upward there is nothing left for a user who wants a sketch.
+        // Quick must stay quick: one skill, one fix, no review, one conversation. If it drifts upward
+        // there is nothing left for a user who wants a sketch.
+        //
+        // The LADDER is deliberately not on this list any more. It spends no generation — it is local
+        // and calls no provider — so it runs at every effort; see VerificationReachesEveryEffortTests.
         var quick = Profile(StrategyBuildEffort.Quick);
 
         quick.UseAgents.Should().BeFalse();
-        quick.Verify.Should().BeFalse();
         quick.SelfReview.Should().BeFalse();
         quick.MaxSkills.Should().Be(1);
     }

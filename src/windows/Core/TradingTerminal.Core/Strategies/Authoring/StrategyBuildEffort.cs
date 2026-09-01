@@ -4,21 +4,24 @@ namespace TradingTerminal.Core.Strategies.Authoring;
 /// How hard the BUILD PIPELINE works on a strategy — a different dial from <see cref="CodegenEffort"/>,
 /// which is how hard the model thinks inside one generation. Build effort spends whole extra
 /// generations: more domain skill packs in the system prompt, more auto-fix retries, a self-review
-/// pass, and a runtime smoke of the compiled strategy. Quick is a cheap sketch; Max is "spend what it
-/// takes".
+/// pass, and the six-agent committee. Quick is a cheap sketch; Max is "spend what it takes".
+///
+/// <para><b>Everything it buys costs a generation.</b> That is what the dial means, and it is the test
+/// for whether something belongs on it: the verification ladder is local and free, so it runs at every
+/// effort and is not on this dial at all.</para>
 /// </summary>
 public enum StrategyBuildEffort
 {
-    /// <summary>Sketch fast: one skill pack, one fix attempt, no review, no smoke.</summary>
+    /// <summary>Sketch fast: one skill pack, one fix attempt, no self-review, one conversation.</summary>
     Quick,
 
-    /// <summary>The default — today's behavior: three skill packs, two fix attempts.</summary>
+    /// <summary>The default: three skill packs, two fix attempts, one conversation.</summary>
     Standard,
 
-    /// <summary>Thorough: five skill packs, four fix attempts, a self-review pass and a backtest smoke.</summary>
+    /// <summary>Thorough: five skill packs, four fix attempts, a self-review pass, and the six agents.</summary>
     Deep,
 
-    /// <summary>Correctness over cost: eight skill packs, six fix attempts, review + smoke.</summary>
+    /// <summary>Correctness over cost: eight skill packs, six fix attempts, review, and the six agents.</summary>
     Max,
 }
 
@@ -61,6 +64,16 @@ public static class StrategyBuildEfforts
 /// Run the verification ladder on what was produced. Called <c>BacktestSmoke</c> until 2026-08-25, after
 /// the pass it named had been replaced — the smoke drove fabricated ticks past a stub router; this
 /// drives the unit through its real lifecycle and reads back what it drew and what it did to its book.
+///
+/// <para><b>True at every effort since 2026-09-01, and it was a mistake that it ever was not.</b> This
+/// dial is documented as spending extra GENERATIONS, and the ladder spends none: it is local, calls no
+/// provider, and costs a few milliseconds. Gating a free check behind the expensive setting meant that
+/// at Quick and Standard — the default, and what most builds use — a unit whose picture never paints
+/// was delivered silently. That is not hypothetical: the benchmark's second live run produced exactly
+/// that unit, on the strongest model available, at Standard.</para>
+///
+/// <para>It never blocks. A failed rung becomes a warning on the compile result, so the user is told
+/// and still gets their code.</para>
 /// </param>
 /// <param name="UseAgents">
 /// Build through the six specialised agents rather than one conversation.
@@ -100,7 +113,7 @@ public sealed record StrategyBuildProfile(
     public static StrategyBuildProfile For(StrategyBuildEffort effort) => effort switch
     {
         StrategyBuildEffort.Quick =>
-            new(MaxSkills: 1, MaxFixAttempts: 1, SelfReview: false, Verify: false,
+            new(MaxSkills: 1, MaxFixAttempts: 1, SelfReview: false, Verify: true,
                 Reasoning: CodegenEffort.Low),
         StrategyBuildEffort.Deep =>
             new(MaxSkills: 5, MaxFixAttempts: 4, SelfReview: true, Verify: true,
@@ -108,7 +121,7 @@ public sealed record StrategyBuildProfile(
         StrategyBuildEffort.Max =>
             new(MaxSkills: 8, MaxFixAttempts: 6, SelfReview: true, Verify: true,
                 UseAgents: true, MaxAgentTurns: 16, Reasoning: CodegenEffort.Max),
-        _ => new(MaxSkills: 3, MaxFixAttempts: 2, SelfReview: false, Verify: false,
+        _ => new(MaxSkills: 3, MaxFixAttempts: 2, SelfReview: false, Verify: true,
                  Reasoning: CodegenEffort.Medium),
     };
 }
