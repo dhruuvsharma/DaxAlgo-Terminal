@@ -73,6 +73,24 @@ public sealed class ThreeDimensionalUnitTests
     }
 
     [Fact]
+    public void A_brief_that_asks_for_a_picture_in_space_gets_the_drawing_pack()
+    {
+        // MEASURED, NOT ASSUMED, AND IT WAS WRONG. The first live battlefield run selected only the
+        // order-flow pack: not one of the drawing pack's thirty-five triggers appears in "the order
+        // book as a 3D battlefield … soldiers … the armies move". So the entire 3D teaching — written
+        // into that pack the same day — could not reach the model that needed it.
+        //
+        // The unit came out anyway, because the EXEMPLAR reached it; it even copied a comment verbatim.
+        // That is the loop's own lesson twice over: a model imitates the exemplar far more strongly
+        // than it reads the reference, and a pack a brief cannot select is a pack nobody wrote.
+        var chosen = StrategySkillLibrary.Load()
+            .SelectFor(HyperionBenchmark.BattlefieldBrief, 3, AuthoringKind.Visualizer)
+            .Select(skill => skill.Id);
+
+        chosen.Should().Contain("drawing");
+    }
+
+    [Fact]
     public void The_projection_types_are_rationed_rather_than_charged_to_every_prompt()
     {
         // Placement is the whole cost argument, and it is invisible in the code: a type outside

@@ -280,6 +280,63 @@ strong enough, and *"gestures are a teaching gap"* is wrong as stated. What is t
 while still producing something that compiles and looks complete — which is worth knowing, because it
 is invisible in every check except a human opening the window.
 
+## Run 3 — the battlefield, 2026-09-01, and it built one
+
+The first two runs asked for an order book, which is what the widget library is *for*. This one is the
+goal's own reference case and asks for a picture the library has never seen: **a scene in 3D, one mark
+per resting order, and motion.** Three things at once that no widget provides.
+
+| | |
+|---|---|
+| brief | *"The order book as a 3D battlefield: each resting order is a soldier standing on the price it rests at, and the armies move as the book changes."* |
+| provider / effort | tokenrouter `z-ai/glm-5.3-free`, Standard, visualizer |
+| system prompt | 91,720 chars — **smaller than the order-book brief's 115,655**, and that is the finding below |
+| turns / generations | 1 / 1, compiled first try |
+| wall clock | 1,190 s |
+| output | `OrderBookBattlefieldVisualizer.cs`, 542 lines |
+| ladder | Lifecycle ✓ · SchemaCoherence ✓ · **DrawProbe ✗ `draw.no-panel`** |
+
+**It built the battlefield.** Thirty references to the projection types that had shipped an hour
+earlier: `Camera3.Default`, `Camera3.Orbit` driven from `surface.Now`, `Projection3.Of` sized from the
+panel, `Vec3` positions, `InFront` tested before every segment, and
+
+```csharp
+items.Sort((x, y) => y.Depth.CompareTo(x.Depth));   // far first, near last
+```
+
+— painter's algorithm, unprompted, correct. Ground plane, front lines, soldiers, fallen, standards.
+This is the capability the goal is about, and it works.
+
+### Two defects, both mine, both from the same day
+
+**1. The drawing pack — where I had just written the entire 3D teaching — was never selected.** The
+run loaded exactly one skill, order-flow. **Not one of the drawing pack's thirty-five triggers appears
+in that brief**: no "chart", no "draw", no "picture", no "depth". So the prose explaining projection,
+painter's algorithm and `InFront` could not reach the model that needed it.
+
+It built the thing anyway, **from the exemplar alone** — and copied one of its comments *verbatim*.
+That is the loop's own lesson confirmed twice over: a model imitates the exemplar far more strongly
+than it reads the reference, and a pack a brief cannot select is a pack nobody wrote. Fixed by adding
+spatial and scene triggers; `A_brief_that_asks_for_a_picture_in_space_gets_the_drawing_pack` fails
+against the old list.
+
+**2. `draw.no-panel` — and it is now three generated units in a row.** The unit's `Draw` computes
+`PlotArea.Of(surface)` and draws, without ever opening a panel scope. So did run 1's fallback. The
+cause is the *shape of the exemplars*: `Draw` is a one-line wrapper that opens the panel and calls a
+private method that does the work, and a model copies the method with the work in it. The 3D exemplar
+now opens its panel in the same method as the drawing it guards, with a comment saying why.
+
+### What run 3 changes
+
+- **The library is not the ceiling.** Asked for something no widget provides, a free model composed it
+  from primitives rather than substituting or refusing. That was brief item 4's open question.
+- **The exemplar is doing nearly all the teaching.** It carried a same-day capability into working code
+  with the explanatory pack entirely absent. The corollary is uncomfortable: whatever an exemplar's
+  *shape* omits is omitted downstream, which is exactly how `draw.no-panel` happened three times.
+- **A harder brief can produce a SMALLER prompt.** 91,720 against 115,655, because fewer packs matched.
+  Skill selection is keyword scoring, and the briefs that need the most help are the ones least likely
+  to contain the keywords.
+
 ## The delta table
 
 Kept so the next run has something to move.

@@ -103,16 +103,23 @@ public sealed class DepthLandscapeVisualizer : IVisualizer
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// The whole frame, and it opens its panel here.
+    ///
+    /// <para><b>Deliberately not split into a one-line wrapper over a private drawing method</b>, which
+    /// is how the other exemplars are written. Three generated units in a row copied the inner method
+    /// and dropped the <c>surface.Panel</c> scope that was sitting alone in the wrapper — primitives
+    /// outside any panel, which the ladder reports as <c>draw.no-panel</c>. A model copies the shape it
+    /// is shown, so the scope has to be in the same method as the work it guards.</para>
+    /// </summary>
     public void Draw(IRenderSurface surface)
     {
         ArgumentNullException.ThrowIfNull(surface);
 
+        // EVERY frame starts here. Nothing is drawn outside a panel.
         using var panel = surface.Panel("Depth landscape", RenderPanelKind.Canvas);
-        DrawLandscape(surface, PlotArea.Of(surface));
-    }
+        var area = PlotArea.Of(surface);
 
-    private void DrawLandscape(IRenderSurface surface, PlotArea area)
-    {
         if (_rows.Count < 2) { Plot.Waiting(surface, "Building the landscape from the book…"); return; }
 
         // A collapsed panel reports zero size, and every coordinate scaled by it would be non-finite.

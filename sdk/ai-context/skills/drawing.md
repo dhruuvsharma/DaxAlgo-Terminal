@@ -1,7 +1,7 @@
 ---
 id: drawing
 name: Drawing — the widget library, and composing your own
-triggers: window, view, ui, panel, chart, display, show, render, dashboard, visual, plot, gui, screen, draw, drawing, candle, candlestick, ladder, footprint, heatmap, graph, picture, paint, depth, profile, tape, equity, gauge, table, tile, band, histogram, signal, level, legend, volume
+triggers: window, view, ui, panel, chart, display, show, render, dashboard, visual, plot, gui, screen, draw, drawing, candle, candlestick, ladder, footprint, heatmap, graph, picture, paint, depth, profile, tape, equity, gauge, table, tile, band, histogram, signal, level, legend, volume, book, map, 3d, three-dimensional, three dimensional, scene, landscape, isometric, perspective, camera, cube, surface, animate, animation, battlefield, soldier, army
 ---
 
 # Drawing
