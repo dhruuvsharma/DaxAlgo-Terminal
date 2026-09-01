@@ -179,6 +179,61 @@ nobody uses.
 Named snapshots of the parameter set, saved and reapplied. The host owns the parameter values, so
 this is a host feature that simply has not been built, rather than a contract gap.
 
+## ~~8. A picture could not move~~ — closed 2026-09-01
+
+Not found against the order-book control, which is a still picture and correct as one. It came from the
+restated goal: an order book drawn as a battlefield needs soldiers that move, and **a unit had no way
+to know how much time had passed.** `Draw` is pure, is invoked more than once per frame, and had no
+clock; the guidance tells an author never to reach for one there, and it was right to.
+
+Closed the same way selection and zoom were: **the host owns it, the unit reads it.** `surface.Now` is
+the instant the frame is being drawn at.
+
+**It is a timestamp, not a "time since this unit appeared", and that was the whole design question.**
+An elapsed-since-start counter is the more obvious API and it cannot express the thing units actually
+need. A unit does not usually want abstract motion; it wants *"that sweep printed 0.8 seconds ago, draw
+it fading"*. The stamp for that has to be taken in a **data callback**, which runs on the pump thread
+and cannot read a render clock — so the only workable primitive is one both sides share. `surface.Now`
+is the same clock as `context.Clock.UtcNow`, so the whole animation is one subtraction:
+
+```csharp
+// in OnTradeAsync — this is where the event happened
+if (trade.Size >= _sweepSize) _lastSweepAt = context.Clock.UtcNow;
+
+// in Draw — derived, never accumulated
+var age = surface.Now - _lastSweepAt;
+var alpha = 1d - age.TotalSeconds / FadeSeconds;
+```
+
+Two host properties make it true rather than advised:
+
+- **One frame is one instant.** The view samples the clock once and hands the same value to the
+  discovery pass and the drawing pass. A surface that read the clock itself would give one frame two
+  times, and a unit whose panel count varied with time would be laid out against a frame it never drew
+  — the same failure the pointer-blind discovery pass exists to prevent, with a different input.
+- **One unit is one clock.** `AuthoredUnitLayoutHost` applies it to every panel, including panels
+  already built when the clock arrives. Per-panel clocks are the obvious implementation and drift: the
+  views are constructed milliseconds apart, so two panels animating the same thing would sit
+  permanently out of phase and look like an authoring mistake.
+
+Both are pinned by `AuthoredWindowClockTests`, and the seam is pinned through the shell composition by
+`AuthoredVisualizerCompositionTests.The_units_own_clock_reaches_the_window` — which fails when the
+argument is dropped **and** when a window starts a clock of its own, because the fixture's clock is a
+fixed instant nowhere near a wall clock.
+
+**Nothing had to be built to make frames arrive.** `AuthoredUnitHost` already runs a render timer that
+requests a frame on an interval, so a unit that draws from `Now` animates without asking for anything.
+The cost is that `Draw` now runs whether or not data arrived, which was already true.
+
+`DrawProbe` draws its frame thirty seconds after the drive's clock rather than at
+`DateTime.MinValue` — at the origin, `Now - stampedAt` is negative by two thousand years, so a fade
+would come out at an enormous alpha and a derived position would be non-finite. The probe would have
+reported a unit broken by the probe.
+
+Demonstrated in `BookPressureVisualizer`, in the same change, per the rule that
+**an exemplar is what a model copies**: a sweep print marks the right edge and the mark fades over 1.5
+seconds. Still open: nothing yet measures whether a model picks it up.
+
 ## What is NOT a gap
 
 - **Instrument selection.** `StrategyParameter.Instrument` and the host picker cover it.

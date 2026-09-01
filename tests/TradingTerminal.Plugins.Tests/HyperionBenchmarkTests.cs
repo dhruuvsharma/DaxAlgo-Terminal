@@ -22,7 +22,7 @@ public sealed class LiveProviderFactAttribute : FactAttribute
     public LiveProviderFactAttribute()
     {
         if (string.IsNullOrWhiteSpace(HyperionBenchmarkTests.LiveKey))
-            Skip = "Set OPENROUTER_API_KEY (and HYPERION_LIVE=1) to drive the benchmark against a model.";
+            Skip = "Set HYPERION_LIVE_KEY (or OPENROUTER_API_KEY) and HYPERION_LIVE=1 to drive the benchmark against a model.";
         else if (Environment.GetEnvironmentVariable("HYPERION_LIVE") != "1")
             Skip = "Set HYPERION_LIVE=1 to spend tokens driving the benchmark against a model.";
     }
@@ -38,14 +38,27 @@ public sealed class LiveProviderFactAttribute : FactAttribute
 /// </summary>
 public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
 {
-    internal static string? LiveKey => Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+    /// <summary>
+    /// The provider, from the environment, because the useful free model changes month to month and a
+    /// benchmark hard-wired to one vendor stops being run the day that vendor stops being the answer.
+    ///
+    /// <para>Four variables, all optional but the key: <c>HYPERION_LIVE_KEY</c> (or
+    /// <c>OPENROUTER_API_KEY</c>), <c>HYPERION_LIVE_BASE_URL</c>, <c>HYPERION_LIVE_MODEL</c> and
+    /// <c>HYPERION_LIVE_PROVIDER</c> — the last only labels the run. Anything OpenAI-compatible works;
+    /// the defaults are the openrouter free tier, which is the weakest realistic case and therefore the
+    /// right floor to record.</para>
+    /// </summary>
+    internal static string? LiveKey =>
+        Env("HYPERION_LIVE_KEY") ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
 
-    /// <summary>Free tier by default: the recorded result is the weakest realistic case, and an account
-    /// with credits can point this anywhere with one variable.</summary>
-    private static string LiveModel =>
-        Environment.GetEnvironmentVariable("HYPERION_LIVE_MODEL") is { Length: > 0 } model
-            ? model
-            : "minimax/minimax-m3:free";
+    private static string LiveBaseUrl => Env("HYPERION_LIVE_BASE_URL") ?? "https://openrouter.ai/api/v1";
+
+    private static string LiveModel => Env("HYPERION_LIVE_MODEL") ?? "minimax/minimax-m3:free";
+
+    private static string LiveProvider => Env("HYPERION_LIVE_PROVIDER") ?? "openrouter";
+
+    private static string? Env(string name) =>
+        Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : null;
 
     private static string RunDirectory(string label) => Path.Combine(
         RepositoryRoot(), "artifacts", "hyperion-benchmark",
@@ -104,11 +117,12 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     [LiveProviderFact]
     public async Task A_model_answers_the_order_book_brief()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
         var client = new OpenAiCompatibleCodegenClient(
-            http, "openrouter", "OpenRouter", "https://openrouter.ai/api/v1", LiveModel, LiveKey,
+            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
             effort: StrategyBuildProfile.For(StrategyBuildEffort.Standard).Reasoning);
 
+        output.WriteLine($"{LiveProvider} · {LiveModel} · {LiveBaseUrl}");
         var directory = RunDirectory("live");
         var result = await HyperionBenchmark.RunAsync(
             client, new RoslynStrategyCompiler(), AuthoringKind.Visualizer,
