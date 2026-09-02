@@ -21,8 +21,9 @@ public sealed class LiveProviderFactAttribute : FactAttribute
 {
     public LiveProviderFactAttribute()
     {
-        if (string.IsNullOrWhiteSpace(HyperionBenchmarkTests.LiveKey))
-            Skip = "Set HYPERION_LIVE_KEY (or OPENROUTER_API_KEY) and HYPERION_LIVE=1 to drive the benchmark against a model.";
+        if (!HyperionBenchmarkTests.IsAgentCli && string.IsNullOrWhiteSpace(HyperionBenchmarkTests.LiveKey))
+            Skip = "Set HYPERION_LIVE_KEY (or OPENROUTER_API_KEY) and HYPERION_LIVE=1 to drive the benchmark against a model, "
+                + "or HYPERION_LIVE_PROVIDER=claude-cli to drive the installed CLI, which needs no key.";
         else if (Environment.GetEnvironmentVariable("HYPERION_LIVE") != "1")
             Skip = "Set HYPERION_LIVE=1 to spend tokens driving the benchmark against a model.";
     }
@@ -53,7 +54,8 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
 
     private static string LiveBaseUrl => Env("HYPERION_LIVE_BASE_URL") ?? "https://openrouter.ai/api/v1";
 
-    private static string LiveModel => Env("HYPERION_LIVE_MODEL") ?? "minimax/minimax-m3:free";
+    private static string LiveModel =>
+        Env("HYPERION_LIVE_MODEL") ?? (IsAgentCli ? "claude-opus-5" : "minimax/minimax-m3:free");
 
     private static string LiveProvider => Env("HYPERION_LIVE_PROVIDER") ?? "openrouter";
 
@@ -71,6 +73,40 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     /// </summary>
     internal static StrategyBuildEffort LiveEffort =>
         StrategyBuildEfforts.Parse(Env("HYPERION_EFFORT") ?? "standard");
+
+    /// <summary>True when the provider is an installed agent CLI rather than an HTTP endpoint.</summary>
+    internal static bool IsAgentCli =>
+        AgentCliAdapter.All.Any(a => a.ProviderId.Equals(LiveProvider, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The client the live facts drive, built in ONE place so the two transports cannot drift apart.
+    ///
+    /// <para><b>The CLI path exists because the HTTP one is not always reachable.</b> A gateway needs
+    /// credit — this account returns 402 for Opus 5 in under a second, asking for 65,536 tokens it
+    /// cannot afford — while an installed Claude Code carries the user's own subscription and no key
+    /// passes through here at all. It is also the only route to a frontier model measured in this
+    /// loop; every result so far is from a free model, which is the weakest realistic case rather than
+    /// the interesting one.</para>
+    /// </summary>
+    private static IStrategyCodegenClient LiveClient(StrategyBuildEffort effort)
+    {
+        var reasoning = StrategyBuildProfile.For(effort).Reasoning;
+
+        if (IsAgentCli)
+        {
+            var adapter = AgentCliAdapter.All.First(
+                a => a.ProviderId.Equals(LiveProvider, StringComparison.OrdinalIgnoreCase));
+
+            // Generous, because a CLI on a long brief at high effort is a multi-minute run and the
+            // default ten minutes killed exactly the generations worth waiting for.
+            return new AgentCliCodegenClient(
+                adapter, timeout: TimeSpan.FromMinutes(30), model: LiveModel, effort: reasoning);
+        }
+
+        return new OpenAiCompatibleCodegenClient(
+            new HttpClient { Timeout = TimeSpan.FromMinutes(30) },
+            LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey, effort: reasoning);
+    }
 
     private static string? Env(string name) =>
         Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : null;
@@ -135,10 +171,7 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
         // This number now MEANS something: since 2026-09-01 it is the idle bound on the stream, not
         // just the header phase. Generous on purpose — the slowest run recorded took 1,017 s end to end
         // — because the expensive direction is abandoning a generation that was going to work.
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        var client = new OpenAiCompatibleCodegenClient(
-            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
+        var client = LiveClient(LiveEffort);
 
         output.WriteLine($"{LiveProvider} · {LiveModel} · {LiveBaseUrl}");
         var directory = RunDirectory("live");
@@ -197,10 +230,7 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     [LiveProviderFact]
     public async Task A_model_answers_the_battlefield_brief()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        var client = new OpenAiCompatibleCodegenClient(
-            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
+        var client = LiveClient(LiveEffort);
 
         output.WriteLine($"{LiveProvider} · {LiveModel} · {LiveBaseUrl}");
         var directory = RunDirectory("live-3d");
@@ -231,10 +261,7 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     [LiveProviderFact]
     public async Task A_vague_brief_is_where_a_question_would_pay()
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        var client = new OpenAiCompatibleCodegenClient(
-            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
+        var client = LiveClient(LiveEffort);
 
         var pack = StrategyContextPack.Load();
         var profile = StrategyBuildProfile.For(LiveEffort);
@@ -277,10 +304,7 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
             ? AuthoringKind.Strategy
             : AuthoringKind.Visualizer;
 
-        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        var client = new OpenAiCompatibleCodegenClient(
-            http, LiveProvider, LiveProvider, LiveBaseUrl, LiveModel, LiveKey,
-            effort: StrategyBuildProfile.For(LiveEffort).Reasoning);
+        var client = LiveClient(LiveEffort);
 
         var directory = RunDirectory(Env("HYPERION_LABEL") ?? name.ToLowerInvariant());
         output.WriteLine($"{LiveProvider} · {LiveModel} · {kind} · {LiveEffort} · {brief}");
