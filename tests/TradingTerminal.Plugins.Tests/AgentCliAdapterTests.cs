@@ -1,4 +1,5 @@
-using FluentAssertions;
+﻿using FluentAssertions;
+using System.Text;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
@@ -179,5 +180,25 @@ public sealed class AgentCliAdapterTests
         }
 
         AgentCliAdapter.All.Select(a => a.ProviderId).Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public void EveryRedirectedStreamIsUtf8()
+    {
+        // All three, and the OUTPUT half is the one that was missing. A redirected pipe inherits the
+        // Windows console code page, so a model writing an en dash sends back E2 80 93 and the client
+        // decoded it as CP437: the generated source then held the literal string "ΓÇô".
+        //
+        // It compiled. It cleared every rung. It reached a window and showed
+        // "77671.75 ΓÇô 77671.75" to a user, which is where it was finally seen -- in a
+        // screenshot of a unit that had passed everything. The input half was fixed long ago because
+        // Codex REJECTS invalid UTF-8 and fails loudly; nothing rejects a corrupted reply.
+        var client = new AgentCliCodegenClient(AgentCliAdapter.ClaudeCode);
+        var psi = client.ProcessFor("claude", stream: false);
+
+        psi.StandardInputEncoding.Should().BeOfType<UTF8Encoding>();
+        psi.StandardOutputEncoding.Should().BeOfType<UTF8Encoding>(
+            "a reply decoded as the console code page reaches the user as mojibake and nothing rejects it");
+        psi.StandardErrorEncoding.Should().BeOfType<UTF8Encoding>();
     }
 }

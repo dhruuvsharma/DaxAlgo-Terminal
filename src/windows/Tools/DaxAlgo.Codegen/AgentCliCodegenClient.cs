@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -254,9 +254,18 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            // Redirected stdin otherwise inherits the Windows console code page. An em dash then becomes
-            // CP1252 byte 0x97, which Codex correctly rejects as invalid UTF-8.
+            // ALL THREE streams, because a redirected pipe otherwise inherits the Windows console code
+            // page. The input half was fixed first and alone: an em dash became CP1252 byte 0x97, which
+            // Codex correctly rejects as invalid UTF-8 — a loud failure, so it got fixed.
+            //
+            // The output half fails SILENTLY, which is why it survived. A model writes an en dash in a
+            // label, the UTF-8 bytes E2 80 93 come back decoded as CP437, and the generated source
+            // contains the literal string "ΓÇô". It compiles. It clears every rung. It reaches a window
+            // and shows "77671.75 ΓÇô 77671.75" to a user — which is where this was finally seen, in a
+            // screenshot of a unit that had passed everything.
             StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            StandardOutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            StandardErrorEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
             UseShellExecute = false,
             CreateNoWindow = true,
         };
