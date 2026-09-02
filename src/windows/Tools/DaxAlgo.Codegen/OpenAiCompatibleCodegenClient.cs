@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -134,25 +134,41 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             yield break;
         }
 
-        // Sent up to twice. A reasoning model on a big prompt emits NOTHING while it reasons —
-        // measured at 278 seconds before the first byte on a 67 KB prompt — and a gateway in front of
-        // it drops an idle connection with a 502/503/504. That is transient and worth one more go;
-        // losing a nine-minute generation to a proxy is not a failure the user can act on.
+        // Retried on two different kinds of "not your fault", which need two different responses.
+        //
+        // A gateway drops an idle connection with a 502/503/504 while a reasoning model is thinking —
+        // measured at 278 seconds before the first byte on a 67 KB prompt — and the answer is to send
+        // again AT ONCE, because nothing is wrong.
+        //
+        // A 429 is the opposite: the provider is saying WAIT, and sending again at once is what it
+        // just refused. It was not retried at all, and the cost was measured — a batch of six briefs
+        // on a free tier spent thirty-four minutes on the first and then failed the remaining five in
+        // UNDER HALF A SECOND EACH, producing nothing, because the first run had used the quota. A
+        // rate limit is the most retryable failure there is.
         HttpResponseMessage? resp = null;
         string? failure = null;
 
-        for (var attempt = 0; attempt < 2; attempt++)
+        for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {
             resp?.Dispose();
 
-            using var httpReq = BuildRequest(request, stream: true);
-            (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
+            using (var httpReq = BuildRequest(request, stream: true))
+            {
+                (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
+            }
 
             if (failure is not null || resp is null) break;
-            if (!IsTransientGatewayFailure((int)resp.StatusCode)) break;
-            if (attempt == 1) break;
+
+            var status = (int)resp.StatusCode;
+            if (!IsTransientGatewayFailure(status) && !IsRateLimited(status)) break;
+            if (attempt == MaxAttempts - 1) break;
 
             yield return new CodegenEvent.TextDelta(string.Empty);   // keeps the turn visibly alive
+
+            // Cancellable, because the Stop button has to work during the wait as much as during the
+            // generation — a minute of un-cancellable sleep is a hung application.
+            var wait = RetryAfter(resp, attempt);
+            if (wait > TimeSpan.Zero) await Task.Delay(wait, ct).ConfigureAwait(false);
         }
 
         if (failure is not null)
@@ -416,6 +432,42 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// telling you something you must fix and which must never be retried.</para>
     /// </summary>
     internal static bool IsTransientGatewayFailure(int status) => status is 502 or 503 or 504;
+
+    /// <summary>The provider is asking for a pause rather than reporting a fault.</summary>
+    internal static bool IsRateLimited(int status) => status is 429;
+
+    /// <summary>Attempts before giving up. Three rather than two because two of them can now be spent
+    /// waiting out a rate limit, and a limit that clears in a minute should not cost the generation.</summary>
+    internal const int MaxAttempts = 3;
+
+    /// <summary>
+    /// How long to wait before trying again.
+    ///
+    /// <para><c>Retry-After</c> when the provider sends one — it knows and we do not — accepting both
+    /// forms the header allows, a seconds count and an HTTP date. Otherwise an exponential back-off,
+    /// and nothing at all for a dropped gateway connection, where the point is to reconnect at once.</para>
+    ///
+    /// <para>Capped, because a provider asking for an hour is a provider to report to the user rather
+    /// than to wait for silently.</para>
+    /// </summary>
+    internal static TimeSpan RetryAfter(HttpResponseMessage response, int attempt)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        if (!IsRateLimited((int)response.StatusCode)) return TimeSpan.Zero;
+
+        var after = response.Headers.RetryAfter;
+        var asked =
+            after?.Delta
+            ?? (after?.Date is { } date ? (TimeSpan?)(date - DateTimeOffset.UtcNow) : null)
+            ?? TimeSpan.FromSeconds(Math.Pow(2d, attempt + 1));   // 2s, then 4s
+
+        return asked <= TimeSpan.Zero ? TimeSpan.Zero
+            : asked > MaxRetryWait ? MaxRetryWait
+            : asked;
+    }
+
+    /// <summary>The longest this will wait on one attempt.</summary>
+    internal static readonly TimeSpan MaxRetryWait = TimeSpan.FromSeconds(30d);
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
 
