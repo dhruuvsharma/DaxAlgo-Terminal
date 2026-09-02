@@ -244,7 +244,7 @@ public static class SyntheticDrive
 
         // One feed, shared. Two would leave the context reading a series the caller never advanced —
         // the unit would see an empty history for every bar and every warm-up guard would hold forever.
-        var feed = new Feed(closes ?? DefaultCloses, requirement, capture);
+        var feed = new Feed(closes ?? DefaultCloses, requirement, capture, DeclaredBarSize(schema));
         return (new DriveContext(feed, new TradingTerminal.Sandbox.SandboxParameters(schema, values)), feed);
     }
 
@@ -253,12 +253,35 @@ public static class SyntheticDrive
     /// picture but still a picture.</summary>
     private static InstrumentId NextInstrument(ref int slot) => Universe[slot++ % Universe.Count];
 
+    /// <summary>
+    /// The bar size the unit DECLARED, so the series is stamped with the one it is filtering for.
+    ///
+    /// <para>The drive stamped every bar OneMinute. A unit that declares a bar-size parameter and
+    /// guards <c>bar.Size != _barSize</c> — which is correct of it, since a mixed feed would otherwise
+    /// poison its horizon — then dropped every bar the drive sent. An Opus 5 regime screen defaulting
+    /// to <c>OneDay</c> drew "no member has enough OneDay bars" across the whole window.</para>
+    ///
+    /// <para>Read from the declared DEFAULT, exactly as the instrument is, so the drive honours what
+    /// the unit asked for rather than what the drive happens to prefer.</para>
+    /// </summary>
+    private static BarSize DeclaredBarSize(StrategyParameterSchema schema)
+    {
+        foreach (var parameter in schema.Parameters)
+        {
+            if (parameter.Default is BarSize declared) return declared;
+        }
+
+        return BarSize.OneMinute;
+    }
+
     private static Result Finish(DriveContext context, Feed data) =>
         new(context.Recorded, context.Recorder, data.Instruments, Completed: true);
 
     /// <summary>Bars revealed one at a time, so "recent" history means what had actually arrived. Handing
     /// a unit the whole series up front hides every warm-up bug there is.</summary>
-    private sealed class Feed(double[] closes, StrategyDataRequirement requirement, CapturedMarket? capture)
+    private sealed class Feed(
+        double[] closes, StrategyDataRequirement requirement, CapturedMarket? capture,
+        BarSize barSize = BarSize.OneMinute)
         : IMarketDataView
     {
         /// <summary>Levels per side. Deep enough that a sweep of a few hundred lots walks the book
@@ -278,7 +301,7 @@ public static class SyntheticDrive
         public IReadOnlyList<OhlcvBar> Series { get; } = capture is not null
             ? capture.Bars
             : [.. closes.Select((close, index) => new OhlcvBar(
-                Instrument, BarSize.OneMinute, Epoch.AddMinutes(index),
+                Instrument, barSize, Epoch.AddMinutes(index),
                 close, close, close, close, index + 1, BrokerKind.Simulated, IsFinal: true))];
 
         /// <summary>
@@ -311,7 +334,7 @@ public static class SyntheticDrive
                 var close = source.Close * scale;
 
                 bars[index] = new OhlcvBar(
-                    peer, BarSize.OneMinute, Series[index].OpenTimeUtc,
+                    peer, barSize, Series[index].OpenTimeUtc,
                     close, close, close, close, source.Volume, BrokerKind.Simulated, IsFinal: true);
             }
 
@@ -473,7 +496,16 @@ public static class SyntheticDrive
 
         public IReadOnlyList<OhlcvBar> RecentBars(InstrumentId instrument, BarSize size, int maxCount)
         {
-            if (size != BarSize.OneMinute) return [];
+            // ANY bar size, not just the one the drive happens to stamp.
+            //
+            // The fourth instance of the same defect, found the same way as the other three — by
+            // looking at a real unit and asking why it drew nothing. An Opus 5 regime screen asked for
+            // OneDay bars, which is an entirely ordinary choice for an index screen, and got an empty
+            // list forever: "no member has enough OneDay bars for a 20-bar horizon yet."
+            //
+            // The series is a series. Refusing it because the caller named a different interval tests
+            // the drive's stamping rather than the unit, and a drive that cannot reach the code cannot
+            // be evidence about the code.
             if (instrument == Instrument) return [.. _seen.TakeLast(maxCount)];
 
             return _peerSeen.TryGetValue(instrument.Value, out var seen)

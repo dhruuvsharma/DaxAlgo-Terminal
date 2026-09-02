@@ -346,8 +346,17 @@ public static class DrawProbe
             var name = string.IsNullOrWhiteSpace(panel.Title) ? "an untitled panel" : $"'{panel.Title}'";
             foreach (var finding in step.Findings)
             {
-                // A text panel beside a picture is a readout, not a unit that failed to start.
-                if (drewSomewhere && finding.Code == "draw.text-only") continue;
+                // A text-only READOUT beside a picture is a readout. A text-only PICTURE is a blank
+                // window whatever else drew, so the exemption is decided by the panel's own size:
+                // a fixed-pixel strip is chrome, a star panel is the content.
+                //
+                // The first version of this exempted any panel once anything drew, and immediately let
+                // through a regime screen whose matrix said "warming up" across the whole window while
+                // its tile strip rendered — trading a false positive for a false negative, which is
+                // the worse of the two because nobody hears about it.
+                if (drewSomewhere
+                    && finding.Code == "draw.text-only"
+                    && panel.Size.Unit == PanelSizeUnit.Pixels) continue;
 
                 findings.Add(finding with { Message = $"Panel {name}: {finding.Message}" });
             }
