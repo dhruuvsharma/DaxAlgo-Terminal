@@ -25,17 +25,53 @@ public static class SyntheticDrive
     /// <summary>The instrument every drive uses.</summary>
     public static readonly InstrumentId Instrument = new(1);
 
+    /// <summary>
+    /// The other instruments in the drive's universe — an index's constituents, a pair's second leg, a
+    /// basket.
+    ///
+    /// <para><b>The third instance of one defect.</b> The drive fed no depth and no tape until
+    /// 2026-08-31, and no TIME until 2026-09-01, and each time a whole class of unit was judged
+    /// without the drive ever reaching the code it was judging. This is the same shape: the view
+    /// answered for exactly one instrument, so a regime screen over an index — one of the three
+    /// strategies named as the bar — drew its warm-up message forever and rung 7 reported
+    /// <c>draw.text-only</c> against a unit that may be perfectly correct.</para>
+    ///
+    /// <para>That is the expensive direction. A false rung failure sends a repair agent to rewrite
+    /// working code, and teaches the router that the agent who wrote it is unreliable.</para>
+    ///
+    /// <para>Four of them, and deliberately NOT copies of the primary. A matrix whose rows are
+    /// identical has every correlation at one and every ranking arbitrary, which makes a unit that
+    /// computes them wrongly draw the same picture as one that computes them correctly — the same
+    /// reason the synthetic book is lopsided rather than symmetric.</para>
+    /// </summary>
+    public static readonly IReadOnlyList<InstrumentId> Peers =
+        [new(2), new(3), new(4), new(5)];
+
+    /// <summary>Every instrument the drive serves: the primary first, then its peers.</summary>
+    public static IReadOnlyList<InstrumentId> Universe { get; } = [Instrument, .. Peers];
+
     private static readonly DateTime Epoch = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     /// <summary>
     /// Down, flat, then up — one hundred and twenty bars.
     ///
-    /// <para>The length is not arbitrary. A strategy takes its <b>declared defaults</b> here, and a
-    /// thirty-bar slow average is an ordinary default, so a short series would leave every such unit
-    /// still warming up when the drive ended. It would then read none of its risk parameters, take no
-    /// position, and draw nothing — and the ladder would report three failures for a strategy that was
-    /// never given enough data to start. A drive that cannot reach the code cannot be evidence about
-    /// the code.</para>
+    /// <para>The length is not arbitrary. A strategy takes its <b>declared defaults</b> here, so a short
+    /// series leaves it still warming up when the drive ends. It then reads none of its risk
+    /// parameters, takes no position, and draws nothing — and the ladder reports three failures for a
+    /// strategy that was never given enough data to start. A drive that cannot reach the code cannot be
+    /// evidence about the code.</para>
+    ///
+    /// <para><b>Three hundred and twenty, raised from a hundred and twenty on 2026-09-02.</b> That was
+    /// sized for a thirty-bar average, and a generated regime screen declared <c>WarmupBars = 200</c> —
+    /// which is not greedy, it is the most canonical long lookback there is. It never warmed up, drew
+    /// its warm-up message across all three panels, and rung 7 reported <c>draw.text-only</c> three
+    /// times against a unit that was correct.</para>
+    ///
+    /// <para>Worth recording how that was found, because I got it wrong twice first: I predicted the
+    /// cause was the drive serving one instrument, fixed that, re-judged, and it still failed;
+    /// predicted it was every Instrument parameter resolving to the same id, fixed that, re-judged, and
+    /// it still failed. Only then did I read the unit's own constant. Both fixes were real and both
+    /// stand — neither was THIS.</para>
     ///
     /// <para>The shape matters too: a sustained fall then a sustained rise guarantees a crossing for any
     /// ordinary pair of periods, and the flat stretch in the middle is a zero-width range — the
@@ -45,10 +81,10 @@ public static class SyntheticDrive
 
     private static double[] BuildDefaultSeries()
     {
-        var closes = new List<double>(120);
-        for (var i = 0; i < 45; i++) closes.Add(130d - i * 0.7d);      // falling
-        for (var i = 0; i < 15; i++) closes.Add(closes[^1]);            // flat: a zero-width range
-        for (var i = 0; i < 60; i++) closes.Add(closes[^1] + 0.9d);     // rising
+        var closes = new List<double>(320);
+        for (var i = 0; i < 120; i++) closes.Add(130d - i * 0.25d);     // falling
+        for (var i = 0; i < 40; i++) closes.Add(closes[^1]);            // flat: a zero-width range
+        for (var i = 0; i < 160; i++) closes.Add(closes[^1] + 0.3d);    // rising
         return [.. closes];
     }
 
@@ -68,9 +104,9 @@ public static class SyntheticDrive
     /// book and a genuine tape - the thing synthetic data cannot be judged for - while every rung
     /// stays reproducible.</para>
     ///
-    /// <para>Everything must carry <see cref="Instrument"/> as its id: the view answers
-    /// <c>RecentBars</c> and <c>LatestDepth</c> for that one instrument, and a capture stamped with
-    /// anything else would drive the unit with data its own queries cannot see.</para>
+    /// <para>Everything must carry <see cref="Instrument"/> as its id — the PRIMARY one. A capture is
+    /// one venue's stream for one symbol, so it fills the primary series; the peers stay synthetic and
+    /// keep their derived shapes, which is what a basket unit needs to rank anything.</para>
     /// </summary>
     public sealed record CapturedMarket(
         IReadOnlyList<OhlcvBar> Bars,
@@ -92,10 +128,24 @@ public static class SyntheticDrive
 
         var (context, data) = Build(kernel.Schema, closes, kernel.DataRequirement, capture);
         kernel.OnStartAsync(context, CancellationToken.None).GetAwaiter().GetResult();
-        foreach (var bar in data.Series)
+        var peers = Peers.ToDictionary(p => p, data.PeerSeries);
+
+        for (var step = 0; step < data.Series.Count; step++)
         {
+            var bar = data.Series[step];
             data.Reveal(bar);
             kernel.OnBarAsync(bar, context, CancellationToken.None).GetAwaiter().GetResult();
+
+            // The peers, at the same instant. Delivered rather than merely answerable: a view a unit
+            // can query but a drive never fills is the same defect as a stream nobody publishes, and
+            // this drive has now had that defect three times.
+            foreach (var series in peers.Values)
+            {
+                if (step >= series.Count) continue;
+
+                data.RevealPeer(series[step]);
+                kernel.OnBarAsync(series[step], context, CancellationToken.None).GetAwaiter().GetResult();
+            }
             foreach (var quote in data.QuotesFor(bar))
                 kernel.OnQuoteAsync(quote, context, CancellationToken.None).GetAwaiter().GetResult();
             if (data.DepthFor(bar) is { } depth)
@@ -122,10 +172,24 @@ public static class SyntheticDrive
 
         var (context, data) = Build(visualizer.Schema, closes, visualizer.DataRequirement, capture);
         visualizer.OnStartAsync(context, CancellationToken.None).GetAwaiter().GetResult();
-        foreach (var bar in data.Series)
+        var peers = Peers.ToDictionary(p => p, data.PeerSeries);
+
+        for (var step = 0; step < data.Series.Count; step++)
         {
+            var bar = data.Series[step];
             data.Reveal(bar);
             visualizer.OnBarAsync(bar, context, CancellationToken.None).GetAwaiter().GetResult();
+
+            // The peers, at the same instant. Delivered rather than merely answerable: a view a unit
+            // can query but a drive never fills is the same defect as a stream nobody publishes, and
+            // this drive has now had that defect three times.
+            foreach (var series in peers.Values)
+            {
+                if (step >= series.Count) continue;
+
+                data.RevealPeer(series[step]);
+                visualizer.OnBarAsync(series[step], context, CancellationToken.None).GetAwaiter().GetResult();
+            }
             foreach (var quote in data.QuotesFor(bar))
                 visualizer.OnQuoteAsync(quote, context, CancellationToken.None).GetAwaiter().GetResult();
             if (data.DepthFor(bar) is { } depth)
@@ -162,15 +226,32 @@ public static class SyntheticDrive
     {
         // Only the instrument is overridden; everything else takes its declared default, converted by
         // the host's own SandboxParameters rather than by a second set of rules that would drift.
+        // A DISTINCT instrument per Instrument parameter, primary first.
+        //
+        // Every one of them used to get the primary, which looks harmless until a basket unit declares
+        // seven -- a regime screen over an index does exactly that, one parameter per constituent --
+        // and is then handed seven copies of one symbol. It has nothing to rank, draws its warm-up
+        // message forever, and rung 7 reports draw.text-only against a unit doing precisely what the
+        // brief asked.
+        //
+        // Found by predicting that delivering peer bars would fix that unit, re-judging it, and
+        // watching it fail anyway. The bars were arriving; the unit was looking for them under an id
+        // nobody had given it.
+        var slot = 0;
         var values = schema.Parameters.ToDictionary(
             p => p.Key,
-            object? (p) => p.Kind == ParameterKind.Instrument ? Instrument : p.Default);
+            object? (p) => p.Kind == ParameterKind.Instrument ? NextInstrument(ref slot) : p.Default);
 
         // One feed, shared. Two would leave the context reading a series the caller never advanced —
         // the unit would see an empty history for every bar and every warm-up guard would hold forever.
         var feed = new Feed(closes ?? DefaultCloses, requirement, capture);
         return (new DriveContext(feed, new TradingTerminal.Sandbox.SandboxParameters(schema, values)), feed);
     }
+
+    /// <summary>The next instrument in the universe, wrapping once they run out — a unit declaring
+    /// more members than the drive has peers gets duplicates rather than nothing, which is a worse
+    /// picture but still a picture.</summary>
+    private static InstrumentId NextInstrument(ref int slot) => Universe[slot++ % Universe.Count];
 
     private static Result Finish(DriveContext context, Feed data) =>
         new(context.Recorded, context.Recorder, data.Instruments, Completed: true);
@@ -187,6 +268,7 @@ public static class SyntheticDrive
         private const int PrintsPerBar = 3;
 
         private readonly List<OhlcvBar> _seen = [];
+        private readonly Dictionary<int, List<OhlcvBar>> _peerSeen = [];
         private readonly List<TradePrint> _prints = [];
         private DepthSnapshot? _depth;
 
@@ -198,6 +280,54 @@ public static class SyntheticDrive
             : [.. closes.Select((close, index) => new OhlcvBar(
                 Instrument, BarSize.OneMinute, Epoch.AddMinutes(index),
                 close, close, close, close, index + 1, BrokerKind.Simulated, IsFinal: true))];
+
+        /// <summary>
+        /// One series per peer, each a different shape.
+        ///
+        /// <para>Phase-shifted and scaled off the primary rather than copied: a screen that ranks its
+        /// rows needs them to actually differ, and identical rows make a correct ranking and a broken
+        /// one draw the same picture. The shift is a whole number of bars so the timestamps still line
+        /// up, which is what lets a unit compare them at all.</para>
+        /// </summary>
+        public IReadOnlyList<OhlcvBar> PeerSeries(InstrumentId peer)
+        {
+            var rank = -1;
+            for (var i = 0; i < Peers.Count; i++)
+            {
+                if (Peers[i] != peer) continue;
+                rank = i;
+                break;
+            }
+
+            if (rank < 0) return [];
+
+            var shift = (rank + 1) * 7;
+            var scale = 1d + ((rank + 1) * 0.35d);
+
+            var bars = new OhlcvBar[Series.Count];
+            for (var index = 0; index < Series.Count; index++)
+            {
+                var source = Series[(index + shift) % Series.Count];
+                var close = source.Close * scale;
+
+                bars[index] = new OhlcvBar(
+                    peer, BarSize.OneMinute, Series[index].OpenTimeUtc,
+                    close, close, close, close, source.Volume, BrokerKind.Simulated, IsFinal: true);
+            }
+
+            return bars;
+        }
+
+        /// <summary>Marks a peer bar as arrived, so `RecentBars` for it grows the same way the
+        /// primary's does — a unit that reads a hundred bars of history on the first bar of the
+        /// session is reading a future the live feed will not give it.</summary>
+        public void RevealPeer(OhlcvBar bar)
+        {
+            if (!_peerSeen.TryGetValue(bar.InstrumentId.Value, out var seen))
+                _peerSeen[bar.InstrumentId.Value] = seen = [];
+
+            seen.Add(bar);
+        }
 
         /// <summary>
         /// The window a bar owns: from its open to the next open, and open-ended for the last one so
@@ -339,10 +469,17 @@ public static class SyntheticDrive
             | (_wantsDepth ? StrategyDataRequirement.Depth : 0)
             | (_wantsTape ? StrategyDataRequirement.TradeTape : 0);
 
-        public IReadOnlySet<InstrumentId> Instruments { get; } = new HashSet<InstrumentId> { Instrument };
+        public IReadOnlySet<InstrumentId> Instruments { get; } = new HashSet<InstrumentId>(Universe);
 
-        public IReadOnlyList<OhlcvBar> RecentBars(InstrumentId instrument, BarSize size, int maxCount) =>
-            instrument == Instrument && size == BarSize.OneMinute ? [.. _seen.TakeLast(maxCount)] : [];
+        public IReadOnlyList<OhlcvBar> RecentBars(InstrumentId instrument, BarSize size, int maxCount)
+        {
+            if (size != BarSize.OneMinute) return [];
+            if (instrument == Instrument) return [.. _seen.TakeLast(maxCount)];
+
+            return _peerSeen.TryGetValue(instrument.Value, out var seen)
+                ? [.. seen.TakeLast(maxCount)]
+                : [];
+        }
 
         public IReadOnlyList<Quote> RecentQuotes(InstrumentId instrument, int maxCount) =>
             _seen.Count == 0 ? [] : [.. QuotesFor(_seen[^1]).TakeLast(maxCount)];

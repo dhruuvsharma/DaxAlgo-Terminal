@@ -322,6 +322,22 @@ public static class DrawProbe
         var findings = new List<VerificationFinding>();
         var anyPassed = false;
 
+        // Whether ANY panel drew a real picture, which decides how the text-only ones are read.
+        //
+        // A window is a composition: a footer saying "horizon 14 · 7 of 7 usable", a row-detail
+        // readout, a status strip — these are text BY DESIGN, and every hand-written window here has
+        // one. draw.text-only exists to catch a unit still showing its warm-up message after data
+        // arrived, and judged per panel it flagged three panels of a unit whose matrix was drawing
+        // correctly. That is the expensive direction: a false finding spends a repair generation.
+        var drewSomewhere = false;
+        foreach (var panel in panels)
+        {
+            var probe = new RecordingRenderSurface(now: ProbeInstant);
+            try { panel.Draw(probe); } catch { continue; }
+
+            if (probe.PrimitiveCount > probe.Texts.Count) { drewSomewhere = true; break; }
+        }
+
         foreach (var panel in panels)
         {
             var step = Run(panel.Draw, mustDraw, requirePicture, hostOwnsPanel: true);
@@ -329,7 +345,12 @@ public static class DrawProbe
 
             var name = string.IsNullOrWhiteSpace(panel.Title) ? "an untitled panel" : $"'{panel.Title}'";
             foreach (var finding in step.Findings)
+            {
+                // A text panel beside a picture is a readout, not a unit that failed to start.
+                if (drewSomewhere && finding.Code == "draw.text-only") continue;
+
                 findings.Add(finding with { Message = $"Panel {name}: {finding.Message}" });
+            }
 
             foreach (var finding in RunDegenerate(panel.Draw).Findings)
                 findings.Add(finding with { Message = $"Panel {name}: {finding.Message}" });
