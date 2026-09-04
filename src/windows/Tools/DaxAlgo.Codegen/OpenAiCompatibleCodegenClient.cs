@@ -232,22 +232,19 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                     yield return new CodegenEvent.TextDelta(fragment);
                 }
 
-                // A reasoning model on this wire format streams its thinking as `reasoning_content`,
-                // a SEPARATE field, and emits no `content` at all until it has finished. Counted
-                // rather than shown: the raw chain of thought is noise in a builder chat, and some
-                // providers ask that it not be displayed. But it is the difference between "the
-                // provider is working" and "the provider has gone quiet", and if a generation ends
-                // with nothing but this it is the only honest explanation of where the money went.
-                if (hasDelta &&
-                    delta.TryGetProperty("reasoning_content", out var reasoning) &&
-                    reasoning.ValueKind == JsonValueKind.String &&
-                    reasoning.GetString() is { Length: > 0 } thought)
+                // A reasoning model on this wire format streams its thinking as `reasoning_content` (or
+                // `reasoning` — the gateways disagree), a SEPARATE field, and emits no `content` at all
+                // until it has finished. On a hard brief that is minutes of apparent silence.
+                //
+                // It used to be counted and thrown away, on the grounds that a raw chain of thought is
+                // noise in a builder chat. Half right: it is noise in the TRANSCRIPT, which is why it
+                // goes to its own event and the UI shows it collapsed behind a disclosure. Discarding
+                // it outright meant the one honest answer to "is this thing working or has it hung?"
+                // was reduced to a counter nobody sees, and a five-minute wait looked like a crash.
+                if (hasDelta && ReasoningIn(delta) is { Length: > 0 } thought)
                 {
                     reasoningCharacters += thought.Length;
-
-                    // Empty, so nothing of the model's thinking reaches the transcript — it exists to
-                    // keep the turn visibly alive, exactly as the gateway retry above does.
-                    yield return new CodegenEvent.TextDelta(string.Empty);
+                    yield return new CodegenEvent.ReasoningDelta(thought);
                 }
 
                 if (chunk.TryGetProperty("usage", out var reported) && reported.ValueKind == JsonValueKind.Object)
@@ -268,6 +265,30 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
             ? value.GetInt32()
             : 0;
+
+    /// <summary>
+    /// The thinking fragment in a streamed delta, whichever name this gateway gives it.
+    ///
+    /// <para>There is no standard. DeepSeek and the Chinese gateways (TokenRouter's GLM route among
+    /// them) send <c>reasoning_content</c>; OpenRouter and several proxies send <c>reasoning</c>.
+    /// Reading only one of them means the model appears to sit in silence on every provider that chose
+    /// the other spelling — so both are read, and an endpoint that sends neither simply yields
+    /// nothing.</para>
+    /// </summary>
+    private static string? ReasoningIn(JsonElement delta)
+    {
+        foreach (var name in (ReadOnlySpan<string>)["reasoning_content", "reasoning"])
+        {
+            if (delta.TryGetProperty(name, out var value) &&
+                value.ValueKind == JsonValueKind.String &&
+                value.GetString() is { Length: > 0 } thought)
+            {
+                return thought;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>Advances the stream and classifies the stall, for the same reason as
     /// <see cref="TrySendAsync"/>: an iterator may not yield from a catch.</summary>

@@ -32,12 +32,23 @@ public static class StrategyCodegenServiceCollectionExtensions
         // once per conversation from the brief, so the system prompt stays cacheable.
         services.AddSingleton(_ => StrategySkillLibrary.Load());
         services.AddSingleton<StrategyCodegenOrchestrator>();
+
+        // ONE browser sign-in wrapper for the whole app. The provider factory asks it whether signing in
+        // is possible, and so does the settings pane's Sign in button; two independently constructed
+        // wrappers can disagree, and did — the pane greyed the button out while the provider list
+        // offered the signed-in client as available.
+        services.AddSingleton<AnthropicOAuthCli>();
+
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiCodegenOptions>>().Value;
             var keys = sp.GetRequiredService<IAiKeyResolver>();
             var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
-            return new StrategyCodegenClientFactory(() => httpFactory.CreateClient("ai-codegen"), options, keys.Resolve);
+            return new StrategyCodegenClientFactory(
+                () => httpFactory.CreateClient("ai-codegen"),
+                options,
+                keys.Resolve,
+                sp.GetRequiredService<AnthropicOAuthCli>());
         });
         services.AddSingleton(sp =>
             new AiStrategyBuilder(

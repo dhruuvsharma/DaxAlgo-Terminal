@@ -57,6 +57,78 @@ public sealed record AuthoringSessionSnapshot(
     }
 
     public string Label => $"{DisplayName} ({StrategyId}) · {Age}";
+
+    /// <summary>
+    /// Which date bucket the rail files this session under: "Today", "Yesterday", "Previous 7 days",
+    /// "Older".
+    ///
+    /// <para>A flat newest-first list is fine at five sessions and useless at fifty — you scroll past
+    /// the one you wanted because nothing tells you where last week starts. Every editor's history
+    /// pane groups by recency for that reason, and the grouping is computed HERE rather than in the
+    /// view because <c>UpdatedUtc</c> is the only thing that decides it.</para>
+    ///
+    /// <para>Compared in LOCAL time: a session saved at 23:50 must say "Today" to the person who saved
+    /// it, whatever UTC thinks the date is.</para>
+    /// </summary>
+    public string Group
+    {
+        get
+        {
+            var today = DateTime.Now.Date;
+            var day = UpdatedUtc == default ? today : UpdatedUtc.ToLocalTime().Date;
+            if (day >= today) return "Today";
+            if (day >= today.AddDays(-1)) return "Yesterday";
+            if (day >= today.AddDays(-7)) return "Previous 7 days";
+            return "Older";
+        }
+    }
+
+    /// <summary>How many times the user has spoken in this session. Assistant turns are deliberately
+    /// not counted: one brief that produced nine tool rows is one turn of work, not ten.</summary>
+    public int TurnCount => Chat?.Count(entry =>
+        string.Equals(entry.Role, AuthoringChatEntry.User, StringComparison.OrdinalIgnoreCase)) ?? 0;
+
+    /// <summary>"3 turns" — the rail's mono meta line.</summary>
+    public string TurnLabel => TurnCount switch
+    {
+        0 => "no turns",
+        1 => "1 turn",
+        var n => $"{n} turns",
+    };
+
+    /// <summary>
+    /// The first thing the user actually asked for, flattened to one line.
+    ///
+    /// <para>This is what makes the history usable. A strategy is named from the brief only after the
+    /// first turn, so a rail of un-run sessions is a column of "My custom strategy" — indistinguishable
+    /// rows for distinct conversations. The brief is what people remember them by.</para>
+    /// </summary>
+    public string Summary
+    {
+        get
+        {
+            var first = Chat?.FirstOrDefault(entry =>
+                string.Equals(entry.Role, AuthoringChatEntry.User, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(entry.Text));
+            if (first is null) return string.Empty;
+
+            var flat = string.Join(' ', first.Text.Split(
+                ['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            return flat.Length <= 110 ? flat : string.Concat(flat.AsSpan(0, 109).TrimEnd(), "…");
+        }
+    }
+
+    /// <summary>True when <paramref name="query"/> appears in the name, the id or the opening brief.
+    /// Empty matches everything, so an untouched search box hides nothing.</summary>
+    public bool Matches(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return true;
+
+        var needle = query.Trim();
+        return DisplayName.Contains(needle, StringComparison.OrdinalIgnoreCase)
+            || StrategyId.Contains(needle, StringComparison.OrdinalIgnoreCase)
+            || Summary.Contains(needle, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>
@@ -78,7 +150,7 @@ public static class AuthoringSessionStore
     };
 
     /// <summary>
-    /// Where saved chats live: <c>%LocalAppData%\DaxAlgo Terminaluthoring</c>.
+    /// Where saved chats live: <c>%LocalAppData%\DaxAlgo Terminal\authoring\</c>.
     ///
     /// <para>Settable so a test can redirect it, and that is not hygiene — it is a bug that already
     /// happened. A suite driving the real view-model runs turns, and a turn calls <c>Save()</c> in its

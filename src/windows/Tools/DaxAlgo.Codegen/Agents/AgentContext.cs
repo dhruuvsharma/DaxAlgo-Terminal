@@ -85,16 +85,50 @@ public sealed record AgentContext(
     }
 
     /// <summary>Folds an agent's reply back in, replacing what it owns.</summary>
-    public AgentContext With(AgentRole role, string reply, IReadOnlyList<StrategyFile> files) => role switch
+    public AgentContext With(AgentRole role, string reply, IReadOnlyList<StrategyFile> files)
     {
-        AgentRole.Interviewer => this with { Spec = reply },
-        AgentRole.Quant => this with { Maths = reply },
+        // Code replaces code, WHOEVER wrote it, and this has to happen before the role arms rather than
+        // as one of them.
+        //
+        // It used to be the third arm of a switch whose first two matched on role, so a role that both
+        // owns an artifact and may write code lost the code: AgentPrompts.WritesCode(Quant) is true and
+        // its prompt says "you may write the computation", but the Quant arm matched first and kept only
+        // the prose. The Interviewer hit the same edge from the other side — a fenced sketch inside a
+        // specification was compiled as a unit, failed, and then could not be repaired, because the arm
+        // that kept the Spec had dropped the files the Fixer would have needed.
+        var next = files.Count > 0 ? this with { Files = files } : this;
 
-        // Code replaces code. Keeping the old alongside is how a model ends up repairing a version that
-        // no longer exists, and it doubles what every later turn pays to carry.
-        _ when files.Count > 0 => this with { Files = files },
-        _ => this,
-    };
+        return role switch
+        {
+            AgentRole.Interviewer => next with { Spec = reply },
+            AgentRole.Quant => next with { Maths = reply },
+            _ => next,
+        };
+    }
+
+    /// <summary>
+    /// Folds the user's own next message into the brief, so a resumed run remembers what it is building.
+    ///
+    /// <para>The brief is the one artifact the user writes, and an interview is a conversation held in
+    /// it. Before this the loop rebuilt its context from the latest message alone, so the second turn of
+    /// every interview was handed <i>"approved, now start building"</i> as the entire brief — no
+    /// instrument, no rules, nothing to build — and the only sane reply to that is another question.</para>
+    ///
+    /// <para>Appending rather than replacing keeps the artifacts-not-transcript discipline intact: this
+    /// grows with the user's own words, which are short, and never with the model's replies, which are
+    /// what made a transcript quadratic.</para>
+    /// </summary>
+    public AgentContext WithUserReply(string reply) =>
+        string.IsNullOrWhiteSpace(reply)
+            ? this
+            : this with
+            {
+                Brief = string.Join(
+                    Environment.NewLine + Environment.NewLine,
+                    Brief.TrimEnd(),
+                    "## THE USER THEN SAID",
+                    reply.Trim()),
+            };
 
     /// <summary>Attaches the current verdict, dropping the previous one.</summary>
     public AgentContext With(VerificationReport report) =>

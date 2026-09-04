@@ -8,10 +8,11 @@ namespace DaxAlgo.Sdk.Layout;
 /// ways of getting an order book beside a chart —</para>
 ///
 /// <code>
-/// // With this:
-/// public UnitLayout Layout => Layout.Columns(
-///     Layout.Panel("Price", DrawChart).Star(3),
-///     Layout.Panel("Book", DrawBook).Pixels(260));
+/// // With this — spelled UnitLayout.*, never Layout.*, because inside a class whose property is
+/// // called Layout the identifier binds to the PROPERTY and this line stops compiling:
+/// public UnitLayout Layout => UnitLayout.Columns(
+///     UnitLayout.Panel("Price", DrawChart).Star(3),
+///     UnitLayout.Panel("Book", DrawBook).Pixels(260));
 ///
 /// // Without it, inside one Draw, and every widget's rectangle computed by hand:
 /// var area = PlotArea.Of(surface);

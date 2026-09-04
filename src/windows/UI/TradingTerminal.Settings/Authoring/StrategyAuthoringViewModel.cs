@@ -72,6 +72,21 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private StrategyBuildSession? _session;
     private bool _filesEditedByUser;
 
+    /// <summary>
+    /// Where the multi-agent run stands, across user turns.
+    ///
+    /// <para>Both of these used to be built fresh inside every call, so an interview could never end:
+    /// each turn re-entered with <c>new RoutingState()</c> (HasSpec false, so the prior returned
+    /// Only(Interviewer)) and <c>new AgentContext(latest message)</c> (so the Interviewer was handed
+    /// "approved, now start building" with nothing it referred to). The user's saved session shows the
+    /// result exactly: six briefs, six interviews, no code, ever.</para>
+    ///
+    /// <para>Kept beside <see cref="_session"/> because they are the agent path's equivalent of it, and
+    /// cleared everywhere it is.</para>
+    /// </summary>
+    private RoutingState _agentState = new();
+    private AgentContext? _agentContext;
+
     /// <summary>The model thread restored from disk, handed to the next session so a resumed conversation
     /// still remembers what it wrote. Cleared once used.</summary>
     private IReadOnlyList<CodegenMessage>? _restoredThread;
@@ -127,6 +142,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // so the self-subscription cannot outlive it.
         Messages.CollectionChanged += OnMessagesCollectionChanged;
 
+        // The status bar reads "Build failed" off the diagnostics, so it has to hear about them. Same
+        // ownership argument as above: the VM owns the collection, so the handler cannot outlive it.
+        Diagnostics.CollectionChanged += (_, _) => RefreshState();
+
         // Backing field, not the property — the change handler resets sessions and persists, neither of
         // which applies to seeding the ctor's own default from config.
         _buildEffort = StrategyBuildEfforts.Parse(_options.BuildEffort);
@@ -169,7 +188,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         // The cost readout appears with the first turn and disappears when the session is cleared, so
         // it has to follow the transcript rather than only the token counts.
-        OnPropertyChanged(nameof(UsageText));
+        RefreshUsage();
+        RefreshState();
     }
 
     /// <summary>Canned first briefs for the empty state, seeded from strategy families the terminal
@@ -193,8 +213,37 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     [RelayCommand]
     private void ToggleRail() => RailCollapsed = !RailCollapsed;
 
-    /// <summary>Selected workbench tab: 0 Code · 1 Parameters · 2 Activity. A file chip in the chat
-    /// sets it back to Code so the click always lands on the file it names.</summary>
+    /// <summary>
+    /// Whether the workbench panel is showing.
+    ///
+    /// <para>False on a fresh pane. It used to be a permanent 390px column, so an untouched session
+    /// devoted a third of the window to an empty preview, an empty file list and an empty activity log
+    /// while the middle invited you to type. It opens ITSELF the moment there is something in it -- see
+    /// <see cref="OpenWorkbench"/> -- which is the behaviour that makes closing it by default safe:
+    /// nobody has to know the panel exists to be shown their first compiled unit.</para>
+    /// </summary>
+    [ObservableProperty] private bool _isWorkbenchOpen;
+
+    /// <summary>Shows the workbench because something worth seeing just landed in it. Never closes it:
+    /// a panel that shut itself while the user was reading would be its own defect.</summary>
+    private void OpenWorkbench() => IsWorkbenchOpen = true;
+
+    /// <summary>Toggles the workbench from the keyboard (Ctrl+J), matching the rail's Ctrl+B. Both
+    /// panels are chrome around a text box, and reaching for the mouse to get a bigger text box is
+    /// exactly the friction the people this is for left other tools to avoid.</summary>
+    [RelayCommand]
+    private void ToggleWorkbench() => IsWorkbenchOpen = !IsWorkbenchOpen;
+
+    /// <summary>The workbench's tabs, as indices. Named because three call sites and a XAML
+    /// <c>SelectedIndex</c> have to agree on them, and they did not: the doc comment here still said
+    /// "0 Code · 1 Parameters · 2 Activity" long after Parameters and Activity had been removed and
+    /// Preview had taken slot 0, so <see cref="FocusFile"/> — whose entire job is to open the file a
+    /// chat chip names — was sending every click to the PREVIEW tab.</summary>
+    public const int WorkbenchTabPreview = 0;
+    public const int WorkbenchTabCode = 1;
+    public const int WorkbenchTabActivity = 2;
+
+    /// <summary>Selected workbench tab; see the <c>WorkbenchTab*</c> constants.</summary>
     [ObservableProperty] private int _workbenchTab;
 
     [RelayCommand]
@@ -204,7 +253,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (Files.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } file)
         {
             SelectedFile = file;
-            WorkbenchTab = 0;
+            OpenWorkbench();
+            WorkbenchTab = WorkbenchTabCode;
         }
     }
 
@@ -806,6 +856,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return;
         }
 
+        OpenWorkbench();
+
         try
         {
             var preview = AuthoredUnitPreview.Create(unit);
@@ -974,20 +1026,39 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>The assistant bubble currently being streamed into, or null between turns.</summary>
     private AuthoringMessage? _streamingReply;
 
+    /// <summary>This turn's thinking block, or null before the model has thought anything (and for
+    /// every model that has no reasoning channel at all).</summary>
+    private AuthoringMessage? _thinking;
+
+    /// <summary>Agent turns started in the current run — the status bar's "turn 3 of 12".</summary>
+    private int _agentTurnsSeen;
+
     [ObservableProperty] private int _inputTokens;
     [ObservableProperty] private int _outputTokens;
     [ObservableProperty] private int _cachedTokens;
 
-    /// <summary>Tokens billed this session. The cached share is called out because it is the difference
-    /// between a long conversation costing a little and costing a lot — and because a session where it
-    /// stays at zero is one paying full price to re-read the same context every turn.</summary>
+    /// <summary>
+    /// What the status bar says when there is no meter to draw.
+    ///
+    /// <para>Empty before the first turn — the string-to-visibility converter hides it, rather than
+    /// showing a zero that means nothing. After a turn whose provider reported no usage (an agent CLI,
+    /// typically) it says so IN WORDS: unknown is not the same as free, and a bar drawn at zero would
+    /// claim the turn cost nothing.</para>
+    ///
+    /// <para>A property rather than a trigger in the view, because the view had this rule spelled out
+    /// as a two-condition MultiDataTrigger in markup — a second copy of a view-model decision, in the
+    /// one place no test can reach it.</para>
+    /// </summary>
+    public string UsageFallbackText =>
+        !HasConversation || HasUsage ? string.Empty : "tokens not reported";
+
+    /// <summary>Tokens billed this session, spelled out. The cached share is called out because it is
+    /// the difference between a long conversation costing a little and costing a lot — and because a
+    /// session where it stays at zero is one paying full price to re-read the same context every
+    /// turn.</summary>
     public string UsageText => !HasConversation
-        // Nothing has been asked for yet, so there is no cost to report — an empty string, which the
-        // view's string-to-visibility converter hides rather than showing a zero that means nothing.
         ? string.Empty
         : InputTokens + OutputTokens == 0
-        // A turn happened and the provider said nothing about usage — an agent CLI, typically. Unknown,
-        // which is not the same as free, and must not be shown as zero.
         ? "tokens: not reported"
         : CachedTokens > 0
             ? $"tokens: {InputTokens:N0} in ({CachedTokens:N0} cached) · {Approx}{OutputTokens:N0} out"
@@ -996,6 +1067,115 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>"~" while the output count is estimated, nothing once it is measured.</summary>
     private string Approx => IsUsageEstimated ? "~" : string.Empty;
 
+    // ── The status bar's token meter ────────────────────────────────────────────────────────────────
+    //
+    // UsageText above is the sentence; this is the picture beside it. The numbers were a 9.5pt grey
+    // string wedged into the corner of a panel that is closed by default, which is not an indicator —
+    // a figure the user is billed for cannot live somewhere they have to go looking for it. It sits in
+    // the status bar now, permanently, next to the model that is spending it.
+    //
+    // NO CONTEXT-WINDOW GAUGE. The obvious design is a "42% of context used" bar, and it would be a
+    // fabrication: nothing in the catalogue knows any model's window, the app talks to a dozen
+    // providers plus arbitrary custom model ids, and a limit invented here would be wrong silently and
+    // stale permanently. The meter shows the split we actually measure — fresh input, cached input,
+    // output — as three proportional segments of one bar.
+
+    /// <summary>Total tokens billed this session.</summary>
+    public int TotalTokens => InputTokens + OutputTokens;
+
+    /// <summary>True once a turn has reported real usage, which is what puts the meter on screen. An
+    /// agent CLI that reports nothing leaves this false, and the readout says "not reported" rather
+    /// than drawing an empty bar that would read as "free".</summary>
+    public bool HasUsage => HasConversation && TotalTokens > 0;
+
+    /// <summary>"18.6k" — the total, at a glance, in the status bar.</summary>
+    public string TotalTokensText => TotalTokens >= 1000
+        ? $"{TotalTokens / 1000.0:0.#}k"
+        : TotalTokens.ToString("N0");
+
+    /// <summary>The meter track's inside width in device-independent pixels. Kept in step with
+    /// <c>HYP.MeterTrack</c>'s 86px width less its 1px border on each side.</summary>
+    private const double MeterWidth = 84;
+
+    /// <summary>Width of the fresh (uncached, full-price) input segment.</summary>
+    public double MeterInputWidth => Segment(Math.Max(0, InputTokens - CachedTokens));
+
+    /// <summary>Width of the cached-input segment — the cheap share of the prompt.</summary>
+    public double MeterCachedWidth => Segment(CachedTokens);
+
+    /// <summary>Width of the output segment.</summary>
+    public double MeterOutputWidth => Segment(OutputTokens);
+
+    private double Segment(int tokens)
+    {
+        // Cached input is a SUBSET of input, so the denominator is input + output — counting it
+        // separately would make a well-cached session's bar overflow its own track.
+        var total = (double)TotalTokens;
+        return total <= 0 ? 0 : Math.Round(MeterWidth * (tokens / total), 2);
+    }
+
+    /// <summary>The meter's tooltip: every figure, spelled out, plus what the cached share means. A bar
+    /// nobody can read the exact numbers out of is decoration.</summary>
+    public string UsageDetail => !HasUsage
+        ? "No usage reported yet for this session."
+        : $"""
+           Session usage — charged by your own AI provider.
+
+           Input      {InputTokens:N0}
+             cached   {CachedTokens:N0}   (billed at a fraction of the full rate)
+             fresh    {Math.Max(0, InputTokens - CachedTokens):N0}
+           Output     {Approx}{OutputTokens:N0}
+           Total      {TotalTokens:N0}
+
+           A session whose cached figure stays at zero is paying full price to re-read the same
+           context on every turn.
+           """;
+
+    private void RefreshUsage()
+    {
+        OnPropertyChanged(nameof(UsageText));
+        OnPropertyChanged(nameof(UsageFallbackText));
+        OnPropertyChanged(nameof(TotalTokens));
+        OnPropertyChanged(nameof(TotalTokensText));
+        OnPropertyChanged(nameof(HasUsage));
+        OnPropertyChanged(nameof(UsageDetail));
+        OnPropertyChanged(nameof(MeterInputWidth));
+        OnPropertyChanged(nameof(MeterCachedWidth));
+        OnPropertyChanged(nameof(MeterOutputWidth));
+    }
+
+    // ── The status bar's state ──────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// What the workspace is doing, in one word, for the status bar's left end.
+    ///
+    /// <para>Working beats everything: while a turn is in flight that is the only fact worth reading.
+    /// Then the question-back, because it is the one state where nothing happens until the USER moves —
+    /// the failure mode this exists to stop is a generation that quietly ended in a question the user
+    /// never noticed, leaving them to conclude the builder hung.</para>
+    /// </summary>
+    public string StateText =>
+        IsGenerating ? "Working"
+        : AwaitingAnswer || HasQuestions ? "Waiting for you"
+        : Diagnostics.Any(d => d.Severity == StrategyDiagnosticSeverity.Error) ? "Build failed"
+        : IsRegistered ? "Registered"
+        : HasConversation ? "Ready"
+        : "Idle";
+
+    /// <summary>Which colour the state dot takes: Busy · Ask · Error · Idle. Derived from the same
+    /// expression as <see cref="StateText"/> so the word and the colour can never disagree.</summary>
+    public string StateKind =>
+        IsGenerating ? "Busy"
+        : AwaitingAnswer || HasQuestions ? "Ask"
+        : Diagnostics.Any(d => d.Severity == StrategyDiagnosticSeverity.Error) ? "Error"
+        : "Idle";
+
+    private void RefreshState()
+    {
+        OnPropertyChanged(nameof(StateText));
+        OnPropertyChanged(nameof(StateKind));
+    }
+
     /// <summary>Characters streamed in the current generation, for the in-flight token estimate.</summary>
     private int _streamedCharacters;
 
@@ -1003,7 +1183,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// as a "~" so nobody quotes an approximation as a measurement.</summary>
     [ObservableProperty] private bool _isUsageEstimated;
 
-    partial void OnIsUsageEstimatedChanged(bool value) => OnPropertyChanged(nameof(UsageText));
+    partial void OnIsUsageEstimatedChanged(bool value) => RefreshUsage();
 
     /// <summary>
     /// Roughly four characters per token — the usual English-and-code approximation.
@@ -1015,15 +1195,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// </summary>
     private static int EstimateTokens(int characters) => characters / 4;
 
-    partial void OnInputTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
-    partial void OnOutputTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
-    partial void OnCachedTokensChanged(int value) => OnPropertyChanged(nameof(UsageText));
+    partial void OnInputTokensChanged(int value) => RefreshUsage();
+    partial void OnOutputTokensChanged(int value) => RefreshUsage();
+    partial void OnCachedTokensChanged(int value) => RefreshUsage();
 
     partial void OnIsGeneratingChanged(bool value)
     {
         SendCommand.NotifyCanExecuteChanged();
         StopCommand.NotifyCanExecuteChanged();
+        RefreshState();
     }
+
+    partial void OnAwaitingAnswerChanged(bool value) => RefreshState();
+    partial void OnIsRegisteredChanged(bool value) => RefreshState();
+    partial void OnHasQuestionsChanged(bool value) => RefreshState();
 
     partial void OnComposerChanged(string value) => SendCommand.NotifyCanExecuteChanged();
 
@@ -1073,6 +1258,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // a question. RefreshPreview() at the end of the turn owns it, so the last good render stays up
         // while the model works.
         AwaitingAnswer = false;
+
+        // The previous turn's verdict, cleared before this one starts.
+        //
+        // It used to be left up for the whole generation, so answering "the agent is waiting — pick an
+        // option above" left that sentence on screen while the answer was being processed. Nothing was
+        // wrong, but the one line of text the user was watching had not changed, so the obvious reading
+        // was that their answer had not registered.
+        AiStatus = null;
         IsGenerating = true;
 
         // ── Everything from here is inside ONE guard, and that is the whole point of this shape ──
@@ -1097,13 +1290,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         try
         {
-            // The pipeline's dial for this turn — and the checklist the right panel watches.
+            // The pipeline's dial for this turn. SeedTasks still runs: the checklist drives the working
+            // verb and the step counter in the status bar ("Writing the strategy… step 3 of 6"), which
+            // is the honest live signal.
+            //
+            // WHAT IT NO LONGER DOES IS PIN A PLAN CARD INTO THE TRANSCRIPT. Every turn opened with a
+            // six-row checklist of OUR pipeline stages — not the model's plan, not anything the user
+            // asked for — so a conversation read as a stack of project-management cards with the actual
+            // exchange threaded between them. Other coding harnesses do the plain thing: you type, it
+            // replies, it asks, it writes the code. The checklist belongs in the status bar, where a
+            // progress indicator belongs, and it is there.
             var profile = StrategyBuildProfile.For(BuildEffort);
             SeedTasks(profile);
-
-            // The turn's plan, pinned into the transcript. It snapshots THIS turn's task instances, so
-            // an older card keeps its final states when the next turn re-seeds the checklist.
-            Append(AuthoringMessage.Plan([.. Tasks]));
 
             _generateCts?.Cancel();
             _generateCts?.Dispose();
@@ -1122,6 +1320,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             var session = EnsureSession(choice, profile);
             var tokensBefore = session.TotalUsage;
             _streamingReply = null;
+            _thinking = null;
 
             // The editor is the truth: hand-edits and all. The session ships exactly one copy of it
             // with the turn, so the model always works from the code that is actually there.
@@ -1249,6 +1448,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // composer goes back to accepting a prompt.
             IsGenerating = false;
             _streamingReply = null;
+            _thinking = null;
             _generateCts?.Cancel();   // stops the elapsed ticker
 
             // Awaited inside its own guard: the ticker is a courtesy, and a fault in it must not be
@@ -1286,6 +1486,29 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 // that is minutes of a number that looks broken. Estimated from the text so far and
                 // replaced by the provider's own figure the moment it arrives.
                 _streamedCharacters += delta.Text.Length;
+                OutputTokens = tokensBefore.OutputTokens + EstimateTokens(_streamedCharacters);
+                IsUsageEstimated = true;
+                break;
+
+            case CodegenEvent.ReasoningDelta thought:
+                // Into its own collapsed block, one per turn, ABOVE the reply it precedes — which is
+                // also the order it happens in. A reasoning model on a hard brief thinks for minutes
+                // before it writes a word, and this is the only thing on screen during that time that
+                // is actually the model rather than a spinner we drew.
+                if (_thinking is null)
+                {
+                    _thinking = AuthoringMessage.Thinking(thought.Text);
+                    Append(_thinking);
+                }
+                else
+                {
+                    _thinking.Text += thought.Text;
+                }
+
+                // Thinking is billed as output. Counting it keeps the meter honest during the long
+                // silence before any reply text exists — without it a five-minute think reads as a
+                // turn that cost nothing.
+                _streamedCharacters += thought.Text.Length;
                 OutputTokens = tokensBefore.OutputTokens + EstimateTokens(_streamedCharacters);
                 IsUsageEstimated = true;
                 break;
@@ -1381,7 +1604,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
             _filesEditedByUser = false;
             AiStatus = null;
-            Status = "New conversation. Give it a strategy id, then describe what you want.";
+
+            // BACK TO THE DEFAULT IDENTITY, and this is the line whose absence deleted people's work.
+            //
+            // New chat cleared the messages, the files and the preview, and left StrategyId and
+            // DisplayName pointing at the conversation it had just abandoned. Two things followed, and
+            // the second is the bad one:
+            //
+            //   * DeriveIdentityFrom returns immediately unless the identity is still the default, so
+            //     the new brief could never name its own session. Every conversation after the first
+            //     kept the first one's name.
+            //   * Save() writes to a file named after StrategyId. So the first turn of the NEW
+            //     conversation saved itself OVER the old session. Pressing New Strategy and typing
+            //     anything destroyed the conversation you pressed it to keep -- which is exactly what
+            //     the Save() on the first line of this method exists to prevent.
+            StrategyId = DefaultStrategyId;
+            DisplayName = DefaultDisplayName;
+
+            Status = "New conversation. Describe what you want — it will name itself from your first message.";
         }
         finally
         {
@@ -1416,7 +1656,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         DisplayName = script.DisplayName.Trim();
         SetFiles(script.Files);
         _filesEditedByUser = true;
-        WorkbenchTab = 0;
+        // An import IS source arriving, so land on the code, not on a preview of something that has
+        // not been compiled yet.
+        IsWorkbenchOpen = true;
+        WorkbenchTab = WorkbenchTabCode;
         Status = importedId == requestedId
             ? $"Imported '{DisplayName}' as editable source. Compile and review it before registration."
             : $"Imported '{DisplayName}' as '{importedId}' so the existing '{requestedId}' session was preserved. " +
@@ -1441,8 +1684,61 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     // ── Saved sessions ──────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Every strategy the user has an authoring chat for, newest first.</summary>
+    /// <summary>Every strategy the user has an authoring chat for, newest first. The rail binds
+    /// <see cref="VisibleSessions"/> instead — see the search box below.</summary>
     public ObservableCollection<AuthoringSessionSnapshot> SavedSessions { get; } = [];
+
+    /// <summary>
+    /// The rows the rail actually shows: <see cref="SavedSessions"/> filtered by
+    /// <see cref="SessionQuery"/>, still newest-first.
+    ///
+    /// <para>A separate collection rather than an <c>ICollectionView</c> filter because this assembly
+    /// is deliberately WPF-free and has no <c>System.Windows.Data</c> to reach for; the view groups
+    /// these rows by <c>Group</c> with its own CollectionViewSource.</para>
+    /// </summary>
+    public ObservableCollection<AuthoringSessionSnapshot> VisibleSessions { get; } = [];
+
+    /// <summary>The rail's search box. Sessions accumulate — that is the point of saving them — and a
+    /// history you can only scroll is one you stop using at about thirty entries.</summary>
+    [ObservableProperty] private string _sessionQuery = string.Empty;
+
+    partial void OnSessionQueryChanged(string value) => ApplySessionFilter();
+
+    /// <summary>True when there is any saved chat at all — the rail shows its empty invitation
+    /// otherwise.</summary>
+    public bool HasSavedSessions => SavedSessions.Count > 0;
+
+    /// <summary>True when a search is active and matched nothing — distinct from having no sessions,
+    /// and the two need different words on screen.</summary>
+    public bool HasNoSessionMatches => HasSavedSessions && VisibleSessions.Count == 0;
+
+    private void ApplySessionFilter()
+    {
+        // Repopulating re-fires the selection binding, exactly as RefreshSavedSessions does; without
+        // the guard, narrowing the search to something that excludes the OPEN session would null the
+        // selection and restore a different conversation out from under the user.
+        var wasRestoring = _restoring;
+        _restoring = true;
+        try
+        {
+            VisibleSessions.Clear();
+            foreach (var session in SavedSessions.Where(s => s.Matches(SessionQuery)))
+                VisibleSessions.Add(session);
+
+            SelectedSavedSession = VisibleSessions.FirstOrDefault(s => s.StrategyId == StrategyId);
+        }
+        finally
+        {
+            _restoring = wasRestoring;
+        }
+
+        OnPropertyChanged(nameof(HasSavedSessions));
+        OnPropertyChanged(nameof(HasNoSessionMatches));
+    }
+
+    /// <summary>Clears the search box — the ✕ inside the field.</summary>
+    [RelayCommand]
+    private void ClearSessionQuery() => SessionQuery = string.Empty;
 
     [ObservableProperty] private AuthoringSessionSnapshot? _selectedSavedSession;
 
@@ -1473,12 +1769,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         {
             SavedSessions.Clear();
             foreach (var session in saved) SavedSessions.Add(session);
-            SelectedSavedSession = SavedSessions.FirstOrDefault(s => s.StrategyId == StrategyId);
         }
         finally
         {
             _restoring = false;
         }
+
+        // Sets the selection (through its own guard) and republishes the two emptiness flags.
+        ApplySessionFilter();
     }
 
     /// <summary>Loads a saved session back into the pane — the chat, the files, the provider setup, the
@@ -1489,6 +1787,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         try
         {
             _session = null;
+            _agentState = new RoutingState();
+            _agentContext = null;
             _restoredThread = session.Thread;
             _restoredUsage = new CodegenUsage(session.InputTokens, session.OutputTokens);
 
@@ -1550,7 +1850,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var snapshot = new AuthoringSessionSnapshot(
             StrategyId: StrategyId.Trim(),
             DisplayName: DisplayName.Trim(),
-            Chat: [.. Messages.Select(ToChatEntry)],
+            // Thinking is deliberately excluded. A reasoning model emits tens of thousands of characters
+            // of it per turn, so persisting it would multiply the size of every session file for
+            // something nobody reopens a conversation to re-read — the same argument that already drops
+            // the expandable tool output.
+            Chat: [.. Messages.Where(m => m.Kind != AuthoringMessage.KindThinking).Select(ToChatEntry)],
             // The MODEL's thread, not the chat: it also carries the compiler's auto-fix prompts, which are
             // what let a resumed conversation pick up mid-repair.
             Thread: _session?.Transcript ?? _restoredThread ?? [],
@@ -1829,11 +2133,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return;
         }
 
+        // The user pressing "Just build it" ends the interview, whatever the model would have done next.
+        // Otherwise the escape is only a suggestion, and a model that keeps asking keeps winning.
+        if (AuthoringAction.EndsTheInterview(brief))
+            _agentState = _agentState with { HasSpec = true };
+
         var judge = new AuthoringJudge(
             _compiler,
             StrategyId ?? "authored",
             string.IsNullOrWhiteSpace(DisplayName) ? StrategyId ?? "Authored" : DisplayName!,
-            new RoutingState());
+            _agentState);
 
         // The session composes this run's system prompt AND owns the provider bound to the picked model
         // and reasoning effort. Both used to be taken raw here: the shared context was the uncomposed
@@ -1862,6 +2171,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     ? prose
                     : turn.Reply));
 
+            // The reply itself, as a message. The chip above says WHO spoke and what it cost; this is
+            // what it actually said. Without it an agent run rendered as a column of grey
+            // "Interviewer - answered without code" chips with the prose folded away inside each one,
+            // so the user could not read the question they were being asked and answered blind. The
+            // single-conversation path has always appended the reply; this path never did.
+            if (AuthoringQuestions.StripBlock(turn.Reply) is { Length: > 0 } spoken)
+                Append(new AuthoringMessage(CodegenRole.Assistant, spoken));
+
             PushActivity($"{turn.Role}: {(turn.Files.Count > 0 ? "wrote code" : "replied")}");
 
             // Preview on every compile, half-finished included: the picture arriving is informative, and
@@ -1878,13 +2195,63 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // the top two settings; it never saw a worked exemplar; and it was never taught the
         // `questions` block that the very next lines of this method parse and render as buttons.
         // The reader had been wired onto this path and the writer had not.
+        // WHAT IT IS DOING RIGHT NOW, on the path that had no answer to that question.
+        //
+        // The checklist the status bar reads is seeded from StrategyBuildSession's activity strings,
+        // and this path emits none of them — so a Deep or Max run sat on "Understand brief" from the
+        // first second to the last however many agents it went through. The live signal is the ROLE,
+        // and only the loop knows it, so the loop reports it as each turn starts.
+        var starting = new Progress<AgentRole>(role =>
+        {
+            WorkingVerb = role switch
+            {
+                AgentRole.Interviewer => "Working out what to build",
+                AgentRole.Quant => "Working out the maths",
+                AgentRole.Coder => "Writing the code",
+                AgentRole.Painter => "Drawing the panel",
+                AgentRole.Fixer => "Fixing the build",
+                AgentRole.Reviewer => "Reviewing it",
+                _ => role.ToString(),
+            };
+            StepText = $"turn {_agentTurnsSeen + 1} of {profile.MaxAgentTurns}";
+            _agentTurnsSeen++;
+        });
+
+        _agentTurnsSeen = 0;
+
         var run = await loop.RunAsync(
             brief,
             session.PrepareFor(brief),
-            judge.State,
+            _agentState,
             profile.MaxAgentTurns,
             report,
-            ct);
+            ct,
+            resume: _agentContext,
+            starting: starting);
+
+        // What this turn established, so the next one continues it rather than starting over. The spec
+        // an Interviewer wrote is the expensive half of a run; discarding it made every answer the user
+        // typed the opening line of a fresh interview.
+        _agentState = run.FinalState;
+        _agentContext = run.Context ?? _agentContext;
+
+        // The code the run produced, into the editor.
+        //
+        // The agent path never did this. A Coder could write a unit, the judge could compile it, the
+        // ladder could pass it and the preview could render it — and the Code tab still showed the
+        // empty scaffold, because SetFiles was only ever called on the single-conversation branch. So
+        // at Deep and Max there was no way to READ what had been built, let alone edit it, and
+        // CurrentScript() would have registered the scaffold instead of the strategy.
+        //
+        // Taken from the run rather than reported from the progress callback: Progress<T> posts, so a
+        // turn that lands after the await would apply out of order or not at all.
+        if (run.Turns.LastOrDefault(turn => turn.Files.Count > 0) is { } wrote)
+        {
+            var prior = Files.ToDictionary(f => f.Name, f => f.Content, StringComparer.OrdinalIgnoreCase);
+            SetFiles(wrote.Files);
+            _filesEditedByUser = false;
+            AppendFileChanges(prior, wrote.Files);
+        }
 
         foreach (var diagnostic in judge.Latest?.Diagnostics ?? [])
             Diagnostics.Add(diagnostic);
@@ -1898,6 +2265,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             AgentRunOutcome.Delivered => $"Delivered after {run.Turns.Count} turn(s). Review the preview, then Compile & Register.",
             AgentRunOutcome.AwaitingUser => "The agent is waiting — pick an option above, or write your own reply.",
             AgentRunOutcome.ProviderFailed => $"Provider failed: {run.Error}",
+
+            // Named rather than folded into the budget message, because the two mean opposite things to
+            // whoever is paying: the budget running out says "it needed more room", and this says "more
+            // room would have bought nothing". Reporting a wall as a budget invites another spend.
+            AgentRunOutcome.Stalled =>
+                $"Stopped after {run.Turns.Count} turn(s): the last {AgentLoop.StallLimit} repairs got no "
+                + $"further up the ladder. Furthest it got: "
+                + $"{(judge.State.Compiles ? "it compiles" : "it does not compile")}. "
+                + "Read the diagnostics, then tell it what to change — repeating the same turn will not.",
 
             // Honest rather than encouraging. A brief that could not be satisfied should say what was
             // built and what did not work, not invite another spend on the same wall.
@@ -2058,6 +2434,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void ResetSession(string? note)
     {
+        // The agent run is reset even when there is no _session yet: the two are separate halves of the
+        // same conversation, and leaving a stale spec behind is how a new brief inherits an old one.
+        _agentState = new RoutingState();
+        _agentContext = null;
+
         if (_session is null) return;
         _session = null;
         if (note is not null && Messages.Count > 0)
@@ -2066,6 +2447,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void SetFiles(IReadOnlyList<StrategyFile> files)
     {
+        // Code arriving is the other thing worth opening the panel for -- a turn can write files that
+        // do not compile, and those are exactly the ones the user needs to see.
+        if (files.Count > 0) OpenWorkbench();
+
         foreach (var existing in Files) existing.PropertyChanged -= OnFileEdited;
         Files.Clear();
 
@@ -2132,39 +2517,89 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// <summary>Names an untouched strategy after its first brief: "Fade liquidity sweeps on ES…" ⇒
     /// id <c>fadeLiquiditySweeps</c>, display name = the brief's first clause. Never fires once the
     /// user has typed their own id or name.</summary>
+    /// <summary>
+    /// Names the session from the user's first message.
+    ///
+    /// <para>Only while the identity is untouched, so a name the user typed is never overwritten. New
+    /// Strategy restores the defaults, which is what lets the SECOND conversation name itself too — it
+    /// did not, and the resulting shared id made each new chat save over the last one.</para>
+    /// </summary>
     private void DeriveIdentityFrom(string brief)
     {
         if (StrategyId != DefaultStrategyId || DisplayName != DefaultDisplayName) return;
 
-        var firstLine = brief.ReplaceLineEndings("\n").Split('\n')[0].Trim();
-        if (firstLine.Length == 0) return;
+        // The first clause that says something. A brief opens with the REQUEST -- "create me a
+        // strategy," -- and naming the session after that produced "createMeStrategy" / "Create me a
+        // strategy" for every strategy anyone asked for: three sessions in a row named after the act of
+        // asking rather than the thing asked for. Skip those and take the first clause with content.
+        var clause = Clauses(brief).FirstOrDefault(c => !IsRequestFiller(c));
+        if (string.IsNullOrWhiteSpace(clause)) return;
 
-        // Display name: the first sentence/clause, cut at a word boundary around 60 chars.
-        var clause = firstLine.Split(':', '.', ';')[0].Trim().TrimEnd(',');
-        if (clause.Length == 0) clause = firstLine;
         if (clause.Length > 60)
         {
             var cut = clause.LastIndexOf(' ', 60);
             clause = clause[..(cut > 20 ? cut : 60)].TrimEnd() + "…";
         }
 
-        // Id: the first three meaningful words, lowerCamelCase, alphanumeric only.
-        string[] stop = ["a", "an", "the", "on", "in", "at", "of", "to", "for", "with", "and", "or", "that", "when", "using"];
         var words = clause
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(w => new string(w.Where(char.IsLetterOrDigit).ToArray()))
-            .Where(w => w.Length > 1 && !stop.Contains(w, StringComparer.OrdinalIgnoreCase))
+            .Where(w => w.Length > 1 && !IdStopWords.Contains(w, StringComparer.OrdinalIgnoreCase))
             .Take(3)
             .ToArray();
         if (words.Length == 0) return;
 
-        var id = string.Concat(words.Select((w, i) => i == 0
+        StrategyId = string.Concat(words.Select((w, i) => i == 0
             ? w.ToLowerInvariant()
             : char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
 
-        StrategyId = id;
         DisplayName = char.ToUpperInvariant(clause[0]) + clause[1..];
     }
+
+    private static IEnumerable<string> Clauses(string brief) => brief
+        .ReplaceLineEndings("\n")
+        .Split(['\n', '.', ';', ':', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Where(c => c.Length > 0);
+
+    /// <summary>
+    /// True for a clause that is only the act of asking — "create me a strategy", "build a visualizer",
+    /// "can you make me an indicator". Nothing in one of these describes what is being built.
+    /// </summary>
+    private static bool IsRequestFiller(string clause)
+    {
+        var words = clause
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(w => new string(w.Where(char.IsLetterOrDigit).ToArray()))
+            .Where(w => w.Length > 0)
+            .ToArray();
+
+        return words.Length > 0
+            && words.Length <= 6
+            && words.All(w => FillerWords.Contains(w, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static readonly string[] FillerWords =
+    [
+        "please", "can", "could", "you", "i", "we", "me", "us", "my", "a", "an", "the",
+        "create", "build", "make", "write", "generate", "give", "design", "code", "develop",
+        "want", "need", "would", "like", "help", "new", "some",
+        "strategy", "visualizer", "visualiser", "indicator", "tool", "window", "unit", "panel",
+    ];
+
+    /// <summary>
+    /// Words that carry no identity. Beyond articles and prepositions this drops pronouns and the
+    /// generic verbs a brief opens with, so the id lands on the nouns that distinguish one strategy
+    /// from another rather than on "we take" or "it shows".
+    /// </summary>
+    private static readonly string[] IdStopWords =
+    [
+        "a", "an", "the", "on", "in", "at", "of", "to", "for", "with", "and", "or", "that", "when",
+        "using", "from", "by", "as", "into", "over", "per", "its", "our",
+        "i", "we", "you", "it", "me", "us", "my", "this", "these", "those", "there",
+        "take", "takes", "use", "uses", "show", "shows", "build", "builds", "make", "makes",
+        "create", "creates", "add", "adds", "get", "gets", "put", "puts", "want", "need",
+        "strategy", "visualizer", "visualiser", "indicator",
+    ];
 
     /// <summary>Chat → snapshot. Rich kinds flatten into the entry's optional fields; the expandable
     /// tool output is intentionally dropped (summaries restore, transcripts don't bloat).</summary>
@@ -2291,7 +2726,8 @@ public sealed partial class AuthoredFile(string name, string content) : Observab
 /// purpose: the shared XAML templates live in TradingTerminal.UI, which cannot reference this
 /// assembly, so every template trigger is duck-typed against these values:
 /// <c>User</c> / <c>Assistant</c> / <c>Note</c> (a builder aside) / <c>Tool</c> (a one-line action
-/// card) / <c>Plan</c> (the live turn checklist) / <c>PlanText</c> (a restored plan snapshot) /
+/// card) / <c>Thinking</c> (the model's reasoning channel, collapsed) / <c>Plan</c> and
+/// <c>PlanText</c> (the retired turn checklist — kept so saved sessions still load) /
 /// <c>Files</c> (per-file change chips).
 /// </summary>
 public sealed partial class AuthoringMessage : ObservableObject
@@ -2300,6 +2736,11 @@ public sealed partial class AuthoringMessage : ObservableObject
     public const string KindAssistant = "Assistant";
     public const string KindNote = "Note";
     public const string KindTool = "Tool";
+    public const string KindThinking = "Thinking";
+
+    /// <summary>The turn checklist, retired. Nothing produces these any more — the transcript is a
+    /// conversation, not a project plan — but the constants and their templates stay so a session saved
+    /// before the change still deserializes and renders instead of throwing.</summary>
     public const string KindPlan = "Plan";
     public const string KindPlanText = "PlanText";
     public const string KindFiles = "Files";
@@ -2334,8 +2775,18 @@ public sealed partial class AuthoringMessage : ObservableObject
             ToolMore = string.IsNullOrWhiteSpace(more) ? null : more,
         };
 
-    /// <summary>The turn's live checklist — holds THIS turn's task instances, whose states keep
-    /// animating in place while the pipeline runs and then freeze as history.</summary>
+    /// <summary>
+    /// The model's thinking for this turn, as one growing block.
+    ///
+    /// <para>One message per turn rather than one per fragment: a reasoning model emits thousands of
+    /// tiny deltas, and appending each as its own transcript row would bury the conversation under its
+    /// own footnotes. The view renders it collapsed, so it costs a single line until somebody opens
+    /// it.</para>
+    /// </summary>
+    public static AuthoringMessage Thinking(string text) => new(KindThinking, text);
+
+    /// <summary>The turn's live checklist — retired; see <see cref="KindPlan"/>. Kept so a restored
+    /// session can still rebuild one.</summary>
     public static AuthoringMessage Plan(IReadOnlyList<BuildTask> tasks) =>
         new(KindPlan, string.Empty) { PlanTasks = tasks };
 

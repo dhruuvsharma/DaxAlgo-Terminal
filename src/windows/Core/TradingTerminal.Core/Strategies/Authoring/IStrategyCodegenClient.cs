@@ -164,6 +164,21 @@ public abstract record CodegenEvent
     /// <summary>A fragment of the model's reply, in order. Append it to what you already have.</summary>
     public sealed record TextDelta(string Text) : CodegenEvent;
 
+    /// <summary>
+    /// A fragment of the model's THINKING, in order — the separate channel a reasoning model streams
+    /// before it begins its answer (<c>reasoning_content</c> on the OpenAI-compatible wire; a thinking
+    /// block on Anthropic's).
+    ///
+    /// <para>Kept apart from <see cref="TextDelta"/> rather than folded into it, because the two are
+    /// not the same thing to a reader: the answer is what the model is telling you, and this is what it
+    /// is chewing on. A UI is expected to show it collapsed behind a disclosure — visible enough that a
+    /// five-minute silence is explainable, quiet enough that it never competes with the reply.</para>
+    ///
+    /// <para>A model with no reasoning channel never emits one, so a consumer that renders this gets an
+    /// empty region rather than a branch.</para>
+    /// </summary>
+    public sealed record ReasoningDelta(string Text) : CodegenEvent;
+
     /// <summary>Tokens billed so far in this generation, as the provider reports them (input up front,
     /// output as it writes). Absolute, not incremental — replace the running value, don't add to it.</summary>
     public sealed record UsageUpdate(CodegenUsage Usage) : CodegenEvent;

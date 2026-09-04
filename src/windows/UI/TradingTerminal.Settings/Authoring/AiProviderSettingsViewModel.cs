@@ -18,13 +18,12 @@ namespace TradingTerminal.App.Authoring;
 /// </summary>
 public sealed partial class AiProviderSetupRow : ObservableObject
 {
-    public AiProviderSetupRow(IStrategyCodegenClient client, bool isCli, bool hasKey, AiCodegenProvider? config)
+    public AiProviderSetupRow(IStrategyCodegenClient client, bool hasKey, AiCodegenProvider? config)
     {
         ArgumentNullException.ThrowIfNull(client);
 
         ProviderId = client.ProviderId;
         DisplayName = client.DisplayName;
-        IsCli = isCli;
         _isAvailable = client.IsAvailable;
         _hasKey = hasKey;
         _model = config?.Model ?? string.Empty;
@@ -33,7 +32,93 @@ public sealed partial class AiProviderSetupRow : ObservableObject
         _apiVersion = config?.ApiVersion ?? string.Empty;
         Kind = config?.Kind ?? AiCodegenProviderKind.OpenAiCompatible;
         IsUserDefined = config?.IsUserDefined ?? false;
+
+        var brand = AiProviderBranding.For(ProviderId, DisplayName);
+        Mark = brand.Mark;
+        Accent = brand.Accent;
+        Blurb = brand.Blurb;
     }
+
+    /// <summary>The badge monogram — see <see cref="AiProviderBranding"/> for why it is not a logo.</summary>
+    public string Mark { get; }
+
+    /// <summary>The badge colour, <c>#RRGGBB</c>.</summary>
+    public string Accent { get; }
+
+    /// <summary>One line saying what this provider is and what it needs.</summary>
+    public string Blurb { get; }
+
+    /// <summary>
+    /// True when this provider can be reached by signing in as well as by a key.
+    ///
+    /// <para><b>One provider, one row.</b> Anthropic used to appear TWICE — once wanting a key and once
+    /// called "signed in" — so the pane asked for an API key on the row whose entire point was not
+    /// needing one. They are two credentials for one provider, and that is a choice INSIDE the row.</para>
+    /// </summary>
+    public bool SupportsSignIn { get; init; }
+
+    /// <summary>Whether the browser sign-in is usable — the CLI installed and somebody signed in.</summary>
+    public bool SignInAvailable { get; init; }
+
+    /// <summary>Which credential this provider uses. Only meaningful when <see cref="SupportsSignIn"/>.</summary>
+    [ObservableProperty] private bool _useSignIn;
+
+    /// <summary>True when the key box belongs on screen: every row that is not currently signing in.</summary>
+    public bool TakesKey => !(SupportsSignIn && UseSignIn);
+
+    /// <summary>True when the sign-in controls belong on screen.</summary>
+    public bool IsSignIn => SupportsSignIn && UseSignIn;
+
+    /// <summary>
+    /// The segment's own value: checked means API key.
+    ///
+    /// <para>The inverse of <see cref="UseSignIn"/> as a real two-way property rather than a converter
+    /// in the view. A converter would put the meaning of the switch in the XAML, where it cannot be
+    /// tested and has to be read backwards.</para>
+    /// </summary>
+    public bool UseApiKey
+    {
+        get => !UseSignIn;
+        set => UseSignIn = !value;
+    }
+
+    /// <summary>True when "Use this provider" has something to do: it works, and it is not already the
+    /// one in use.</summary>
+    public bool CanBecomeDefault => IsReady && !IsDefault;
+
+    partial void OnUseSignInChanged(bool value)
+    {
+        OnPropertyChanged(nameof(UseApiKey));
+        OnPropertyChanged(nameof(TakesKey));
+        OnPropertyChanged(nameof(IsSignIn));
+        OnPropertyChanged(nameof(IsReady));
+        OnPropertyChanged(nameof(Signal));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(CanBecomeDefault));
+        OnPropertyChanged(nameof(Group));
+    }
+
+    /// <summary>
+    /// Which of the three groups this row sits in.
+    ///
+    /// <para>Grouping is what makes the list answerable without clicking: "which of these works?" is
+    /// twelve identical cards' worth of reading when they are all one list, and one glance when the
+    /// working ones are under a heading that says so.</para>
+    /// </summary>
+    public string Group => IsDefault ? "IN USE" : IsReady ? "READY" : "NEEDS SETUP";
+
+    /// <summary>
+    /// Three words for the state of this row, for the pill at its right edge.
+    ///
+    /// <para>The pane used to say this only in a sentence inside the detail pane of whichever row was
+    /// selected, so the answer to "which of these actually works?" required clicking every one.</para>
+    /// </summary>
+    public string Signal => IsReady
+        ? "Ready"
+        : IsSignIn ? "Not signed in" : "Needs a key";
+
+    /// <summary>Usable RIGHT NOW, by the credential this row is set to use.</summary>
+    public bool IsReady => IsSignIn ? SignInAvailable : IsAvailable;
 
     /// <summary>Which wire shape this provider speaks — what decides whether the endpoint is called
     /// the OpenAI way, the Anthropic way, or the Azure way.</summary>
@@ -62,13 +147,6 @@ public sealed partial class AiProviderSetupRow : ObservableObject
 
     public string DisplayName { get; }
 
-    /// <summary>True for an installed-program provider (Claude Code, Codex, Gemini CLI). Keyless: the
-    /// vendor's tool owns the login, so this pane must not ask for a key it has no use for.</summary>
-    public bool IsCli { get; }
-
-    /// <summary>Keyed providers are the ones with a key, an endpoint and a model to edit.</summary>
-    public bool IsKeyed => !IsCli;
-
     [ObservableProperty] private bool _isAvailable;
 
     [ObservableProperty] private bool _hasKey;
@@ -86,17 +164,35 @@ public sealed partial class AiProviderSetupRow : ObservableObject
     [ObservableProperty] private bool _isDefault;
 
     /// <summary>What the row says about itself, in the user's terms rather than the config's.</summary>
-    public string StatusText => IsCli
-        ? IsAvailable
-            ? "Installed and ready — it signs in with its own account."
-            : "Not found. Install it, sign in with the vendor's own tool, then press Recheck."
+    public string StatusText => IsSignIn
+        ? SignInAvailable
+            ? "Signed in. Billed per token to that organisation — API access, not a Pro subscription."
+            : "Not signed in yet. This needs the Anthropic CLI (ant) installed."
         : HasKey
             ? "Key saved, encrypted for this Windows account only."
             : "No key yet. Paste one to enable this provider.";
 
-    partial void OnIsAvailableChanged(bool value) => OnPropertyChanged(nameof(StatusText));
+    partial void OnIsAvailableChanged(bool value)
+    {
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(Signal));
+        OnPropertyChanged(nameof(IsReady));
+        OnPropertyChanged(nameof(Group));
+        OnPropertyChanged(nameof(CanBecomeDefault));
+    }
 
-    partial void OnHasKeyChanged(bool value) => OnPropertyChanged(nameof(StatusText));
+    partial void OnIsDefaultChanged(bool value)
+    {
+        OnPropertyChanged(nameof(Group));
+        OnPropertyChanged(nameof(CanBecomeDefault));
+    }
+
+    partial void OnHasKeyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(Signal));
+        OnPropertyChanged(nameof(CanBecomeDefault));
+    }
 }
 
 /// <summary>
@@ -123,8 +219,15 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
         IAiStrategyBuilder builder,
         IOptions<AiCodegenOptions>? options = null,
         IAiKeyStore? keys = null,
-        ILogger<AiProviderSettingsViewModel>? logger = null)
+        ILogger<AiProviderSettingsViewModel>? logger = null,
+        AnthropicOAuthCli? oauth = null)
     {
+        // Injectable, and it matters twice. The pane's Sign in button and the FACTORY's sign-in client
+        // both ask "is the CLI installed?", and two independently constructed wrappers can disagree —
+        // the pane said no while the provider list said yes. It is also the only way a test can drive
+        // the button without the CLI being installed on whoever is running the suite.
+        _oauth = oauth ?? new AnthropicOAuthCli();
+
         ArgumentNullException.ThrowIfNull(builder);
 
         _builder = builder;
@@ -137,6 +240,83 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
         Providers = [];
         Refresh();
     }
+
+    /// <summary>The browser sign-in, shared with the provider factory so the two cannot disagree.</summary>
+    private readonly AnthropicOAuthCli _oauth;
+
+    /// <summary>Whether the sign-in button can do anything: the `ant` CLI has to be installed.</summary>
+    public bool CanSignIn => _oauth.IsInstalled;
+
+    /// <summary>What the sign-in half says about itself.</summary>
+    public string SignInHint => _oauth.IsInstalled
+        ? "Billed per token to the organisation you pick — API access, not a Claude Pro or Max subscription."
+        : "Signing in is handled by Anthropic's own CLI, which is not installed. Paste an API key "
+          + "instead, or install the CLI and press Recheck.";
+
+    /// <summary>
+    /// The documented way to get the CLI, shown beside the disabled button so the dead end is a next
+    /// step instead of a shrug.
+    ///
+    /// <para>Deliberately not a one-click installer: this downloads and installs another vendor's
+    /// program, which is the user's decision to make knowingly, not something a settings pane should do
+    /// on their behalf while they are looking at a strategy builder.</para>
+    /// </summary>
+    public string SignInInstallHint =>
+        "go install github.com/anthropics/anthropic-cli/cmd/ant@latest"
+        + "  —  or a release from github.com/anthropics/anthropic-cli/releases";
+
+    [ObservableProperty] private bool _isSigningIn;
+
+    /// <summary>
+    /// Opens the browser sign-in and rebuilds the picker from what it left behind.
+    ///
+    /// <para>The rebuild matters for the same reason it does after a key is saved: provider clients
+    /// capture their credential when they are constructed, so a picker left alone would go on showing
+    /// "not set up" for a provider that now works.</para>
+    /// </summary>
+    [RelayCommand]
+    private async Task SignInAsync()
+    {
+        if (IsSigningIn) return;
+
+        IsSigningIn = true;
+        try
+        {
+            Status = "Waiting for the browser sign-in…";
+            var result = await _oauth.SignInAsync().ConfigureAwait(true);
+            Status = result.Message;
+
+            if (result.Success)
+            {
+                Refresh();
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Anthropic sign-in failed.");
+            Status = $"Sign-in failed: {ex.Message}";
+        }
+        finally
+        {
+            IsSigningIn = false;
+        }
+    }
+
+    /// <summary>Signs out and rebuilds, so the picker stops offering a provider that no longer works.</summary>
+    [RelayCommand]
+    private async Task SignOutAsync()
+    {
+        Status = await _oauth.SignOutAsync().ConfigureAwait(true)
+            ? "Signed out of Anthropic."
+            : "Could not sign out — the CLI reported a failure.";
+
+        Refresh();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>The keyed Anthropic provider, which the browser sign-in folds into.</summary>
+    private const string AnthropicProviderId = "anthropic";
 
     /// <summary>Every provider the app knows how to build, configured or not — the unconfigured ones are
     /// the whole point of the pane.</summary>
@@ -166,20 +346,66 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
         var selectedId = Selected?.ProviderId;
         Providers.Clear();
 
-        foreach (var client in _builder.Providers)
+        // The sign-in client is FOLDED INTO the provider it signs into rather than listed beside it.
+        // Two rows called Anthropic — one wanting a key, one called "signed in" — is what made the pane
+        // ask for an API key on the row whose whole point is not needing one.
+        // ONCE. IAiStrategyBuilder.Providers is a computed property — the real one is
+        // factory.BuildAll() — so every read returns freshly constructed clients. Enumerating it twice
+        // and matching by reference compares two different objects and silently matches nothing, which
+        // is how the merge below quietly became a no-op and Anthropic appeared twice again.
+        var clients = _builder.Providers.ToList();
+
+        var signIn = clients.FirstOrDefault(c =>
+            c.ProviderId.Equals(StrategyCodegenClientFactory.AnthropicOAuthId, StringComparison.OrdinalIgnoreCase));
+
+        var signedInIsDefault = StrategyCodegenClientFactory.AnthropicOAuthId
+            .Equals(_options.DefaultProvider, StringComparison.OrdinalIgnoreCase);
+
+        foreach (var client in clients)
         {
-            var isCli = AgentCliAdapter.All.Any(a =>
-                a.ProviderId.Equals(client.ProviderId, StringComparison.OrdinalIgnoreCase));
+            if (client.ProviderId.Equals(
+                    StrategyCodegenClientFactory.AnthropicOAuthId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var carriesSignIn = signIn is not null
+                && client.ProviderId.Equals(AnthropicProviderId, StringComparison.OrdinalIgnoreCase);
 
             _options.Providers.TryGetValue(client.ProviderId, out var config);
+            var hasKey = _keys?.HasKey(client.ProviderId) ?? false;
 
-            Providers.Add(new AiProviderSetupRow(
-                client,
-                isCli,
-                hasKey: _keys?.HasKey(client.ProviderId) ?? false,
-                config)
+            Providers.Add(new AiProviderSetupRow(client, hasKey, config)
             {
-                IsDefault = client.ProviderId.Equals(_options.DefaultProvider, StringComparison.OrdinalIgnoreCase),
+                SupportsSignIn = carriesSignIn,
+                SignInAvailable = carriesSignIn && signIn!.IsAvailable,
+
+                // Sign in only when signing in is actually POSSIBLE.
+                //
+                // This read `signedInIsDefault || !hasKey`, so a machine with no key opened the row on
+                // the sign-in half — where the button is disabled unless the `ant` CLI is installed.
+                // The user got a dead button and no key box, on the one row they needed to configure:
+                // "I'm unable to click on sign in with Anthropic, it's blocked". Defaulting into a half
+                // that cannot be used is worse than not offering it.
+                UseSignIn = carriesSignIn
+                    && (signedInIsDefault || (!hasKey && signIn!.IsAvailable)),
+
+                IsDefault = client.ProviderId.Equals(_options.DefaultProvider, StringComparison.OrdinalIgnoreCase)
+                    || (carriesSignIn && signedInIsDefault),
+            });
+        }
+
+        // Nothing was folded in, so offer it on its own rather than losing it — an edition without the
+        // Anthropic provider would otherwise have no way to sign in at all.
+        if (signIn is not null && !Providers.Any(r => r.SupportsSignIn))
+        {
+            _options.Providers.TryGetValue(signIn.ProviderId, out var signInConfig);
+            Providers.Add(new AiProviderSetupRow(signIn, hasKey: false, signInConfig)
+            {
+                SupportsSignIn = true,
+                SignInAvailable = signIn.IsAvailable,
+                UseSignIn = true,
+                IsDefault = signedInIsDefault,
             });
         }
 
@@ -339,14 +565,14 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
         // off is the commonest one there is.
         // The more specific diagnosis first. An unedited template is syntactically a fine URL, so the
         // check below would pass it and the user would get a DNS failure naming a host they never chose.
-        if (row.IsKeyed && CodegenBaseUrl.IsUnedited(row.BaseUrl))
+        if (row.TakesKey && CodegenBaseUrl.IsUnedited(row.BaseUrl))
         {
             Status = $"{row.DisplayName}: replace {CodegenBaseUrl.Placeholder} in the base URL with your "
                 + "own resource name first.";
             return;
         }
 
-        if (row.IsKeyed && CodegenBaseUrl.TryAbsolute(CodegenBaseUrl.Normalise(row.BaseUrl)) is null)
+        if (row.TakesKey && CodegenBaseUrl.TryAbsolute(CodegenBaseUrl.Normalise(row.BaseUrl)) is null)
         {
             Status = string.IsNullOrWhiteSpace(row.BaseUrl)
                 ? $"{row.DisplayName} has no base URL yet."
@@ -365,7 +591,7 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
 
         if (models.Count == 0)
         {
-            Status = row.HasKey || row.IsCli
+            Status = row.HasKey || row.IsSignIn
                 ? $"{row.DisplayName} returned no models. Check the base URL and the wire kind, and that the key belongs to this endpoint."
                 : $"{row.DisplayName} returned no models - it has no key yet.";
             return;
@@ -451,7 +677,7 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
 
         config.Model = row.Model?.Trim() ?? string.Empty;
         config.CliProfile = row.CliProfile?.Trim() ?? string.Empty;
-        if (row.IsKeyed) config.BaseUrl = row.BaseUrl?.Trim() ?? string.Empty;
+        if (row.TakesKey) config.BaseUrl = row.BaseUrl?.Trim() ?? string.Empty;
         if (row.IsAzure) config.ApiVersion = row.ApiVersion?.Trim() ?? string.Empty;
 
         try
@@ -475,23 +701,29 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
     {
         if (row is null) return;
 
-        if (!row.IsAvailable)
+        if (!row.IsReady)
         {
-            Status = $"{row.DisplayName} is not set up yet, so it cannot be the default.";
+            Status = row.IsSignIn
+                ? $"{row.DisplayName} is not signed in yet, so it cannot be the default."
+                : $"{row.DisplayName} is not set up yet, so it cannot be the default.";
             return;
         }
 
-        _options.DefaultProvider = row.ProviderId;
+        // One row, two credentials, two provider ids underneath. Which one gets written is the segment's
+        // answer — the factory builds a different client for each, and they bill different accounts.
+        var chosenId = row.IsSignIn ? StrategyCodegenClientFactory.AnthropicOAuthId : row.ProviderId;
+
+        _options.DefaultProvider = chosenId;
         try
         {
-            AiCodegenUserFile.SaveDefaultProvider(row.ProviderId);
+            AiCodegenUserFile.SaveDefaultProvider(chosenId);
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Could not persist the default provider");
         }
 
-        foreach (var other in Providers) other.IsDefault = other.ProviderId == row.ProviderId;
+        foreach (var other in Providers) other.IsDefault = ReferenceEquals(other, row);
         Status = $"{row.DisplayName} is now the default.";
         Changed?.Invoke(this, EventArgs.Empty);
     }

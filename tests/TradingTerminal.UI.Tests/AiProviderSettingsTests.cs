@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using Microsoft.Extensions.Options;
 using TradingTerminal.App.Authoring;
 using TradingTerminal.Core.Configuration;
@@ -78,6 +78,14 @@ public sealed class AiProviderSettingsTests : IDisposable
             ["openai"] = new AiCodegenProvider
             {
                 BaseUrl = "https://api.openai.com/v1", Model = "gpt-4o-mini",
+            },
+
+            // The provider the browser sign-in folds into. Without it the fake exercised the fallback
+            // branch instead of the merge, and the merge is the thing under test.
+            ["anthropic"] = new AiCodegenProvider
+            {
+                Kind = AiCodegenProviderKind.Anthropic,
+                BaseUrl = "https://api.anthropic.com", Model = "claude-opus-5",
             },
         },
     };
@@ -206,17 +214,118 @@ public sealed class AiProviderSettingsTests : IDisposable
         Assert.Contains("not set up", pane.Status);
     }
 
+    /// <summary>
+    /// ONE Anthropic row, not two.
+    ///
+    /// <para>The pane listed <c>anthropic</c> and <c>anthropic-oauth</c> side by side, so it asked for
+    /// an API key on the row whose entire point is not needing one — "why the fuck do I need to add an
+    /// API key in sign in". They are two credentials for one provider.</para>
+    /// </summary>
     [Fact]
-    public void ACliRowAsksForNoKey()
+    public void AnthropicIsOneRowWithTwoWaysIn()
     {
-        // The vendor's tool owns the login. A key field here would be a box that does nothing, which is
-        // worse than no box at all.
         var pane = Pane(new FakeKeyStore());
-        var cli = pane.Providers.FirstOrDefault(p => p.IsCli);
 
-        Assert.NotNull(cli); // the fake builder offers one
-        Assert.False(cli!.IsKeyed);
-        Assert.DoesNotContain("key", cli.StatusText);
+        var anthropic = pane.Providers.Where(p =>
+            p.ProviderId.StartsWith("anthropic", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        Assert.Single(anthropic);
+        Assert.True(anthropic[0].SupportsSignIn);
+        Assert.DoesNotContain(pane.Providers, p =>
+            p.ProviderId.Equals(StrategyCodegenClientFactory.AnthropicOAuthId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The segment swaps which credential is on screen — never both, never neither.</summary>
+    [Fact]
+    public void TheCredentialSegmentShowsExactlyOneOfThem()
+    {
+        var pane = Pane(new FakeKeyStore());
+        var row = pane.Providers.Single(p => p.SupportsSignIn);
+
+        row.UseSignIn = true;
+        Assert.True(row.IsSignIn);
+        Assert.False(row.TakesKey);
+        Assert.False(row.UseApiKey);
+
+        row.UseApiKey = true;
+        Assert.False(row.IsSignIn);
+        Assert.True(row.TakesKey);
+        Assert.False(row.UseSignIn);
+    }
+
+    /// <summary>
+    /// The segment decides which provider id is written, because the two bill different accounts.
+    /// </summary>
+    [Fact]
+    public void MakingItDefaultWritesTheIdForTheChosenCredential()
+    {
+        var options = Options();
+        var keys = new FakeKeyStore();
+        keys.Set("anthropic", "sk-ant-test");
+        var pane = Pane(keys, options);
+
+        var row = pane.Providers.Single(p => p.SupportsSignIn);
+
+        row.UseApiKey = true;
+        pane.MakeDefaultCommand.Execute(row);
+        Assert.Equal("anthropic", options.DefaultProvider);
+    }
+
+    /// <summary>Rows carry the group that sorts them, so the list answers "which works?" unread.</summary>
+    [Fact]
+    public void EveryRowKnowsWhichGroupItBelongsIn()
+    {
+        var pane = Pane(new FakeKeyStore());
+
+        Assert.All(pane.Providers, row =>
+            Assert.Contains(row.Group, new[] { "IN USE", "READY", "NEEDS SETUP" }));
+    }
+
+    [Fact]
+    public void TheSignInRowAsksForNoKey()
+    {
+        // The keyless row used to be an agent CLI; it is now the Anthropic sign-in, and the property is
+        // the same one: a credential that lives somewhere else must not be asked for here. A key field
+        // on this row would be a box that does nothing, which is worse than no box at all.
+        var pane = Pane(new FakeKeyStore());
+
+        // The row no longer OPENS on this half when signing in is impossible, so switch to it first --
+        // what is under test is what the half shows, not which half is showing.
+        var signIn = Assert.Single(pane.Providers, p => p.SupportsSignIn);
+        signIn.UseApiKey = false;
+
+        Assert.True(signIn.IsSignIn);
+        Assert.False(signIn.TakesKey);
+        Assert.DoesNotContain("Paste one", signIn.StatusText);
+    }
+
+    [Fact]
+    public void NoAgentCliIsOfferedAsAProvider()
+    {
+        // Authenticating is two things a person can understand — paste a key, or sign in. A third kind
+        // whose credential lives inside another program, whose spend this app cannot even count, was
+        // the largest source of confusion in this pane.
+        var pane = Pane(new FakeKeyStore());
+
+        Assert.DoesNotContain(pane.Providers, p =>
+            AgentCliAdapter.All.Any(a =>
+                a.ProviderId.Equals(p.ProviderId, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void EveryRowCarriesABadgeAndALineOfExplanation()
+    {
+        // The list is scanned, not read. A row with no mark is a row you have to read the name of.
+        var pane = Pane(new FakeKeyStore());
+
+        Assert.NotEmpty(pane.Providers);
+        Assert.All(pane.Providers, row =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(row.Mark));
+            Assert.StartsWith("#", row.Accent, StringComparison.Ordinal);
+            Assert.False(string.IsNullOrWhiteSpace(row.Blurb));
+            Assert.False(string.IsNullOrWhiteSpace(row.Signal));
+        });
     }
 
     [Fact]
@@ -439,7 +548,10 @@ public sealed class AiProviderSettingsTests : IDisposable
         [
             .. options.Providers.Keys.Select(id =>
                 (IStrategyCodegenClient)new FakeClient(id, keys?.HasKey(id) ?? false)),
-            new FakeClient(AgentCliAdapter.All[0].ProviderId, available: false),
+
+            // The keyless row, which is now the Anthropic sign-in rather than an agent CLI. Offered
+            // unavailable, which is the interesting state: it is the one the pane has to explain.
+            new FakeClient(StrategyCodegenClientFactory.AnthropicOAuthId, available: false),
         ];
 
         public IStrategyCodegenClient? DefaultProvider => Providers.FirstOrDefault(p => p.IsAvailable);

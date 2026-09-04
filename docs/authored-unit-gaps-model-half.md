@@ -469,6 +469,139 @@ And a second thing worth keeping: **a free reasoning model at Standard could not
 brief at all**, while a lighter model answered it in fourteen seconds. Reasoning effort is not free
 and an open-ended brief is where it is spent worst.
 
+## The agent path never left the Interviewer — found in the application, 2026-09-02
+
+Not a benchmark finding. The benchmark drives `HyperionBenchmark.RunAsync`, which uses the single
+conversation; **nothing automated had ever driven the agent path end to end from the state the
+application starts in.** A user's saved session did, and it is the whole diagnosis in one file:
+
+> six briefs, six interviews, no code — including *"sounds good now start building"*, *"approved, now
+> start building"* and *"can you start writnig the code bro"*.
+
+Every turn came back `Interviewer · answered without code`. Three defects compounded, and all three
+are the same shape as the nine before them: **built, unit-tested, never reached on the path that
+runs.** This is the tenth, and the first where the tests actively concealed it.
+
+### 1. `RoutingState.HasSpec` had no writer
+
+`RoutingPrior.For` opens with `if (!state.HasSpec) return Only(AgentRole.Interviewer)`. Across the
+whole tree `HasSpec` was set to `true` in **twenty-eight places, every one of them a test file**. In
+the product it appeared three times: the doc comment, the record declaration defaulting to `false`,
+and that read.
+
+So the gate could never open, and **every test in the area began on the far side of it** —
+`new RoutingState(HasSpec: true)` is the first line of most of them. The one production construction
+site, `StrategyAuthoringViewModel`, said `new RoutingState()`.
+
+The Interviewer's own prompt promises the handover the code could not perform: *"If the user says to
+build it, the interview is over. Hand over immediately."*
+
+### 2. The loop stopped on every reply that carried no code
+
+`AgentLoop` returned `AwaitingUser` whenever `FileList.Count == 0`. The Interviewer writes no code **by
+design** — `AgentPrompts.WritesCode` says so — so its successful turn and its question were
+indistinguishable, and the run ended either way. Fixed by telling them apart the way the pack already
+tells everything apart: a structured convention. A `questions` block means waiting; a
+`SPECIFICATION COMPLETE` line means done; **neither means it asked in bare prose, and that waits** —
+the safe direction, and the one an existing test (`AnAgentAskingAQuestionPausesTheRunRatherThanFailingIt`)
+was right to pin.
+
+### 3. Nothing survived a user turn
+
+`RunAgentsAsync` rebuilt `new RoutingState()` **and** `new AgentContext(prompt)` on every send, and
+discarded `run.Context`. So turn two was handed *"approved, now start building"* as the entire brief —
+no instrument, no rules, nothing to approve. Another interview is the only sane reply to that, and the
+model was right every time.
+
+### And the code never reached the editor
+
+Found by the regression test rather than by reading: `RunAgentsAsync` never called `SetFiles`. A Coder
+could write a unit, the judge compile it, the ladder pass it and the preview render it, and the Code
+tab would still show the empty scaffold — with `CurrentScript()` registering the scaffold rather than
+the strategy. `SetFiles` existed and was called only on the single-conversation branch.
+
+### What it cost, and the shape of the lesson
+
+**Only Deep and Max were affected** — the two efforts that set `UseAgents`. Quick and Standard use the
+single conversation and always worked. So the dial's top two settings, the ones that mean "spend more
+for a better result", were the only two that could not produce a result at all; the user in question
+had `BuildEffort: max` configured.
+
+> **A test that seeds the state production cannot reach is worse than no test.** Twenty-eight of them
+> agreed the loop worked, and each one was starting one step past the step that was broken.
+
+Pinned by `AgentHandoverTests` (every case starts from `new RoutingState()`, the literal expression
+the product uses) and `InterviewEndsTests`, which drives the real view-model at Max effort through
+interview → "approved, now start building" → compiled unit in the editor.
+
+### The next run got further, and found four more — 2026-09-02
+
+With the handover in, the same brief reached the Coder and the transcript showed assistant prose for the
+first time. It still produced nothing usable, and the reason is worth recording because three of the
+four are the same shape as everything above.
+
+The saved session says it in one line: **`Interviewer · 1 file(s) · scored 0.00`**.
+
+`Strategy.cs`, 119 characters:
+
+```
+Rows(
+  Columns( Panel "Price"  Star(3),
+           Panel "Signal" Pixels(260) ),
+  Panel "Trade history" Pixels(150) )
+```
+
+That is a **layout sketch inside the Interviewer's specification prose**. `CodegenCodeExtractor`
+extracted the fence, the judge compiled it as a strategy, and CS1003/CS0103 came back against a file
+nobody wrote.
+
+1. **A role that writes no code could still contribute files.** `AgentPrompts` tells the Interviewer
+   *"Write no code. A specification with a code block in it is a coder's turn wearing the wrong label"*
+   — and nothing enforced it. `WritesCode(role)` already existed and already said no. Now the loop
+   asks it.
+
+2. **The prose-in-a-fence guard existed on one path only.** `CodegenCodeExtractor.LooksLikeCode` has
+   refused this since the day it cost three generations — *the fix loop reads CS1003 and tries to FIX
+   THE PROSE* — and `grep` found it called from exactly one place: `StrategyBuildSession`. The agent
+   path compiled it happily. `LooksLikeCode` rejects `Rows(` correctly; it was simply never asked.
+
+3. **`AgentContext.With` dropped code by arm ordering.** The role arms matched before the files arm, so
+   `AgentRole.Interviewer => this with { Spec = reply }` kept the prose and discarded the files. The
+   serious half is the Quant: `WritesCode(Quant)` is **true** and its prompt says *"you may write the
+   computation"*, so a Quant that did lost it every time.
+
+4. **A repair role was given nothing to repair.** With the files dropped at (3) and the verdict saying
+   `FailedAt: Compile`, routing sent the next turn to a Fixer holding a diagnostic list and no code. It
+   answered correctly and at length:
+
+   > *"I don't have the source file — this turn arrived with the diagnostic list but no code attached
+   > … Fixing it would mean inventing the unit rather than repairing it, which is exactly what a fixer
+   > turn shouldn't do."*
+
+   A right answer to a question the harness should never have asked, billed in full, twice. Routing
+   reads the ladder's verdict, which cannot see whether the context still holds the code, so the loop
+   now checks: a Fixer or Painter with no code becomes a Coder.
+
+### And the surface was teaching a spelling that cannot compile
+
+The Fixer's own theory — that `Layout.Rows(...)` fails because the identifier binds to the property —
+is **a real trap, and `UnitLayout.cs` documents it in as many words**, which is why the
+`UnitLayout.Rows/Columns/Panel` mirrors exist and why every exemplar and `skills/layout.md` use them.
+
+`Layout.cs`'s own class-level `<code>` sample did not:
+
+```csharp
+public UnitLayout Layout => Layout.Columns(         // ← does not compile
+    Layout.Panel("Price", DrawChart).Star(3), …);
+```
+
+That comment is generated into `sdk-surface.md`, which is loaded on **every** turn, while the skill
+that corrects it loads only when a brief triggers it. So the always-on document taught the failing form
+and the sometimes-on one contradicted it. Fixed at the source and the surface regenerated;
+`SdkSurfaceFreshnessTests` keeps the two in step.
+
+Pinned by five cases in `AgentHandoverTests`, including the live sketch verbatim.
+
 ## The delta table
 
 Kept so the next run has something to move.

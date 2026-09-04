@@ -1,53 +1,92 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
                     xmlns:converters="clr-namespace:TradingTerminal.UI.Converters">
 
     <!-- ===================================================================================
-         HYPERION WORKSPACE — the one sanctioned soft zone (issue #29). The terminal is
-         sharp everywhere; INSIDE the Hyperion window these styles reintroduce a small
-         radius scale (7 / 10 / 14), glass washes and the violet→cyan AI language. Nothing
-         here is used outside the authoring views.
+         HYPERION WORKSPACE — the agent IDE (issue #29).
 
-         Duck-typed by design: TradingTerminal.Settings (the view-model assembly) is WPF-free
+         REBUILT AS A CODE EDITOR, NOT A CHAT APP. The previous pass dressed the pane as a
+         messaging client: 14px radii, glass washes, a rotating gradient ring around the
+         composer, and the user's own words in a right-shouldered violet bubble. Every one of
+         those says "conversation" when the thing on screen is a workspace where source is
+         written, compiled and reviewed. The people this is for spend their day in Cursor,
+         Codex and VS Code, and those tools look the way they do for a reason: chrome recedes
+         so that content — prose, code, diffs, numbers — is the only thing with weight.
+
+         THE RULES THIS DICTIONARY KEEPS
+           * Radius 4 / 6 / 8. Nothing is a capsule except a genuine two-state segment.
+           * Hairlines, not cards. A 1px Border.Brush rule separates regions; panels do not
+             float on shadows. The two exceptions are things that genuinely float: a flyout
+             popup and the review overlay.
+           * ONE accent. Ai.Accent is the agent's colour and marks exactly three things: the
+             active turn, the selected row, the focused composer. A screen where four things
+             glow has no accent at all.
+           * Left-aligned everything. A transcript is a document; documents have one margin.
+           * Monospace (Font.Data) for anything the machine produced — ids, paths, counts,
+             token figures, diagnostics — and proportional for anything a human wrote.
+           * Motion is a status, never decoration: the composer's working hairline and the
+             shimmer verb run only while a turn is in flight, at 24 fps. An idle window is
+             completely static.
+
+         DUCK-TYPED BY DESIGN. TradingTerminal.Settings (the view-model assembly) is WPF-free
          and this assembly cannot reference it, so every template binds by property NAME and
-         every trigger compares against the string constants on AuthoringMessage/BuildTask
+         every trigger compares against the string constants on AuthoringMessage / BuildTask
          ("User"/"Tool"/"Plan"…, "Ok"/"Fail"/"Run"/"Info", "Running"/"Done"/"Failed").
          Renaming those constants breaks these templates silently — grep here first.
-
-         Motion contract: everything animated is gated (composer ring on IsGenerating via
-         Tag, shimmer on IsVisible) and runs at 24 fps; an idle window is fully static.
-         Animated gradient stops use fixed brand hues (freezable rule from AiStyles.xaml);
-         static fills ride the palette's Ai.* tokens.
          =================================================================================== -->
 
     <BooleanToVisibilityConverter x:Key="HYP.B2V" />
+    <converters:InverseBooleanToVisibilityConverter x:Key="HYP.NotB2V" />
+    <converters:StringToVisibilityConverter x:Key="HYP.S2V" />
     <converters:StripCodeFencesConverter x:Key="HYP.StripFences" />
 
-    <CornerRadius x:Key="HYP.Radius.S">7</CornerRadius>
-    <CornerRadius x:Key="HYP.Radius.M">10</CornerRadius>
-    <CornerRadius x:Key="HYP.Radius.L">14</CornerRadius>
+    <!-- Radius scale. Was 7/10/14 — an editor's corners are barely there. -->
+    <CornerRadius x:Key="HYP.Radius.S">4</CornerRadius>
+    <CornerRadius x:Key="HYP.Radius.M">6</CornerRadius>
+    <CornerRadius x:Key="HYP.Radius.L">8</CornerRadius>
+
+    <!-- The transcript's reading measure and the two side panels' widths. Named because the
+         view files agree on them and a redesign that changes one must change all of them. -->
+    <sys:Double x:Key="HYP.Measure">820</sys:Double>
+    <sys:Double x:Key="HYP.Rail.Width">268</sys:Double>
+    <sys:Double x:Key="HYP.Workbench.Width">520</sys:Double>
 
     <!-- Diff washes: fixed low-alpha bull/bear — legible over Surface in every palette. -->
     <SolidColorBrush x:Key="HYP.Diff.Add.Bg" Color="#17089981" />
     <SolidColorBrush x:Key="HYP.Diff.Del.Bg" Color="#17F23645" />
 
-    <!-- ═══ Small shared pieces ══════════════════════════════════════════════════════════ -->
+    <!-- ═══ Primitives ═══════════════════════════════════════════════════════════════════ -->
 
-    <!-- Section label ("PLAN", "PROVIDERS"). -->
+    <!-- Section label ("PLAN", "PROVIDERS", "TODAY"). Caps and quiet — it names a region
+         without competing with anything inside it. -->
     <Style x:Key="HYP.SectionLabel" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="9.5" />
+        <Setter Property="FontSize" Value="9" />
         <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
-        <Setter Property="Opacity" Value="0.9" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="Opacity" Value="0.75" />
     </Style>
 
-    <!-- A quiet way out of a panel. Underlined text rather than a bordered button, so a secondary
-         route (open the provider settings) never competes with the primary action beside it. -->
+    <Style x:Key="HYP.GhostText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- A hairline. The workspace's only separator — no shadows, no double borders. -->
+    <Style x:Key="HYP.Divider" TargetType="Border">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- A quiet way out of a panel: text, not a bordered button, so a secondary route never
+         competes with the primary action beside it. -->
     <Style x:Key="HYP.LinkButton" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="2,0" />
-        <Setter Property="FontSize" Value="9.5" />
+        <Setter Property="FontSize" Value="10" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
         <Setter Property="Template">
@@ -60,15 +99,12 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
                             <Setter TargetName="Label" Property="Foreground"
                                     Value="{DynamicResource Ai.Text.Brush}" />
+                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
                         </Trigger>
-                        <!-- Keyboard users get the same affordance the mouse gets. -->
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline" />
-                            <Setter TargetName="Label" Property="Foreground"
-                                    Value="{DynamicResource Ai.Text.Brush}" />
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -76,23 +112,125 @@
         </Setter>
     </Style>
 
-    <!-- Dim metadata ("step 3 of 6 · tokens: …"). -->
-    <Style x:Key="HYP.GhostText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="10.5" />
+    <!-- A bare glyph button: the editor's toolbar unit. No border until the pointer is on it,
+         which is what keeps a strip of six of them from reading as a toolbar of six boxes. -->
+    <Style x:Key="HYP.IconButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
-        <Setter Property="Opacity" Value="0.8" />
-        <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-
-    <!-- The gradient brand mark (rail + empty state). Size set at the use site. -->
-    <Style x:Key="HYP.HeroMark" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource Gradient.Ai}" />
-        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
-        <Setter Property="Effect">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
             <Setter.Value>
-                <DropShadowEffect Color="#8B5CF6" BlurRadius="16" ShadowDepth="0" Opacity="0.45" />
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}"
+                            Background="Transparent" Padding="6,3" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.7" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- The secondary button. Outlined, never filled: a panel with six stock WPF buttons in it has
+         six things claiming to be the primary action, and the gradient CTA beside them stops meaning
+         anything. Everything that is not THE action in its panel wears this. -->
+    <Style x:Key="HYP.Button" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="Padding" Value="11,5" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{DynamicResource Background.Elevated}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.8" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A flat input. WPF's stock TextBox brings a raised 3D-era border that is wrong beside
+         everything else here; this is the field shape the whole workspace uses. -->
+    <Style x:Key="HYP.Field" TargetType="TextBox">
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="7,4" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost" Padding="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center" Focusable="False" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The app mark. A rounded SQUARE, not a circle: it sits beside a wordmark in a header,
+         which is a lockup, not an avatar. -->
+    <Style x:Key="HYP.HeroMark" TargetType="Border">
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
+        <Setter Property="Background" Value="{DynamicResource Gradient.Ai}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- A small state token (DRAFT / REGISTERED / a timer). -->
+    <Style x:Key="HYP.StateChip" TargetType="Border">
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.S}" />
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="6,1.5" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
     <!-- ═══ Session rail ═════════════════════════════════════════════════════════════════ -->
@@ -103,24 +241,27 @@
         <Setter Property="BorderThickness" Value="0,0,1,0" />
     </Style>
 
-    <!-- "+ New strategy": quiet glass, the rail's only strong affordance. -->
+    <!-- "New session". The rail's one solid affordance, and the only filled button in it. -->
     <Style x:Key="HYP.NewButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}"
-                            Background="{DynamicResource Ai.Soft}"
-                            BorderBrush="{DynamicResource Ai.Accent.Brush}" BorderThickness="1"
-                            Padding="10,6" SnapsToDevicePixels="True">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            Background="{DynamicResource Background.Elevated}"
+                            BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+                            Padding="9,6" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Gradient.AiGlass}" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="bd" Property="Opacity" Value="0.85" />
@@ -131,32 +272,30 @@
         </Setter>
     </Style>
 
-    <!-- Session cards: quiet, selected = violet inset edge + soft wash (never the theme's
-         list highlight — the rail reads as cards, not a ListBox). -->
+    <!-- Session rows: FLAT, full-bleed, hover-lit. They were bordered cards with a margin each,
+         which turned a list of eight conversations into a list of eight boxes; a file explorer
+         does not draw a box round every file. Selection is an accent edge plus a wash, never
+         the theme's stock list highlight. -->
     <Style x:Key="HYP.SessionItem" TargetType="ListBoxItem">
         <Setter Property="Focusable" Value="True" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Margin="0,2"
-                            Background="{DynamicResource Background.Elevated}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                            Padding="9,7" SnapsToDevicePixels="True">
+                    <Border x:Name="bd" Background="Transparent" Padding="9,6,6,6"
+                            CornerRadius="{StaticResource HYP.Radius.S}" SnapsToDevicePixels="True">
                         <Grid>
-                            <Border x:Name="edge" Width="2.5" HorizontalAlignment="Left" Margin="-9.5,-7,0,-7"
-                                    Background="{DynamicResource Ai.Accent.Brush}" Visibility="Collapsed"
-                                    CornerRadius="2" />
+                            <Border x:Name="edge" Width="2" HorizontalAlignment="Left" Margin="-9,-6,0,-6"
+                                    Background="{DynamicResource Ai.Accent.Brush}" Visibility="Collapsed" />
                             <ContentPresenter />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="bd" Property="Background" Value="{DynamicResource Ai.Soft}" />
-                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
                             <Setter TargetName="edge" Property="Visibility" Value="Visible" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -165,47 +304,84 @@
         </Setter>
     </Style>
 
-    <!-- One session card's content (duck-typed over AuthoringSessionSnapshot). -->
+    <!-- One session row (duck-typed over AuthoringSessionSnapshot).
+
+         Three lines, because a picker whose rows all say "My custom strategy" cannot be used to
+         find anything: the name, then THE FIRST THING THE USER ASKED FOR, then the machine
+         facts (id · turns · age) in mono. The brief is what people actually remember a
+         conversation by. -->
     <DataTemplate x:Key="HYP.SessionTemplate">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+
             <StackPanel Grid.Column="0">
-                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="12"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource Text.Header}" />
-                <TextBlock FontSize="10" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"
+                <DockPanel>
+                    <Border DockPanel.Dock="Right" Margin="6,1,0,0" VerticalAlignment="Center"
+                            Background="{DynamicResource Bullish.Soft}" CornerRadius="3" Padding="4,0"
+                            Visibility="{Binding Registered, Converter={StaticResource HYP.B2V}}">
+                        <TextBlock Text="REG" FontSize="8" FontWeight="Bold"
+                                   Foreground="{DynamicResource Bullish.Brush}" />
+                    </Border>
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="11.5"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource Text.Header}" />
+                </DockPanel>
+
+                <TextBlock Text="{Binding Summary}" FontSize="10" Margin="0,1,0,0"
+                           TextTrimming="CharacterEllipsis" Opacity="0.9"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Visibility="{Binding Summary, Converter={StaticResource HYP.S2V}}" />
+
+                <TextBlock FontSize="9" Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
+                           FontFamily="{DynamicResource Font.Data}" Opacity="0.7"
                            Foreground="{DynamicResource Text.Secondary}">
-                    <Run Text="{Binding StrategyId, Mode=OneWay}" FontFamily="{DynamicResource Font.Data}" /><Run Text=" · " /><Run Text="{Binding Age, Mode=OneWay}" />
+                    <Run Text="{Binding StrategyId, Mode=OneWay}" /><Run Text=" · " /><Run
+                         Text="{Binding TurnLabel, Mode=OneWay}" /><Run Text=" · " /><Run
+                         Text="{Binding Age, Mode=OneWay}" />
                 </TextBlock>
-                <TextBlock Text="registered" FontSize="9" FontWeight="SemiBold" Margin="0,2,0,0"
-                           Foreground="{DynamicResource Bullish.Brush}"
-                           Visibility="{Binding Registered, Converter={StaticResource HYP.B2V}}" />
             </StackPanel>
-            <!-- Delete, revealed on hover. The rail is the only place a chat can be forgotten. -->
-            <Button x:Name="Del" Grid.Column="1" Content="✕" FontSize="10" Padding="4,1"
-                    VerticalAlignment="Top" Opacity="0" Cursor="Hand"
-                    Background="Transparent" BorderThickness="0"
-                    Foreground="{DynamicResource Text.Secondary}"
+
+            <!-- Forget, revealed on hover. The rail is the only place a chat can be deleted. -->
+            <Button x:Name="Del" Grid.Column="1" Content="✕" FontSize="10"
+                    Style="{StaticResource HYP.IconButton}"
+                    VerticalAlignment="Top" Opacity="0"
                     ToolTip="Forget this conversation. A registered strategy is untouched."
                     Command="{Binding DataContext.DeleteSavedSessionCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                     CommandParameter="{Binding}" />
         </Grid>
         <DataTemplate.Triggers>
             <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                <Setter TargetName="Del" Property="Opacity" Value="0.85" />
+                <Setter TargetName="Del" Property="Opacity" Value="1" />
             </DataTrigger>
         </DataTemplate.Triggers>
     </DataTemplate>
 
-    <!-- Provider health row (rail footer): green dot when usable. -->
+    <!-- Date group header ("Today", "Yesterday", "Previous 7 days", "Older"): the reason a long
+         history stays navigable. -->
+    <Style x:Key="HYP.SessionGroupHeader" TargetType="GroupItem">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GroupItem">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Name}" Style="{StaticResource HYP.SectionLabel}"
+                                   Margin="9,10,0,4" />
+                        <ItemsPresenter />
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Provider health row (rail footer): a dot that is green only when the provider is
+         genuinely callable. -->
     <DataTemplate x:Key="HYP.ProviderRow">
         <StackPanel Orientation="Horizontal" Margin="0,1.5">
-            <Ellipse x:Name="Dot" Width="6" Height="6" VerticalAlignment="Center"
-                     Fill="{DynamicResource Text.Secondary}" Opacity="0.5" />
-            <TextBlock Text="{Binding DisplayName}" FontSize="10.5" Margin="7,0,0,0"
+            <Ellipse x:Name="Dot" Width="5" Height="5" VerticalAlignment="Center"
+                     Fill="{DynamicResource Text.Secondary}" Opacity="0.45" />
+            <TextBlock Text="{Binding DisplayName}" FontSize="10" Margin="7,0,0,0"
                        Foreground="{DynamicResource Text.Secondary}" />
         </StackPanel>
         <DataTemplate.Triggers>
@@ -216,54 +392,80 @@
         </DataTemplate.Triggers>
     </DataTemplate>
 
-    <!-- ═══ Transcript templates (defined before the switch that references them) ════════ -->
+    <!-- ═══ Transcript ═══════════════════════════════════════════════════════════════════
+         Templates are declared before HYP.MessageSwitch, which StaticResource-references them:
+         a resource dictionary resolves StaticResource in declaration order.
+         ═════════════════════════════════════════════════════════════════════════════════ -->
 
-    <!-- User turn: the only contained bubble — violet wash, right-shouldered. -->
+    <!-- The role label. Codex and Cursor both name the speaker in a small caps label above the
+         turn rather than colouring a bubble, because a transcript that has to be decoded by hue
+         stops working the moment somebody reads it in the light theme. -->
+    <Style x:Key="HYP.TurnLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="9" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="Opacity" Value="0.8" />
+    </Style>
+
+    <!-- User turn: a LEFT-aligned block on the elevated ground with an accent edge. It used to
+         be a right-shouldered violet bubble at radius 14, which is an iMessage thread — and a
+         transcript you read top-to-bottom with code, plans and diffs in it cannot afford a
+         second margin running down the right-hand side. -->
     <DataTemplate x:Key="HYP.Msg.User">
-        <Border HorizontalAlignment="Right" MaxWidth="560" Margin="48,5,0,5"
-                CornerRadius="12,12,3,12" Padding="11,8"
-                Background="{DynamicResource Ai.Soft}"
-                BorderBrush="{DynamicResource Ai.Accent.Brush}" BorderThickness="1">
-            <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
-                     Background="Transparent" TextWrapping="Wrap" Padding="0"
-                     FontSize="12.5" Foreground="{DynamicResource Text.Primary}" />
+        <Border Margin="0,16,0,4" Padding="12,9" CornerRadius="{StaticResource HYP.Radius.S}"
+                Background="{DynamicResource Background.Elevated}"
+                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+            <Grid>
+                <Border Width="2" HorizontalAlignment="Left" Margin="-12,-9,0,-9"
+                        Background="{DynamicResource Ai.Accent.Brush}" />
+                <StackPanel Margin="4,0,0,0">
+                    <TextBlock Text="YOU" Style="{StaticResource HYP.TurnLabel}" />
+                    <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                             Background="Transparent" TextWrapping="Wrap" Padding="0"
+                             FontSize="13" Foreground="{DynamicResource Text.Primary}" />
+                </StackPanel>
+            </Grid>
         </Border>
     </DataTemplate>
 
-    <!-- Assistant turn: flat document text, no container. Code fences are stripped to a
+    <!-- Assistant turn: flat document prose, no container at all. Code fences are stripped to a
          marker — the code itself lives in the workbench and the file chips point at it. -->
     <DataTemplate x:Key="HYP.Msg.Assistant">
-        <TextBox Margin="0,5,24,5" MaxWidth="720" HorizontalAlignment="Left"
-                 Text="{Binding Text, Mode=OneWay, Converter={StaticResource HYP.StripFences}}"
-                 IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0"
-                 TextWrapping="Wrap" FontSize="12.5"
-                 Foreground="{DynamicResource Text.Primary}" />
+        <StackPanel Margin="0,12,0,14">
+            <TextBlock Text="HYPERION" Style="{StaticResource HYP.TurnLabel}"
+                       Foreground="{DynamicResource Ai.Text.Brush}" />
+            <TextBox Text="{Binding Text, Mode=OneWay, Converter={StaticResource HYP.StripFences}}"
+                     IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0"
+                     TextWrapping="Wrap" FontSize="13" HorizontalAlignment="Stretch"
+                     Foreground="{DynamicResource Text.Primary}" />
+        </StackPanel>
     </DataTemplate>
 
-    <!-- Builder aside ("Switched provider…"): small, centered, out of the way. -->
+    <!-- Builder aside ("Switched provider…"): a left-aligned note. Centring it made an
+         incidental remark look like a section break. -->
     <DataTemplate x:Key="HYP.Msg.Note">
-        <TextBlock Text="{Binding Text}" HorizontalAlignment="Center" Margin="0,6" MaxWidth="560"
-                   TextWrapping="Wrap" FontSize="10.5" FontStyle="Italic" TextAlignment="Center"
-                   Foreground="{DynamicResource Text.Secondary}" Opacity="0.85" />
+        <TextBlock Text="{Binding Text}" Margin="0,6" TextWrapping="Wrap" FontSize="10.5"
+                   FontStyle="Italic" Foreground="{DynamicResource Text.Secondary}" Opacity="0.85" />
     </DataTemplate>
 
-    <!-- Tool card: one line — glyph · title · numbers — expandable when there's full output. -->
+    <!-- Tool row: ONE LINE — glyph · title · mono detail — expanding to the full output.
+         Borderless, because a run of six of these is a log, and a log with six boxes in it is
+         unreadable. The hover ground and the chevron carry the affordance instead. -->
     <DataTemplate x:Key="HYP.Msg.Tool">
-        <Border HorizontalAlignment="Left" MaxWidth="640" Margin="0,3"
-                CornerRadius="{StaticResource HYP.Radius.S}" Padding="10,5"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+        <Border x:Name="Row" Margin="0,1" Padding="7,4" CornerRadius="{StaticResource HYP.Radius.S}"
+                Background="Transparent" HorizontalAlignment="Stretch">
             <StackPanel>
                 <DockPanel>
-                    <TextBlock x:Name="Glyph" DockPanel.Dock="Left" Text="○" FontWeight="Bold"
-                               VerticalAlignment="Center" Margin="0,0,7,0"
+                    <TextBlock x:Name="Glyph" DockPanel.Dock="Left" Text="○" FontSize="10.5"
+                               FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"
                                Foreground="{DynamicResource Text.Secondary}" />
                     <ToggleButton x:Name="MoreToggle" DockPanel.Dock="Right" Margin="8,0,0,0"
                                   Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                  VerticalAlignment="Center" Padding="2,0"
+                                  VerticalAlignment="Center" Padding="2,0" Focusable="False"
                                   Foreground="{DynamicResource Text.Secondary}"
                                   Visibility="{Binding HasMore, Converter={StaticResource HYP.B2V}}">
-                        <TextBlock Text="▸" FontSize="10">
+                        <TextBlock Text="▸" FontSize="9">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Style.Triggers>
@@ -275,21 +477,29 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </ToggleButton>
-                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
-                        <Run Text="{Binding ToolTitle, Mode=OneWay}" FontWeight="SemiBold"
-                             Foreground="{DynamicResource Text.Header}" /><Run Text="   " /><Run
-                             Text="{Binding ToolDetail, Mode=OneWay}" FontSize="11"
+                    <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding ToolTitle, Mode=OneWay}" FontSize="11.5" FontWeight="SemiBold"
+                             Foreground="{DynamicResource Text.Primary}" /><Run Text="   " /><Run
+                             Text="{Binding ToolDetail, Mode=OneWay}" FontSize="10.5"
+                             FontFamily="{DynamicResource Font.Data}"
                              Foreground="{DynamicResource Text.Secondary}" />
                     </TextBlock>
                 </DockPanel>
-                <TextBox Text="{Binding ToolMore, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
-                         Background="Transparent" TextWrapping="Wrap" Margin="18,5,0,1" Padding="0"
-                         FontFamily="{DynamicResource Font.Data}" FontSize="11"
-                         Foreground="{DynamicResource Text.Secondary}"
-                         Visibility="{Binding IsChecked, ElementName=MoreToggle, Converter={StaticResource HYP.B2V}}" />
+                <Border Margin="18,5,0,2" Padding="9,7" CornerRadius="{StaticResource HYP.Radius.S}"
+                        Background="{DynamicResource Background.Primary}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                        Visibility="{Binding IsChecked, ElementName=MoreToggle, Converter={StaticResource HYP.B2V}}">
+                    <TextBox Text="{Binding ToolMore, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                             Background="Transparent" TextWrapping="Wrap" Padding="0"
+                             FontFamily="{DynamicResource Font.Data}" FontSize="10.5"
+                             Foreground="{DynamicResource Text.Secondary}" />
+                </Border>
             </StackPanel>
         </Border>
         <DataTemplate.Triggers>
+            <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Surface.Hover}" />
+            </Trigger>
             <DataTrigger Binding="{Binding ToolState}" Value="Ok">
                 <Setter TargetName="Glyph" Property="Text" Value="✓" />
                 <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
@@ -305,48 +515,45 @@
         </DataTemplate.Triggers>
     </DataTemplate>
 
-    <!-- The live plan card: this turn's checklist, states animating in place. -->
+    <!-- The live plan: this turn's checklist, states animating in place. A left rule instead of
+         a full card, so it reads as part of the turn rather than a dialog dropped into it. -->
     <DataTemplate x:Key="HYP.Msg.Plan">
-        <Border HorizontalAlignment="Left" MaxWidth="640" MinWidth="300" Margin="0,4"
-                CornerRadius="{StaticResource HYP.Radius.M}" Padding="12,8"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Ai.Accent.Brush}" BorderThickness="1">
+        <Border Margin="0,8" Padding="12,8,0,8" BorderThickness="2,0,0,0"
+                BorderBrush="{DynamicResource Ai.Accent.Brush}" HorizontalAlignment="Stretch">
             <StackPanel>
-                <TextBlock Text="PLAN" Style="{StaticResource HYP.SectionLabel}" Margin="0,0,0,5" />
+                <TextBlock Text="PLAN" Style="{StaticResource HYP.SectionLabel}"
+                           Foreground="{DynamicResource Ai.Text.Brush}" Margin="0,0,0,6" />
                 <ItemsControl ItemsSource="{Binding PlanTasks}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,1.5">
+                            <Grid Margin="0,2">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="StateGlyph" Grid.Column="0" Text="○" FontWeight="Bold"
-                                           FontSize="11" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource Text.Secondary}" Opacity="0.6" />
-                                <TextBlock x:Name="Title" Grid.Column="1" Text="{Binding Title}" FontSize="11.5"
-                                           VerticalAlignment="Center" TextWrapping="Wrap" Opacity="0.6"
-                                           Foreground="{DynamicResource Text.Primary}" />
+                                <TextBlock x:Name="Box" Grid.Column="0" Text="□" FontSize="11"
+                                           Margin="0,0,8,0" VerticalAlignment="Top"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                                <TextBlock x:Name="Title" Grid.Column="1" Text="{Binding Title}"
+                                           TextWrapping="Wrap" FontSize="11.5"
+                                           Foreground="{DynamicResource Text.Secondary}" />
                             </Grid>
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding State}" Value="Running">
-                                    <Setter TargetName="StateGlyph" Property="Text" Value="◐" />
-                                    <Setter TargetName="StateGlyph" Property="Foreground" Value="{DynamicResource Ai.Accent.Brush}" />
-                                    <Setter TargetName="StateGlyph" Property="Opacity" Value="1" />
-                                    <Setter TargetName="Title" Property="Opacity" Value="1" />
-                                    <Setter TargetName="Title" Property="Foreground" Value="{DynamicResource Text.Header}" />
+                                    <Setter TargetName="Box" Property="Text" Value="▶" />
+                                    <Setter TargetName="Box" Property="Foreground" Value="{DynamicResource Ai.Accent.Brush}" />
+                                    <Setter TargetName="Title" Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                                    <Setter TargetName="Title" Property="FontWeight" Value="SemiBold" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding State}" Value="Done">
-                                    <Setter TargetName="StateGlyph" Property="Text" Value="✓" />
-                                    <Setter TargetName="StateGlyph" Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
-                                    <Setter TargetName="StateGlyph" Property="Opacity" Value="1" />
-                                    <Setter TargetName="Title" Property="Opacity" Value="0.9" />
+                                    <Setter TargetName="Box" Property="Text" Value="✓" />
+                                    <Setter TargetName="Box" Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                                    <Setter TargetName="Title" Property="Foreground" Value="{DynamicResource Text.Primary}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding State}" Value="Failed">
-                                    <Setter TargetName="StateGlyph" Property="Text" Value="✕" />
-                                    <Setter TargetName="StateGlyph" Property="Foreground" Value="{DynamicResource Danger.Brush}" />
-                                    <Setter TargetName="StateGlyph" Property="Opacity" Value="1" />
-                                    <Setter TargetName="Title" Property="Opacity" Value="0.9" />
+                                    <Setter TargetName="Box" Property="Text" Value="✕" />
+                                    <Setter TargetName="Box" Property="Foreground" Value="{DynamicResource Danger.Brush}" />
+                                    <Setter TargetName="Title" Property="Foreground" Value="{DynamicResource Danger.Brush}" />
                                 </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
@@ -356,23 +563,25 @@
         </Border>
     </DataTemplate>
 
-    <!-- A plan restored from disk: the same card, frozen glyph lines. -->
+    <!-- A plan the model wrote as prose rather than as tasks: the same left rule, so a run
+         mixing both shapes still reads as one column. -->
     <DataTemplate x:Key="HYP.Msg.PlanText">
-        <Border HorizontalAlignment="Left" MaxWidth="640" MinWidth="300" Margin="0,4"
-                CornerRadius="{StaticResource HYP.Radius.M}" Padding="12,8"
-                Background="{DynamicResource Background.Elevated}"
-                BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1">
+        <Border Margin="0,8" Padding="12,8,0,8" BorderThickness="2,0,0,0"
+                BorderBrush="{DynamicResource Ai.Accent.Brush}" HorizontalAlignment="Stretch">
             <StackPanel>
-                <TextBlock Text="PLAN" Style="{StaticResource HYP.SectionLabel}" Margin="0,0,0,5" Opacity="0.6" />
-                <TextBlock Text="{Binding Text}" FontSize="11.5" LineHeight="18"
-                           Foreground="{DynamicResource Text.Secondary}" />
+                <TextBlock Text="PLAN" Style="{StaticResource HYP.SectionLabel}"
+                           Foreground="{DynamicResource Ai.Text.Brush}" Margin="0,0,0,5" />
+                <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                         Background="Transparent" TextWrapping="Wrap" Padding="0" FontSize="11.5"
+                         Foreground="{DynamicResource Text.Primary}" />
             </StackPanel>
         </Border>
     </DataTemplate>
 
-    <!-- Files-changed chips: click focuses the file in the workbench. -->
+    <!-- What changed on disk, as clickable file chips carrying their diff counts — the editor's
+         "5 files changed" strip. Clicking one opens it in the workbench. -->
     <DataTemplate x:Key="HYP.Msg.Files">
-        <ItemsControl ItemsSource="{Binding FileChanges}" Margin="0,3" HorizontalAlignment="Left">
+        <ItemsControl ItemsSource="{Binding FileChanges}" Margin="0,6" HorizontalAlignment="Left">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <WrapPanel />
@@ -395,6 +604,7 @@
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
                                         <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -407,6 +617,79 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+    </DataTemplate>
+
+    <!-- The model's THINKING, collapsed.
+
+         A reasoning model streams its chain of thought on a separate channel and emits no answer at
+         all until it has finished — minutes of it on a hard brief. That used to be counted and thrown
+         away, so the workspace showed a shimmering verb and nothing else, and a long think was
+         indistinguishable from a hang. It is here now, in the shape every other coding tool uses for
+         it: one quiet disclosure row that opens into a monospace well.
+
+         COLLAPSED BY DEFAULT, and that is not a default anyone should change. The thought stream is
+         not the answer; it is the model talking to itself, it is frequently wrong on the way to being
+         right, and left open it buries the conversation under its own footnotes. The row exists so the
+         silence is explainable and the reasoning is THERE for anyone who wants it. -->
+    <DataTemplate x:Key="HYP.Msg.Thinking">
+        <Border Margin="0,8,0,4" CornerRadius="{StaticResource HYP.Radius.S}"
+                Background="{DynamicResource Background.Elevated}"
+                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+            <StackPanel>
+                <ToggleButton x:Name="Open" Background="Transparent" BorderThickness="0"
+                              Cursor="Hand" Focusable="False" Padding="10,6"
+                              HorizontalContentAlignment="Stretch">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" FontSize="9" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="▸" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsChecked, ElementName=Open}" Value="True">
+                                            <Setter Property="Text" Value="▾" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- Shimmers while the turn runs, still when it is over: the same motion
+                             contract as the working verb, so "still thinking" and "thought about it"
+                             are told apart without reading a word. -->
+                        <ContentControl Style="{StaticResource HYP.ShimmerLabel}" Content="Thinking"
+                                        DockPanel.Dock="Left" VerticalAlignment="Center"
+                                        Visibility="{Binding DataContext.IsGenerating,
+                                                     RelativeSource={RelativeSource AncestorType=ItemsControl},
+                                                     Converter={StaticResource HYP.B2V}}" />
+                        <TextBlock Text="Thought" FontSize="11.5" FontWeight="SemiBold"
+                                   DockPanel.Dock="Left" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Visibility="{Binding DataContext.IsGenerating,
+                                                RelativeSource={RelativeSource AncestorType=ItemsControl},
+                                                Converter={StaticResource HYP.NotB2V}}" />
+
+                        <TextBlock Margin="8,0,0,0" FontSize="10" VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource Font.Data}" Opacity="0.7"
+                                   Foreground="{DynamicResource Text.Secondary}"
+                                   Text="{Binding Text.Length, Mode=OneWay, StringFormat={}{0:N0} chars}" />
+                    </DockPanel>
+                </ToggleButton>
+
+                <Border Margin="10,0,10,9" Padding="9,7" MaxHeight="260"
+                        CornerRadius="{StaticResource HYP.Radius.S}"
+                        Background="{DynamicResource Background.Primary}"
+                        BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                        Visibility="{Binding IsChecked, ElementName=Open, Converter={StaticResource HYP.B2V}}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                 Background="Transparent" TextWrapping="Wrap" Padding="0"
+                                 FontFamily="{DynamicResource Font.Data}" FontSize="10.5"
+                                 Foreground="{DynamicResource Text.Secondary}" />
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </Border>
     </DataTemplate>
 
     <!-- The transcript switch: one ContentControl per message, template picked by Kind. -->
@@ -423,6 +706,9 @@
             <DataTrigger Binding="{Binding Kind}" Value="Tool">
                 <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Tool}" />
             </DataTrigger>
+            <DataTrigger Binding="{Binding Kind}" Value="Thinking">
+                <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Thinking}" />
+            </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="Plan">
                 <Setter Property="ContentTemplate" Value="{StaticResource HYP.Msg.Plan}" />
             </DataTrigger>
@@ -437,57 +723,72 @@
 
     <!-- ═══ Composer ═════════════════════════════════════════════════════════════════════ -->
 
-    <!-- The cockpit shell. Bind Tag to IsGenerating: the gradient ring fades in and sweeps
-         only while a turn runs — motion is the working signal, an idle composer is static. -->
+    <!-- The composer shell. Bind Tag to IsGenerating.
+
+         The working signal was a rotating conic gradient with a violet drop-shadow around the
+         whole box — a lava lamp under the one control you are trying to type into. It is a 2px
+         indeterminate hairline across the TOP EDGE now: the signal an editor uses for a
+         background task, visible from the corner of the eye and invisible to the sentence you
+         are writing. Opacity-gated, clipped, 24 fps, and completely still when idle. -->
     <Style x:Key="HYP.ComposerShell" TargetType="ContentControl">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
-                    <Grid>
-                        <Border CornerRadius="{StaticResource HYP.Radius.L}"
-                                Background="{DynamicResource Gradient.AiGlass}"
-                                BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
-                                Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
-                            <ContentPresenter />
-                        </Border>
-                        <!-- The working ring: opacity-gated overlay so layout never changes. -->
-                        <Border x:Name="Ring" CornerRadius="{StaticResource HYP.Radius.L}"
-                                BorderThickness="1.5" Opacity="0" IsHitTestVisible="False">
-                            <Border.BorderBrush>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <LinearGradientBrush.RelativeTransform>
-                                        <RotateTransform x:Name="RingSweep" CenterX="0.5" CenterY="0.5" Angle="0" />
-                                    </LinearGradientBrush.RelativeTransform>
-                                    <GradientStop Color="#7C3AED" Offset="0" />
-                                    <GradientStop Color="#A855F7" Offset="0.5" />
-                                    <GradientStop Color="#22D3EE" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.BorderBrush>
-                            <Border.Effect>
-                                <DropShadowEffect Color="#8B5CF6" BlurRadius="20" ShadowDepth="0" Opacity="0.35" />
-                            </Border.Effect>
-                        </Border>
-                    </Grid>
+                    <Border x:Name="Shell" CornerRadius="{StaticResource HYP.Radius.M}"
+                            Background="{DynamicResource Background.Elevated}"
+                            BorderBrush="{DynamicResource Border.Strong}" BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="2" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" x:Name="Track" ClipToBounds="True" Opacity="0"
+                                    IsHitTestVisible="False" CornerRadius="6,6,0,0">
+                                <Border x:Name="Comet" Width="140" HorizontalAlignment="Left">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#007C3AED" Offset="0" />
+                                            <GradientStop Color="#A855F7" Offset="0.5" />
+                                            <GradientStop Color="#0022D3EE" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="CometSlide" X="0" />
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Border>
+
+                            <Border Grid.Row="1" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter />
+                            </Border>
+                        </Grid>
+                    </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Shell" Property="BorderBrush"
+                                    Value="{DynamicResource Ai.Accent.Brush}" />
+                        </Trigger>
                         <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <DataTrigger.EnterActions>
-                                <BeginStoryboard x:Name="RingSpin">
+                                <BeginStoryboard x:Name="Working">
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity"
-                                                         To="1" Duration="0:0:0.25" />
-                                        <DoubleAnimation Storyboard.TargetName="RingSweep" Storyboard.TargetProperty="Angle"
-                                                         From="0" To="360" Duration="0:0:10"
+                                        <DoubleAnimation Storyboard.TargetName="Track" Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.2" />
+                                        <DoubleAnimation Storyboard.TargetName="CometSlide" Storyboard.TargetProperty="X"
+                                                         From="-140" To="1400" Duration="0:0:1.6"
                                                          RepeatBehavior="Forever" Timeline.DesiredFrameRate="24" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </DataTrigger.EnterActions>
                             <DataTrigger.ExitActions>
-                                <StopStoryboard BeginStoryboardName="RingSpin" />
+                                <StopStoryboard BeginStoryboardName="Working" />
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity"
-                                                         To="0" Duration="0:0:0.3" />
+                                        <DoubleAnimation Storyboard.TargetName="Track" Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.25" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </DataTrigger.ExitActions>
@@ -498,28 +799,32 @@
         </Setter>
     </Style>
 
-    <!-- Composer pills (model / build effort / reasoning): quiet capsule ToggleButtons that
-         open their flyout Popup; checked = flyout open. -->
+    <!-- Composer pills (model / effort): quiet ToggleButtons that open a flyout Popup; checked
+         means the flyout is open. Squared off — a capsule reads as a filter chip. -->
     <Style x:Key="HYP.PillButton" TargetType="ToggleButton">
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
         <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Focusable" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="bd" CornerRadius="10" Padding="9,3"
-                            Background="{DynamicResource Background.Elevated}"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="8,3"
+                            Background="Transparent"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                             SnapsToDevicePixels="True">
                         <ContentPresenter VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
                             <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="bd" Property="Background" Value="{DynamicResource Ai.Soft}" />
                             <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -530,26 +835,18 @@
         </Setter>
     </Style>
 
-    <!--
-        Strategy / Visualizer — what Hyperion is being asked to author.
+    <!-- The model picker: the composer's most consequential control, so it carries the accent
+         even when closed. -->
+    <Style x:Key="HYP.PillButton.Ai" TargetType="ToggleButton" BasedOn="{StaticResource HYP.PillButton}">
+        <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
 
-        A segmented control at pill scale, sitting in the pill row with the model and effort pickers.
-
-        It replaces the 240x38 sliding switch borrowed from the Paper/Real trading toggle, which was
-        wrong here twice over. It was three times the height of everything around it and needed a
-        "Build:" label and a grid row of its own, so a routine choice dominated the composer. And it
-        carried the wrong meaning: Paper/Real is a SAFETY switch whose entire design job is gravity —
-        red, wide, deliberate, because the right-hand end spends real money. Reusing that vocabulary
-        for "which of two things am I writing" tells the user this is a decision to be careful about.
-        It is not; it is a mode, and it flips freely.
-
-        Both destinations stay on screen with the active one filled in its own kind colour — AI purple
-        for a strategy, accent blue for a visualizer, the same pair the catalog cards use — so the
-        switch and the card it produces agree on what each kind looks like.
-    -->
+    <!-- Strategy / Visualizer. The one true segmented control in the workspace: two mutually
+         exclusive outputs, so it earns a filled active half. -->
     <Style x:Key="HYP.KindSegment" TargetType="ToggleButton">
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontSize" Value="9.5" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -557,8 +854,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Track" CornerRadius="10" Padding="2"
-                            Background="{DynamicResource Background.Elevated}"
+                    <Border x:Name="Track" CornerRadius="{StaticResource HYP.Radius.S}" Padding="1.5"
+                            Background="{DynamicResource Background.Primary}"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                             SnapsToDevicePixels="True">
                         <Grid>
@@ -567,14 +864,13 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Border x:Name="StrategyFill" Grid.Column="0" CornerRadius="8"
-                                    Padding="10,3" Background="{DynamicResource Ai.Glow.Brush}">
-                                <TextBlock x:Name="StrategyText" Text="STRATEGY"
-                                           Foreground="White" />
+                            <Border x:Name="StrategyFill" Grid.Column="0" CornerRadius="3"
+                                    Padding="9,2.5" Background="{DynamicResource Ai.Accent.Brush}">
+                                <TextBlock x:Name="StrategyText" Text="STRATEGY" Foreground="White" />
                             </Border>
 
-                            <Border x:Name="VisualizerFill" Grid.Column="1" CornerRadius="8"
-                                    Padding="10,3" Background="Transparent">
+                            <Border x:Name="VisualizerFill" Grid.Column="1" CornerRadius="3"
+                                    Padding="9,2.5" Background="Transparent">
                                 <TextBlock x:Name="VisualizerText" Text="VISUALIZER"
                                            Foreground="{DynamicResource Text.Secondary}" />
                             </Border>
@@ -608,51 +904,46 @@
         </Setter>
     </Style>
 
-    <!-- Accented pill variant for the model picker — it is the choice that matters most. -->
-    <Style x:Key="HYP.PillButton.Ai" TargetType="ToggleButton" BasedOn="{StaticResource HYP.PillButton}">
-        <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
-    </Style>
-
-    <!-- Flyout body (the Popup's child). -->
+    <!-- Flyout body (a Popup's child): a menu, so it sits on the elevated ground with a hairline
+         and a real shadow — one of the two places a shadow is correct, because it floats. -->
     <Style x:Key="HYP.FlyoutCard" TargetType="Border">
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
         <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
-        <Setter Property="Padding" Value="8" />
+        <Setter Property="Padding" Value="7" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect Color="#000000" BlurRadius="22" ShadowDepth="4" Opacity="0.45" />
+                <DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="3" Opacity="0.35" />
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- Send: the gradient primary. Stop shares the geometry, bearish outline. -->
+    <!-- Send. Solid accent, and the only filled button in the conversation column. -->
     <Style x:Key="HYP.SendButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="White" />
-        <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" CornerRadius="12" Padding="16,5"
-                            Background="{DynamicResource Gradient.Ai}" SnapsToDevicePixels="True">
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="13,5"
+                            Background="{DynamicResource Ai.Accent.Brush}" SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Effect">
-                                <Setter.Value>
-                                    <DropShadowEffect Color="#8B5CF6" BlurRadius="16" ShadowDepth="0" Opacity="0.55" />
-                                </Setter.Value>
-                            </Setter>
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Ai.Glow.Brush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="bd" Property="Opacity" Value="0.85" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Background.Primary}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                            <Setter Property="Opacity" Value="0.6" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -660,23 +951,25 @@
         </Setter>
     </Style>
 
+    <!-- Stop. Outlined danger, never filled: interrupting is not the happy path and must not
+         look like the primary action. -->
     <Style x:Key="HYP.StopButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource Danger.Brush}" />
-        <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" CornerRadius="12" Padding="16,5"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="13,5"
                             Background="Transparent"
-                            BorderBrush="{DynamicResource Danger.Brush}" BorderThickness="1.2"
+                            BorderBrush="{DynamicResource Danger.Brush}" BorderThickness="1"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource HYP.Diff.Del.Bg}" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Bearish.Soft}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -684,7 +977,7 @@
         </Setter>
     </Style>
 
-    <!-- Suggestion briefs on the empty state. -->
+    <!-- A starter brief on the empty screen. -->
     <Style x:Key="HYP.SuggestionChip" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
@@ -692,16 +985,21 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.M}" Padding="11,5"
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="11,7"
                             Background="{DynamicResource Background.Elevated}"
                             BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
                             SnapsToDevicePixels="True">
-                        <ContentPresenter />
+                        <Grid>
+                            <Border x:Name="edge" Width="2" HorizontalAlignment="Left" Margin="-11,-7,0,-7"
+                                    Background="{DynamicResource Ai.Accent.Brush}" Opacity="0" />
+                            <ContentPresenter />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Ai.Soft}" />
-                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                            <Setter TargetName="edge" Property="Opacity" Value="1" />
                             <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -710,16 +1008,45 @@
         </Setter>
     </Style>
 
-    <!-- The question-back moment: an inline accent card, not a beige banner. -->
+    <!-- The question-back moment: an inline card on the elevated ground, carrying the same
+         accent edge as the rest of the transcript. -->
     <Style x:Key="HYP.QuestionCard" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource Ai.Soft}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.M}" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.S}" />
+        <Setter Property="Padding" Value="13,11" />
     </Style>
 
-    <!-- Shimmering status verb — animated only while it is on screen. -->
+    <!-- One answer option. Checked = the accent outline; never a stock CheckBox. -->
+    <Style x:Key="HYP.OptionChip" TargetType="ToggleButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="0,0,6,6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="10,6"
+                            Background="{DynamicResource Background.Primary}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Ai.Soft}" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The working verb. A shimmer along the text, secondary→accent→secondary, animated only
+         while it is on screen. -->
     <Style x:Key="HYP.ShimmerLabel" TargetType="ContentControl">
         <Setter Property="Focusable" Value="False" />
         <Setter Property="Template">
@@ -732,8 +1059,7 @@
                                     <TranslateTransform x:Name="ShimmerSlide" X="0" />
                                 </LinearGradientBrush.RelativeTransform>
                                 <GradientStop Color="#787B86" Offset="0" />
-                                <GradientStop Color="#C4B5FD" Offset="0.35" />
-                                <GradientStop Color="#22D3EE" Offset="0.5" />
+                                <GradientStop Color="#C4B5FD" Offset="0.4" />
                                 <GradientStop Color="#787B86" Offset="0.8" />
                             </LinearGradientBrush>
                         </TextBlock.Foreground>
@@ -767,48 +1093,81 @@
         <Setter Property="BorderThickness" Value="1,0,0,0" />
     </Style>
 
-    <!-- Compile & Register — the workspace's one gradient CTA. -->
+    <!-- Editor tabs. WPF's stock TabControl draws raised, boxed, Windows-XP-era headers with a
+         border around the content; every editor this workspace is measured against uses a flat
+         strip on a hairline with a 2px underline under the active tab, and nothing else. -->
+    <Style x:Key="HYP.TabHeader" TargetType="TabItem">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="bd" Background="Transparent" Padding="11,7"
+                            BorderThickness="0,0,0,2" BorderBrush="Transparent"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter ContentSource="Header" VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          TextElement.FontSize="{TemplateBinding FontSize}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HYP.TabStrip" TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource HYP.TabHeader}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" BorderThickness="0,0,0,1"
+                                BorderBrush="{DynamicResource Border.Brush}">
+                            <TabPanel IsItemsHost="True" Margin="0" KeyboardNavigation.TabIndex="1" />
+                        </Border>
+                        <ContentPresenter ContentSource="SelectedContent" Margin="0,8,0,0" />
+                    </DockPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Compile and register — the workspace's one gradient CTA, and the only one anywhere. -->
     <Style x:Key="HYP.CtaButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="White" />
         <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="11.5" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="12,7"
                             Background="{DynamicResource Gradient.Ai}" SnapsToDevicePixels="True">
-                        <Border.Effect>
-                            <DropShadowEffect x:Name="CtaGlow" Color="#8B5CF6" BlurRadius="14" ShadowDepth="0" Opacity="0.3" />
-                        </Border.Effect>
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
-                        <!-- A Setter can't target a named freezable — breathe the glow via storyboards
-                             (the same pattern as Ai.HeroButton's HeroGlow). -->
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Trigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="CtaGlow" Storyboard.TargetProperty="Opacity"
-                                                         To="0.65" Duration="0:0:0.15" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.EnterActions>
-                            <Trigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="CtaGlow" Storyboard.TargetProperty="Opacity"
-                                                         To="0.3" Duration="0:0:0.2" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.ExitActions>
+                            <Setter TargetName="bd" Property="Opacity" Value="0.9" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="bd" Property="Opacity" Value="0.85" />
+                            <Setter TargetName="bd" Property="Opacity" Value="0.75" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Background.Primary}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -816,35 +1175,25 @@
         </Setter>
     </Style>
 
-    <!-- DRAFT / REGISTERED chip. -->
-    <Style x:Key="HYP.StateChip" TargetType="Border">
-        <Setter Property="CornerRadius" Value="9" />
-        <Setter Property="Padding" Value="8,2" />
-        <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
-        <Setter Property="BorderThickness" Value="1" />
-    </Style>
-
-    <!-- Workbench file chips (strip above the editor): selected = violet border. -->
+    <!-- An open file's tab in the code pane: the same underline language as the workbench tabs,
+         one level quieter, in mono because it names a file. -->
     <Style x:Key="HYP.FileTab" TargetType="ListBoxItem">
-        <Setter Property="Focusable" Value="True" />
+        <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Margin="0,0,5,4"
-                            Background="{DynamicResource Background.Elevated}"
-                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                            Padding="9,3" SnapsToDevicePixels="True">
+                    <Border x:Name="bd" Padding="9,4" Background="Transparent"
+                            BorderThickness="0,0,0,2" BorderBrush="Transparent"
+                            SnapsToDevicePixels="True">
                         <ContentPresenter VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Background.Elevated}" />
                             <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
-                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Ai.Soft}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -852,44 +1201,235 @@
         </Setter>
     </Style>
 
-    <!-- ═══ Review overlay ═══════════════════════════════════════════════════════════════ -->
+    <!-- The editor's frame: a hairline box on the primary (darkest) ground, so code sits in a
+         well rather than on the panel. -->
+    <Style x:Key="HYP.EditorFrame" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.S}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- One compiler diagnostic. Severity is a coloured glyph plus a mono file:line — the shape
+         every editor's problems panel uses, and the shape people can actually scan. -->
+    <DataTemplate x:Key="HYP.DiagnosticRow">
+        <Grid Margin="0,2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="Sev" Grid.Column="0" Text="●" FontSize="9" VerticalAlignment="Top"
+                       Margin="0,3,7,0" Foreground="{DynamicResource Warning.Brush}" />
+            <TextBlock Grid.Column="1" FontFamily="{DynamicResource Font.Data}" FontSize="10"
+                       VerticalAlignment="Top" Margin="0,1,9,0" Opacity="0.8"
+                       Foreground="{DynamicResource Text.Secondary}">
+                <Run Text="{Binding File, Mode=OneWay}" /><Run Text=":" /><Run Text="{Binding Line, Mode=OneWay}" />
+            </TextBlock>
+            <TextBlock Grid.Column="2" Text="{Binding Message}" TextWrapping="Wrap" FontSize="10.5"
+                       Foreground="{DynamicResource Text.Primary}" />
+        </Grid>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Severity}" Value="Error">
+                <Setter TargetName="Sev" Property="Foreground" Value="{DynamicResource Danger.Brush}" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- ═══ Status bar ═══════════════════════════════════════════════════════════════════
+         The workspace's bottom rule, spanning all three columns the way an editor's does.
+         Everything ambient lives here — state, identity, model, effort, tokens, elapsed — so
+         none of it has to be duplicated as a chip inside a panel.
+         ═════════════════════════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="HYP.StatusBar" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="HYP.StatusText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontFamily" Value="{DynamicResource Font.Data}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <!-- The state dot: grey idle, accent working, amber waiting on the user, red failed —
+         driven by StateKind so the word and the colour can never disagree. -->
+    <Style x:Key="HYP.StateDot" TargetType="Ellipse">
+        <Setter Property="Width" Value="6" />
+        <Setter Property="Height" Value="6" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="Opacity" Value="0.6" />
+    </Style>
+
+    <!-- The token meter's track. The three segments inside it are sized in device-independent
+         pixels by the view-model (fresh input · cached input · output), because the view-model
+         assembly is WPF-free and cannot hand out a GridLength. -->
+    <Style x:Key="HYP.MeterTrack" TargetType="Border">
+        <Setter Property="Width" Value="86" />
+        <Setter Property="Height" Value="5" />
+        <Setter Property="CornerRadius" Value="2.5" />
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- ═══ Review gate ══════════════════════════════════════════════════════════════════ -->
 
     <Style x:Key="HYP.OverlayDim" TargetType="Border">
-        <Setter Property="Background" Value="#99000000" />
+        <Setter Property="Background" Value="#B0000000" />
     </Style>
 
     <Style x:Key="HYP.OverlayCard" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource Background.Primary}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
-        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.L}" />
+        <Setter Property="Background" Value="{DynamicResource Background.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect Color="#000000" BlurRadius="40" ShadowDepth="8" Opacity="0.55" />
+                <DropShadowEffect Color="#000000" BlurRadius="30" ShadowDepth="6" Opacity="0.5" />
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- One diff line: mono, wash + gutter glyph by kind ("add"/"del"/"ctx"). -->
+    <!-- One line of a unified diff: a gutter sign, then the code. -->
     <DataTemplate x:Key="HYP.DiffLine">
-        <Border x:Name="bg" Padding="8,0">
-            <TextBlock FontFamily="{DynamicResource Font.Data}" FontSize="11" TextWrapping="NoWrap">
-                <Run x:Name="Gutter" Text="  " /><Run Text="{Binding Text, Mode=OneWay}"
-                     Foreground="{DynamicResource Text.Primary}" />
+        <Border x:Name="bd" Padding="8,0.5" Background="Transparent">
+            <TextBlock FontFamily="{DynamicResource Font.Data}" FontSize="11"
+                       Foreground="{DynamicResource Text.Secondary}" TextWrapping="NoWrap">
+                <Run x:Name="Sign" Text="  " /><Run Text="{Binding Text, Mode=OneWay}" />
             </TextBlock>
         </Border>
         <DataTemplate.Triggers>
             <DataTrigger Binding="{Binding Kind}" Value="add">
-                <Setter TargetName="bg" Property="Background" Value="{StaticResource HYP.Diff.Add.Bg}" />
-                <Setter TargetName="Gutter" Property="Text" Value="+ " />
-                <Setter TargetName="Gutter" Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
+                <Setter TargetName="bd" Property="Background" Value="{StaticResource HYP.Diff.Add.Bg}" />
+                <Setter TargetName="Sign" Property="Text" Value="+ " />
+                <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource Bullish.Brush}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Kind}" Value="del">
-                <Setter TargetName="bg" Property="Background" Value="{StaticResource HYP.Diff.Del.Bg}" />
-                <Setter TargetName="Gutter" Property="Text" Value="− " />
-                <Setter TargetName="Gutter" Property="Foreground" Value="{DynamicResource Danger.Brush}" />
+                <Setter TargetName="bd" Property="Background" Value="{StaticResource HYP.Diff.Del.Bg}" />
+                <Setter TargetName="Sign" Property="Text" Value="− " />
+                <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource Bearish.Brush}" />
             </DataTrigger>
         </DataTemplate.Triggers>
     </DataTemplate>
+
+    <!-- ═══ AI provider setup ════════════════════════════════════════════════════════════
+         The settings window is the same workspace, so it uses the same shapes: flat rows on
+         hairlines, an accent edge for the selected one, one CTA.
+         ═════════════════════════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="HYP.ProviderCard" TargetType="ListBoxItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="bd" Margin="0,1" Padding="12,10"
+                            CornerRadius="{StaticResource HYP.Radius.S}"
+                            Background="Transparent" BorderThickness="1"
+                            BorderBrush="Transparent" SnapsToDevicePixels="True">
+                        <Grid>
+                            <Border x:Name="edge" Width="2" HorizontalAlignment="Left" Margin="-12,-10,0,-10"
+                                    Background="{DynamicResource Ai.Accent.Brush}" Visibility="Collapsed" />
+                            <ContentPresenter />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Background.Elevated}" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                            <Setter TargetName="edge" Property="Visibility" Value="Visible" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The vendor monogram. A square in the vendor's accent — see AiProviderBranding for why
+         it is a letter and not their logo. -->
+    <Style x:Key="HYP.ProviderMark" TargetType="Border">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.S}" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- Sign-in versus API key: two credentials for ONE provider, so a segment inside its row
+         rather than two rows. Unchecked = sign in, checked = API key. -->
+    <Style x:Key="HYP.CredentialSegment" TargetType="ToggleButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="9.5" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Track" CornerRadius="{StaticResource HYP.Radius.S}" Padding="1.5"
+                            Background="{DynamicResource Background.Primary}"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="SignInFill" Grid.Column="0" CornerRadius="3" Padding="9,2.5"
+                                    Background="{DynamicResource Ai.Accent.Brush}">
+                                <TextBlock x:Name="SignInText" Text="SIGN IN" Foreground="White" />
+                            </Border>
+                            <Border x:Name="KeyFill" Grid.Column="1" CornerRadius="3" Padding="9,2.5"
+                                    Background="Transparent">
+                                <TextBlock x:Name="KeyText" Text="API KEY"
+                                           Foreground="{DynamicResource Text.Secondary}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="SignInFill" Property="Background" Value="Transparent" />
+                            <Setter TargetName="SignInText" Property="Foreground"
+                                    Value="{DynamicResource Text.Secondary}" />
+                            <Setter TargetName="KeyFill" Property="Background"
+                                    Value="{DynamicResource Accent.Brush}" />
+                            <Setter TargetName="KeyText" Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush"
+                                    Value="{DynamicResource Border.Strong}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The one-word verdict on a provider row (IN USE / READY / NEEDS SETUP). -->
+    <Style x:Key="HYP.ProviderSignal" TargetType="Border">
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Padding" Value="5,1" />
+        <Setter Property="Background" Value="{DynamicResource Background.Elevated}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Border.Brush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
 
 </ResourceDictionary>

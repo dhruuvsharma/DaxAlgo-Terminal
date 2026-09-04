@@ -1,254 +1,368 @@
 <mah:MetroWindow x:Class="TradingTerminal.App.Authoring.AiProviderSettingsWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:sys="clr-namespace:System;assembly=System.Runtime"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 xmlns:converters="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
                  Title="AI providers"
-                 Width="880" Height="640" MinWidth="660" MinHeight="480"
+                 Width="720" Height="700" MinWidth="600" MinHeight="500"
                  WindowStartupLocation="CenterOwner"
                  ShowMaxRestoreButton="False"
                  Background="{DynamicResource Background.Primary}">
 
+    <!--
+        ═══ AI providers ═══════════════════════════════════════════════════════════════════════════
+
+        GROUPED, AND ONLY THE SELECTED ROW OPENS.
+
+        The pane's one question is "which provider will Hyperion use, and does it work?". A flat list
+        of twelve identical cards cannot answer it — you have to read all twelve. So the list is
+        grouped by the answer: IN USE, then READY, then NEEDS SETUP, and nine unconfigured providers
+        sit quietly at the bottom where they belong.
+
+        Only the selected card opens. Every card carrying its own key box, endpoint, model and four
+        buttons was most of what made this look like a config file rather than a setup screen.
+
+        ONE ANTHROPIC ROW. It used to be two — one wanting a key, one called "signed in" — so the pane
+        asked for an API key on the row whose entire point is not needing one. Sign-in and key are two
+        credentials for ONE provider, so they are a segment inside its row, not two rows.
+
+        Everything visual comes from HyperionStyles: HYP.ProviderCard (the rail's card shape),
+        HYP.CredentialSegment (the composer's segment), HYP.CtaButton (the workbench's one gradient
+        CTA), HYP.SectionLabel, HYP.GhostText, and the radius scale. No raw corner radii, no invented
+        palette — a settings window that looks like a different application is a settings window
+        somebody else designed.
+        ═══════════════════════════════════════════════════════════════════════════════════════════ -->
+
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="B2V" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="NotB2V" />
 
-        <!-- One provider in the list. Availability is the only thing that has to read at a glance,
-             so it is a dot rather than a word competing with the name. -->
-        <DataTemplate x:Key="ProviderListRow">
-            <DockPanel Margin="0,3">
-                <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Margin="0,0,8,0"
-                         VerticalAlignment="Center">
-                    <Ellipse.Style>
-                        <Style TargetType="Ellipse">
-                            <Setter Property="Fill" Value="{DynamicResource Text.Secondary}" />
-                            <Setter Property="Opacity" Value="0.35" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsAvailable}" Value="True">
-                                    <Setter Property="Fill" Value="{DynamicResource Bullish.Brush}" />
-                                    <Setter Property="Opacity" Value="1" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Ellipse.Style>
-                </Ellipse>
+        <!-- Grouped, and LIVE: making a provider the default moves it into IN USE without a rebuild. -->
+        <CollectionViewSource x:Key="Grouped" Source="{Binding Providers}"
+                              IsLiveGroupingRequested="True">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="Group" />
+            </CollectionViewSource.GroupDescriptions>
+            <CollectionViewSource.LiveGroupingProperties>
+                <sys:String>Group</sys:String>
+            </CollectionViewSource.LiveGroupingProperties>
+        </CollectionViewSource>
 
-                <TextBlock DockPanel.Dock="Right" Text="DEFAULT" FontSize="8" FontWeight="Bold"
-                           VerticalAlignment="Center" Margin="6,0,0,0"
-                           Foreground="{DynamicResource Ai.Text.Brush}"
-                           Visibility="{Binding IsDefault, Converter={StaticResource B2V}}" />
+        <DataTemplate x:Key="ProviderRow">
+            <DockPanel>
+                <!-- The badge: a monogram in the vendor's accent. AiProviderBranding says why this is
+                     not their logo. -->
+                <Border DockPanel.Dock="Left" Style="{StaticResource HYP.ProviderMark}"
+                        Background="{Binding Accent}" Margin="0,1,11,0">
+                    <TextBlock Text="{Binding Mark}" Foreground="White"
+                               FontWeight="Bold" FontSize="12.5"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
 
-                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource Text.Primary}" FontSize="12" />
+                <StackPanel>
+                    <!-- Name · default · state, all readable without opening anything. -->
+                    <DockPanel>
+                        <Border DockPanel.Dock="Right" Margin="8,0,0,0">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource HYP.ProviderSignal}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsReady}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource Ai.Soft}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding Signal}" FontSize="9.5" FontWeight="Bold">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsReady}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource Ai.Text.Brush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+
+                        <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource Text.Header}" />
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding Blurb}" TextWrapping="Wrap" FontSize="10.5"
+                               Margin="0,2,0,0" Opacity="0.85"
+                               Foreground="{DynamicResource Text.Secondary}" />
+
+                    <!-- ── Everything below opens only for the selected row ───────────────────── -->
+                    <StackPanel Margin="0,10,0,0"
+                                Visibility="{Binding IsSelected,
+                                             RelativeSource={RelativeSource AncestorType=ListBoxItem},
+                                             Converter={StaticResource B2V}}">
+
+                        <!-- How you connect. Only where there is a choice to make. -->
+                        <ToggleButton Style="{StaticResource HYP.CredentialSegment}"
+                                      Margin="0,0,0,9"
+                                      IsChecked="{Binding UseApiKey, Mode=TwoWay}"
+                                      Visibility="{Binding SupportsSignIn, Converter={StaticResource B2V}}" />
+
+                        <!--
+                            Sign in — but only offered as a button when it can actually be pressed.
+
+                            A disabled CTA with the reason somewhere else is a dead end: the user clicks,
+                            nothing happens, and the pane has said nothing about why. When the CLI is
+                            missing the button is REPLACED by what to do about it.
+                        -->
+                        <StackPanel Visibility="{Binding IsSignIn, Converter={StaticResource B2V}}">
+                          <Border CornerRadius="{StaticResource HYP.Radius.S}" Padding="10,8"
+                                  Background="{DynamicResource Background.Surface}"
+                                  BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
+                              <Border.Visibility>
+                                  <Binding Path="DataContext.CanSignIn"
+                                           RelativeSource="{RelativeSource AncestorType=ListBox}"
+                                           Converter="{StaticResource NotB2V}" />
+                              </Border.Visibility>
+                              <StackPanel>
+                                  <TextBlock Text="NEEDS THE ANTHROPIC CLI"
+                                             Style="{StaticResource HYP.SectionLabel}" />
+                                  <TextBlock Text="{Binding DataContext.SignInHint,
+                                             RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                             TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                             Foreground="{DynamicResource Text.Primary}" />
+                                  <TextBox Text="{Binding DataContext.SignInInstallHint, Mode=OneWay,
+                                           RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                           IsReadOnly="True" Margin="0,7,0,0" Padding="7,5"
+                                           FontFamily="{DynamicResource Font.Data}" FontSize="10.5"
+                                           TextWrapping="Wrap"
+                                           Background="{DynamicResource Background.Elevated}"
+                                           ToolTip="Copy this, run it, then press Recheck." />
+                              </StackPanel>
+                          </Border>
+
+                          <DockPanel Visibility="{Binding DataContext.CanSignIn,
+                                     RelativeSource={RelativeSource AncestorType=ListBox},
+                                     Converter={StaticResource B2V}}">
+                            <Button DockPanel.Dock="Right" Content="Sign out" Style="{StaticResource HYP.Button}"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding DataContext.SignOutCommand,
+                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                    IsEnabled="{Binding DataContext.CanSignIn,
+                                                RelativeSource={RelativeSource AncestorType=ListBox}}" />
+
+                            <Button HorizontalAlignment="Left"
+                                    Command="{Binding DataContext.SignInCommand,
+                                              RelativeSource={RelativeSource AncestorType=ListBox}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource HYP.CtaButton}">
+                                        <Setter Property="Content" Value="Sign in with Anthropic" />
+                                        <Setter Property="IsEnabled"
+                                                Value="{Binding DataContext.CanSignIn,
+                                                        RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.IsSigningIn,
+                                                         RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                         Value="True">
+                                                <Setter Property="Content" Value="Waiting for your browser…" />
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                          </DockPanel>
+
+                          <TextBlock Text="{Binding DataContext.SignInHint,
+                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                     TextWrapping="Wrap" Style="{StaticResource HYP.GhostText}"
+                                     Margin="0,7,0,0"
+                                     Visibility="{Binding DataContext.CanSignIn,
+                                                  RelativeSource={RelativeSource AncestorType=ListBox},
+                                                  Converter={StaticResource B2V}}" />
+                        </StackPanel>
+
+                        <!-- Key. Password, never Text: a key on screen is a key in a screenshot. -->
+                        <DockPanel Visibility="{Binding TakesKey, Converter={StaticResource B2V}}">
+                            <Button DockPanel.Dock="Right" Content="Forget" Style="{StaticResource HYP.Button}"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding DataContext.ClearKeyCommand,
+                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                    CommandParameter="{Binding}"
+                                    Visibility="{Binding HasKey, Converter={StaticResource B2V}}" />
+
+                            <Button DockPanel.Dock="Right" Content="Save key" Margin="6,0,0,0"
+                                    Style="{StaticResource HYP.CtaButton}"
+                                    Command="{Binding DataContext.SaveKeyCommand,
+                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                    CommandParameter="{Binding}" />
+
+                            <PasswordBox PasswordChanged="OnKeyChanged" Padding="8,6" FontSize="12"
+                                         FontFamily="{DynamicResource Font.Data}"
+                                         IsEnabled="{Binding DataContext.CanStoreKeys,
+                                                     RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap"
+                                   Style="{StaticResource HYP.GhostText}" Margin="0,7,0,0" />
+
+                        <!-- The one thing most people came to do. -->
+                        <Button Content="Use this provider" Margin="0,10,0,0"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource HYP.NewButton}"
+                                Command="{Binding DataContext.MakeDefaultCommand,
+                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                CommandParameter="{Binding}"
+                                Visibility="{Binding CanBecomeDefault, Converter={StaticResource B2V}}" />
+
+                        <!-- Endpoint, model, api-version: for the few who need them. -->
+                        <Expander Header="Endpoint &amp; model" Margin="0,10,0,0" FontSize="10.5"
+                                  Foreground="{DynamicResource Text.Secondary}">
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="{Binding ModelLabel}"
+                                           Style="{StaticResource HYP.SectionLabel}" />
+                                <DockPanel Margin="0,4,0,0">
+                                    <Button DockPanel.Dock="Right" Content="Refresh" Style="{StaticResource HYP.Button}"
+                                            Margin="6,0,0,0"
+                                            Command="{Binding DataContext.RefreshModelsCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}" />
+                                    <ComboBox IsEditable="True" ItemsSource="{Binding AvailableModels}"
+                                              Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
+                                              FontSize="11.5" Padding="6,4" />
+                                </DockPanel>
+
+                                <TextBlock Text="ENDPOINT" Style="{StaticResource HYP.SectionLabel}"
+                                           Margin="0,10,0,0" />
+                                <TextBox Style="{StaticResource HYP.Field}"
+                                         Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         Margin="0,4,0,0" FontSize="11"
+                                         FontFamily="{DynamicResource Font.Data}" />
+
+                                <StackPanel Visibility="{Binding IsAzure, Converter={StaticResource B2V}}">
+                                    <TextBlock Text="API-VERSION" Style="{StaticResource HYP.SectionLabel}"
+                                               Margin="0,10,0,0" />
+                                    <TextBox Style="{StaticResource HYP.Field}"
+                                             Text="{Binding ApiVersion, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,4,0,0" FontSize="11"
+                                             FontFamily="{DynamicResource Font.Data}" />
+                                </StackPanel>
+
+                                <DockPanel Margin="0,12,0,0">
+                                    <Button DockPanel.Dock="Right" Content="Remove" Style="{StaticResource HYP.Button}"
+                                            Margin="6,0,0,0"
+                                            Command="{Binding DataContext.RemoveProviderCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"
+                                            Visibility="{Binding IsUserDefined, Converter={StaticResource B2V}}" />
+
+                                    <Button HorizontalAlignment="Left" Content="Save settings" Style="{StaticResource HYP.Button}"
+                                            Command="{Binding DataContext.SaveProviderCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}" />
+                                </DockPanel>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </StackPanel>
             </DockPanel>
         </DataTemplate>
     </Window.Resources>
 
-    <Grid Margin="14">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="250" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+    <Grid Margin="18,16,18,14">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ── The list ──────────────────────────────────────────────────────────────────────── -->
-        <DockPanel Grid.Row="0" Grid.Column="0" Margin="0,0,14,0">
-            <TextBlock DockPanel.Dock="Top" Text="PROVIDERS" FontSize="9.5" FontWeight="Bold"
-                       Margin="2,0,0,6" Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
-
-            <Button DockPanel.Dock="Bottom" Content="Recheck" Margin="0,8,0,0" Padding="10,4"
-                    Command="{Binding RecheckCommand}"
-                    ToolTip="Look again for installed CLIs and stored keys" />
-
-            <!--
-                Adding a provider the app never heard of.
-
-                Collapsed by default because most people never open it, and load-bearing because
-                without it "bring your own provider" was true of the config file and false of the
-                product: the pane could edit the eight providers appsettings.json ships and could not
-                add a ninth, so reaching Groq or a local LM Studio meant hand-editing a JSON file in
-                LocalAppData.
-            -->
-            <Expander DockPanel.Dock="Bottom" Margin="0,8,0,0" Header="Add a provider…"
-                      Foreground="{DynamicResource Text.Secondary}" FontSize="11">
-                <StackPanel Margin="2,8,2,0">
-                    <ComboBox ItemsSource="{Binding Presets}"
-                              SelectedItem="{Binding SelectedPreset}"
-                              DisplayMemberPath="DisplayName"
-                              Padding="6,4" FontSize="11.5" />
-
-                    <TextBlock Text="{Binding SelectedPreset.Note}" TextWrapping="Wrap"
-                               FontSize="10.5" Margin="2,6,0,0"
-                               Foreground="{DynamicResource Text.Secondary}" />
-
-                    <!-- Only the blank row needs a name; a preset already has one, and asking for it
-                         again would read as a required field. -->
-                    <TextBox Text="{Binding NewProviderName, UpdateSourceTrigger=PropertyChanged}"
-                             Margin="0,7,0,0" Padding="6,4" FontSize="11.5"
-                             mah:TextBoxHelper.Watermark="Name, e.g. Company gateway"
-                             Visibility="{Binding IsCustomPreset, Converter={StaticResource B2V}}" />
-
-                    <TextBox Text="{Binding NewProviderBaseUrl, UpdateSourceTrigger=PropertyChanged}"
-                             Margin="0,6,0,0" Padding="6,4" FontSize="11"
-                             FontFamily="{DynamicResource Font.Data}"
-                             mah:TextBoxHelper.Watermark="https://…/v1" />
-
-                    <Button Content="Add" Margin="0,8,0,0" Padding="12,4"
-                            HorizontalAlignment="Left"
-                            Command="{Binding AddProviderCommand}" />
-                </StackPanel>
-            </Expander>
-
-            <ListBox ItemsSource="{Binding Providers}" SelectedItem="{Binding Selected}"
-                     ItemTemplate="{StaticResource ProviderListRow}"
-                     BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                     Background="{DynamicResource Background.Surface}"
-                     HorizontalContentAlignment="Stretch" />
+        <!-- ═══ Title ═══ -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,16">
+            <Border DockPanel.Dock="Left" Style="{StaticResource HYP.HeroMark}"
+                    Width="34" Height="34" Margin="0,0,12,0" VerticalAlignment="Top">
+                <TextBlock Text="◈" Foreground="White" FontSize="15"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel>
+                <TextBlock Text="AI providers" FontSize="17" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Text.Header}" />
+                <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,2,0,0" Opacity="0.9"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Text="Hyperion needs one that works. Pick a provider to set it up — the one marked IN USE is what it builds with." />
+            </StackPanel>
         </DockPanel>
 
-        <!-- ── The selected provider ─────────────────────────────────────────────────────────── -->
-        <Border Grid.Row="0" Grid.Column="1" CornerRadius="4" Padding="16,14"
-                Background="{DynamicResource Background.Surface}"
-                BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
-                DataContext="{Binding Selected}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <!-- ═══ The providers ═══ -->
+        <ListBox Grid.Row="1"
+                 ItemsSource="{Binding Source={StaticResource Grouped}}"
+                 SelectedItem="{Binding Selected}"
+                 ItemContainerStyle="{StaticResource HYP.ProviderCard}"
+                 ItemTemplate="{StaticResource ProviderRow}"
+                 Background="Transparent" BorderThickness="0"
+                 HorizontalContentAlignment="Stretch"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.GroupStyle>
+                <GroupStyle>
+                    <GroupStyle.HeaderTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource HYP.SectionLabel}"
+                                       Margin="2,10,0,6" />
+                        </DataTemplate>
+                    </GroupStyle.HeaderTemplate>
+                </GroupStyle>
+            </ListBox.GroupStyle>
+        </ListBox>
+
+        <!-- ═══ Add one the app never heard of ═══ -->
+        <Expander Grid.Row="2" Header="Add another provider" Margin="0,10,0,0" FontSize="11"
+                  Foreground="{DynamicResource Text.Secondary}">
+            <Border Margin="0,8,0,0" Padding="12"
+                    CornerRadius="{StaticResource HYP.Radius.M}"
+                    Background="{DynamicResource Background.Elevated}"
+                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1">
                 <StackPanel>
-                    <DockPanel>
-                        <!-- Only a provider the user added can be removed. A shipped one is layered
-                             under appsettings.json and would be back on the next start, so the button
-                             is absent rather than present and misleading. -->
-                        <Button DockPanel.Dock="Right" Content="Remove" Padding="10,3"
-                                VerticalAlignment="Top"
-                                Command="{Binding DataContext.RemoveProviderCommand,
-                                          RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding}"
-                                Visibility="{Binding IsUserDefined, Converter={StaticResource B2V}}"
-                                ToolTip="Forget this provider and its key" />
+                    <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}"
+                              DisplayMemberPath="DisplayName" FontSize="11.5" Padding="6,4" />
 
-                        <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="Bold"
-                                   TextTrimming="CharacterEllipsis"
-                                   Foreground="{DynamicResource Text.Header}" />
-                    </DockPanel>
-                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="11"
-                               Margin="0,4,0,0" Foreground="{DynamicResource Text.Secondary}" />
+                    <TextBlock Text="{Binding SelectedPreset.Note}" TextWrapping="Wrap"
+                               Style="{StaticResource HYP.GhostText}" Margin="0,7,0,0" />
 
-                    <!-- ── Keyed providers ──────────────────────────────────────────────────── -->
-                    <StackPanel Margin="0,16,0,0"
-                                Visibility="{Binding IsKeyed, Converter={StaticResource B2V}}">
-                        <TextBlock Text="API KEY" FontSize="9.5" FontWeight="Bold"
-                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
-
-                        <!-- A PasswordBox rather than a TextBox: a key pasted into a window someone may
-                             be screen-sharing should not be sitting there in plain text. -->
-                        <PasswordBox x:Name="KeyBox" Margin="0,5,0,0" Padding="7,5" FontSize="12"
-                                     PasswordChanged="OnKeyChanged" />
-
-                        <DockPanel Margin="0,7,0,0">
-                            <Button DockPanel.Dock="Right" Content="Forget key" Padding="10,4"
-                                    Margin="7,0,0,0"
-                                    Command="{Binding DataContext.ClearKeyCommand,
-                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                    CommandParameter="{Binding}"
-                                    Visibility="{Binding HasKey, Converter={StaticResource B2V}}" />
-                            <Button HorizontalAlignment="Left" Content="Save key" Padding="12,4"
-                                    Command="{Binding DataContext.SaveKeyCommand,
-                                              RelativeSource={RelativeSource AncestorType=Window}}"
-                                    CommandParameter="{Binding}" />
-                        </DockPanel>
-
-                        <TextBlock Margin="0,7,0,0" TextWrapping="Wrap" FontSize="10.5"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   Text="The key is encrypted for this Windows account and never leaves this machine except in requests to the provider you gave it for. You are billed by that provider for what the builder generates." />
-
-                        <TextBlock Text="ENDPOINT" FontSize="9.5" FontWeight="Bold" Margin="0,16,0,0"
-                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
-                        <TextBox Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
-                                 Margin="0,5,0,0" Padding="7,5" FontSize="12"
-                                 FontFamily="{DynamicResource Font.Data}" />
-                        <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   Text="Point this at a compatible gateway or a local server (Ollama, LM Studio, vLLM) to keep the whole exchange on your own machine." />
-
-                        <!-- Azure versions its API by date rather than by path, so this is not
-                             optional there and there is nothing safe to guess: an old value silently
-                             disables newer parameters, and an unrecognised one is a hard 404. -->
-                        <StackPanel Visibility="{Binding IsAzure, Converter={StaticResource B2V}}">
-                            <TextBlock Text="API VERSION" FontSize="9.5" FontWeight="Bold"
-                                       Margin="0,16,0,0"
-                                       Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
-                            <TextBox Text="{Binding ApiVersion, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,5,0,0" Padding="7,5" FontSize="12"
-                                     FontFamily="{DynamicResource Font.Data}" />
-                            <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
-                                       Foreground="{DynamicResource Text.Secondary}"
-                                       Text="Azure only. Take it from the resource's own API reference; a version it does not recognise answers 404 rather than an error you can read." />
-                        </StackPanel>
+                    <!-- Labelled rather than watermarked. A watermark is the MahApps template's, and
+                         HYP.Field replaces that template — so the two boxes here would have been the
+                         only stock-chrome inputs left in the window purely to keep a placeholder that
+                         a real label says better anyway (and that survives having text typed into it). -->
+                    <StackPanel Margin="0,8,0,0"
+                                Visibility="{Binding IsCustomPreset, Converter={StaticResource B2V}}">
+                        <TextBlock Text="NAME" Style="{StaticResource HYP.SectionLabel}" Margin="1,0,0,3" />
+                        <TextBox Style="{StaticResource HYP.Field}" FontSize="11.5"
+                                 Text="{Binding NewProviderName, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
-                    <!-- ── Agent CLIs ───────────────────────────────────────────────────────── -->
-                    <StackPanel Margin="0,16,0,0"
-                                Visibility="{Binding IsCli, Converter={StaticResource B2V}}">
-                        <TextBlock Text="CLI PROFILE (OPTIONAL)" FontSize="9.5" FontWeight="Bold"
-                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
-                        <TextBox Text="{Binding CliProfile, UpdateSourceTrigger=PropertyChanged}"
-                                 Margin="0,5,0,0" Padding="7,5" FontSize="12"
-                                 FontFamily="{DynamicResource Font.Data}" />
-                        <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
-                                   Foreground="{DynamicResource Text.Secondary}"
-                                   Text="A named configuration in the CLI's own settings. Leave it empty to use its default. There is no key to enter here — the CLI signs in with its own account, and its subscription pays for the tokens." />
-                    </StackPanel>
+                    <TextBlock Text="BASE URL" Style="{StaticResource HYP.SectionLabel}"
+                               Margin="1,8,0,3" />
+                    <TextBox Style="{StaticResource HYP.Field}" FontSize="11.5"
+                             FontFamily="{DynamicResource Font.Data}"
+                             Text="{Binding NewProviderBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <!-- ── Both ─────────────────────────────────────────────────────────────── -->
-                    <DockPanel Margin="0,16,0,0">
-                        <!-- Asking the endpoint what it serves is the only control here that proves
-                             anything: a list coming back means the URL resolves, the key is accepted
-                             AND the wire kind is right. Those are the three ways this goes wrong, and
-                             otherwise they are told apart by spending a generation. -->
-                        <Button DockPanel.Dock="Right" Content="Refresh models" Padding="10,3"
-                                VerticalAlignment="Bottom"
-                                Command="{Binding DataContext.RefreshModelsCommand,
-                                          RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding}" />
-                        <TextBlock Text="{Binding ModelLabel}" FontSize="9.5" FontWeight="Bold"
-                                   VerticalAlignment="Bottom"
-                                   Foreground="{DynamicResource Ai.Text.Brush}" Opacity="0.9" />
-                    </DockPanel>
-
-                    <!-- Editable, not a plain dropdown: the list is what the endpoint reports, and a
-                         model it does not advertise is still often callable. -->
-                    <ComboBox IsEditable="True"
-                              ItemsSource="{Binding AvailableModels}"
-                              Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,5,0,0" Padding="7,5" FontSize="12"
-                              FontFamily="{DynamicResource Font.Data}" />
-                    <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" FontSize="10.5"
-                               Foreground="{DynamicResource Text.Secondary}"
-                               Text="Empty means the provider's own default. The composer can still switch model per session — this is what it opens with." />
-
-                    <DockPanel Margin="0,18,0,0">
-                        <Button DockPanel.Dock="Right" Content="Make default" Padding="12,5"
-                                Margin="8,0,0,0"
-                                Command="{Binding DataContext.MakeDefaultCommand,
-                                          RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding}"
-                                ToolTip="Open the builder with this provider" />
-                        <Button HorizontalAlignment="Left" Content="Save settings" Padding="12,5"
-                                Command="{Binding DataContext.SaveProviderCommand,
-                                          RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding}" />
-                    </DockPanel>
+                    <Button HorizontalAlignment="Left" Content="Add" Margin="0,10,0,0" Style="{StaticResource HYP.Button}"
+                            Command="{Binding AddProviderCommand}" />
                 </StackPanel>
-            </ScrollViewer>
-        </Border>
+            </Border>
+        </Expander>
 
-        <!-- ── Footer ────────────────────────────────────────────────────────────────────────── -->
-        <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,0,0">
-            <Button DockPanel.Dock="Right" Content="Close" Padding="18,5" IsCancel="True"
-                    IsDefault="True" Click="OnClose" />
-            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11" Margin="0,0,12,0"
-                       Foreground="{DynamicResource Text.Secondary}" Text="{Binding Status}" />
+        <!-- ═══ Footer ═══ -->
+        <DockPanel Grid.Row="3" Margin="0,14,0,0">
+            <Button DockPanel.Dock="Right" Content="Close" Style="{StaticResource HYP.Button}" Padding="18,5" IsCancel="True"
+                    Click="OnClose" />
+
+            <Button DockPanel.Dock="Right" Content="Recheck" Style="{StaticResource HYP.Button}" Margin="0,0,8,0"
+                    Command="{Binding RecheckCommand}"
+                    ToolTip="Look again for stored keys and an Anthropic sign-in" />
+
+            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                       Style="{StaticResource HYP.GhostText}" Text="{Binding Status}" />
         </DockPanel>
     </Grid>
 </mah:MetroWindow>

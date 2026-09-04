@@ -1,4 +1,4 @@
-﻿using System.Net.Http;
+using System.Net.Http;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 
@@ -22,14 +22,32 @@ public sealed class StrategyCodegenClientFactory
     private readonly AiCodegenOptions _options;
     private readonly Func<string, string?> _keyResolver;
 
+    /// <summary>The browser sign-in, so a user with no API key can still reach the Anthropic API.</summary>
+    private readonly AnthropicOAuthCli _oauth;
+
+    /// <summary>
+    /// The signed-in Anthropic provider, listed beside the installed agent CLIs and for the same reason:
+    /// its credential lives in a vendor tool rather than in this application's key store.
+    ///
+    /// <para>A DISTINCT id from `anthropic` on purpose. The two bill differently in the user's mind — one
+    /// is a key they pasted, the other an account they signed into — and collapsing them would make
+    /// "which of my organisations is this spending?" unanswerable from the picker.</para>
+    /// </summary>
+    public const string AnthropicOAuthId = AnthropicCodegenClient.SignInProviderId;
+
     /// <param name="httpFactory">Produces an HttpClient per keyed request (pass an
     /// <c>IHttpClientFactory.CreateClient</c> in the app).</param>
     /// <param name="keyResolver">Resolves a provider id to its API key (credential store), or null.</param>
-    public StrategyCodegenClientFactory(Func<HttpClient> httpFactory, AiCodegenOptions options, Func<string, string?> keyResolver)
+    public StrategyCodegenClientFactory(
+        Func<HttpClient> httpFactory,
+        AiCodegenOptions options,
+        Func<string, string?> keyResolver,
+        AnthropicOAuthCli? oauth = null)
     {
         _httpFactory = httpFactory;
         _options = options;
         _keyResolver = keyResolver;
+        _oauth = oauth ?? new AnthropicOAuthCli();
     }
 
     /// <summary>Every provider the app knows how to build — installed agent CLIs, the configured keyed
@@ -39,20 +57,28 @@ public sealed class StrategyCodegenClientFactory
     {
         var clients = new List<IStrategyCodegenClient>();
 
-        // Installed agent CLIs — availability is "on PATH"; the vendor tool owns the login.
-        foreach (var adapter in AgentCliAdapter.All)
-            clients.Add(new AgentCliCodegenClient(
-                adapter,
-                timeout: Timeout,
-                model: ConfiguredModel(adapter.ProviderId),
-                effort: ConfiguredEffort(adapter.ProviderId),
-                cliProfile: ConfiguredCliProfile(adapter.ProviderId)));
+        // NO AGENT CLIs. Authenticating is now one of two things a person can understand — paste a key,
+        // or sign in — and a third kind whose credential lives inside somebody else's program was the
+        // single biggest source of confusion in this pane: keyless, unlistable, its spend invisible
+        // (agent CLIs report no usage, so the token counter read zero on every run), and billed against
+        // a subscription rather than the key the rest of the pane is about.
+        //
+        // AgentCliCodegenClient still exists and still works — the benchmark drives it directly for a
+        // keyless live run, and the Vibe Code menu still opens a CLI workspace. It is simply no longer
+        // one of the answers to "which provider should I use?".
+
+        // The signed-in Anthropic provider. Always listed, never available unless `ant` is installed, so
+        // the settings pane can offer the sign-in rather than hiding a provider the user could have.
+        clients.Add(BuildAnthropicOAuth(model: null));
 
         // Keyed / local providers from config. An agent CLI may ALSO appear here (to pin its model), and
         // must not be built a second time as an HTTP provider — it has no BaseUrl or key.
         foreach (var (id, provider) in _options.Providers)
         {
+            // A stale agent-CLI section in somebody's config must not resurrect the provider as an HTTP
+            // one: it has no BaseUrl and no key, so it would list as permanently broken.
             if (AgentCliAdapter.All.Any(a => a.ProviderId.Equals(id, StringComparison.OrdinalIgnoreCase))) continue;
+            if (id.Equals(AnthropicOAuthId, StringComparison.OrdinalIgnoreCase)) continue;
             clients.Add(BuildKeyed(id, provider, model: null));
         }
 
@@ -66,15 +92,8 @@ public sealed class StrategyCodegenClientFactory
     /// </summary>
     public IStrategyCodegenClient? Build(string providerId, string? model, CodegenEffort effort = CodegenEffort.Default)
     {
-        var adapter = AgentCliAdapter.All.FirstOrDefault(a =>
-            a.ProviderId.Equals(providerId, StringComparison.OrdinalIgnoreCase));
-        if (adapter is not null)
-            return new AgentCliCodegenClient(
-                adapter,
-                timeout: Timeout,
-                model: Blank(model) ? ConfiguredModel(providerId) : model,
-                effort: effort,
-                cliProfile: ConfiguredCliProfile(providerId));
+        if (providerId.Equals(AnthropicOAuthId, StringComparison.OrdinalIgnoreCase))
+            return BuildAnthropicOAuth(model, effort);
 
         var configured = _options.Providers.FirstOrDefault(p =>
             p.Key.Equals(providerId, StringComparison.OrdinalIgnoreCase));
@@ -110,6 +129,36 @@ public sealed class StrategyCodegenClientFactory
     private TimeSpan Timeout => _options.TimeoutSeconds <= 0
         ? System.Threading.Timeout.InfiniteTimeSpan
         : TimeSpan.FromSeconds(Math.Max(30, _options.TimeoutSeconds));
+
+    /// <summary>
+    /// The Anthropic client authenticated by the CLI's browser sign-in rather than by a stored key.
+    ///
+    /// <para>The token is fetched per request, not here: it is short-lived, and one read at construction
+    /// would authenticate for a while and then start failing on a session nobody had touched.</para>
+    /// </summary>
+    private IStrategyCodegenClient BuildAnthropicOAuth(string? model, CodegenEffort effort = CodegenEffort.Default)
+    {
+        var configured = _options.Providers
+            .FirstOrDefault(p => p.Key.Equals(AnthropicOAuthId, StringComparison.OrdinalIgnoreCase)).Value;
+
+        var effectiveModel = Blank(model)
+            ? (Blank(configured?.Model) ? AiModelCatalog.For("anthropic").FirstOrDefault() ?? string.Empty : configured!.Model)
+            : model!;
+
+        var effectiveEffort = effort == CodegenEffort.Default
+            ? CodegenEfforts.Parse(configured?.Effort)
+            : effort;
+
+        var http = _httpFactory();
+        http.Timeout = Timeout;
+
+        return new AnthropicCodegenClient(
+            http,
+            configured?.BaseUrl ?? string.Empty,
+            effectiveModel,
+            AnthropicCredential.OAuth(_oauth.AccessTokenAsync, () => _oauth.IsInstalled),
+            effectiveEffort);
+    }
 
     private IStrategyCodegenClient BuildKeyed(
         string id, AiCodegenProvider provider, string? model, CodegenEffort effort = CodegenEffort.Default)

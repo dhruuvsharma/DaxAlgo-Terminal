@@ -141,13 +141,18 @@ public sealed class StalledStreamTests
     }
 
     [Fact]
-    public async Task Reasoning_alone_still_keeps_the_turn_visibly_alive()
+    public async Task The_models_thinking_reaches_the_caller_as_its_own_event()
     {
-        // The other half of why this is counted. A twenty-minute silence in the builder is
-        // indistinguishable from a hang, and the client already emits an empty delta for the same
-        // reason when it retries a gateway.
+        // The other half of why this is counted — and it used to be counted ONLY. A reasoning model
+        // emits no `content` at all until it has finished, so the thinking was the sole evidence the
+        // turn was alive, and it was answered with an EMPTY TextDelta: a liveness ping carrying none
+        // of what the model was actually saying. The workspace could therefore show a spinner and
+        // nothing else through a twenty-minute think, which is exactly what users read as a hang.
+        //
+        // It is a first-class event now, so the UI can put the reasoning behind a disclosure rather
+        // than invent reassurance.
         var stream = new ScriptedStream(
-            """data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}""",
+            """data: {"choices":[{"delta":{"reasoning_content":"weighing the entry rule"}}]}""",
             """data: {"choices":[{"delta":{"content":"done"}}]}""",
             "data: [DONE]");
 
@@ -155,11 +160,41 @@ public sealed class StalledStreamTests
         var client = new OpenAiCompatibleCodegenClient(
             http, "reasoner", "Reasoner", "https://example.invalid/v1", "m", "k");
 
-        var deltas = 0;
+        var thoughts = new List<string>();
+        var answer = new System.Text.StringBuilder();
         await foreach (var evt in client.StreamAsync(new StrategyCodegenRequest("ctx", [])))
-            if (evt is CodegenEvent.TextDelta) deltas++;
+        {
+            if (evt is CodegenEvent.ReasoningDelta thinking) thoughts.Add(thinking.Text);
+            if (evt is CodegenEvent.TextDelta delta) answer.Append(delta.Text);
+        }
 
-        deltas.Should().Be(2, "one liveness ping for the thinking, one for the answer");
+        thoughts.Should().ContainSingle().Which.Should().Be("weighing the entry rule");
+        answer.ToString().Should().Be("done", "the reply is still the reply — thinking is a side channel");
+    }
+
+    [Theory]
+    [InlineData("reasoning_content")]   // DeepSeek, and TokenRouter's GLM route
+    [InlineData("reasoning")]           // OpenRouter and several proxies
+    public async Task Either_spelling_of_the_thinking_field_is_read(string field)
+    {
+        // There is no standard for this field and the gateways disagree. Reading only one spelling
+        // means the model appears to sit in total silence on every provider that chose the other.
+        // Concatenated rather than interpolated: the payload ends in "}}]}" and a $$-interpolated raw
+        // string reads those braces as an interpolation hole.
+        var stream = new ScriptedStream(
+            "data: {\"choices\":[{\"delta\":{\"" + field + "\":\"mulling\"}}]}",
+            """data: {"choices":[{"delta":{"content":"ok"}}]}""",
+            "data: [DONE]");
+
+        using var http = new HttpClient(new ScriptedHandler(stream));
+        var client = new OpenAiCompatibleCodegenClient(
+            http, "reasoner", "Reasoner", "https://example.invalid/v1", "m", "k");
+
+        var thoughts = new List<string>();
+        await foreach (var evt in client.StreamAsync(new StrategyCodegenRequest("ctx", [])))
+            if (evt is CodegenEvent.ReasoningDelta thinking) thoughts.Add(thinking.Text);
+
+        thoughts.Should().ContainSingle().Which.Should().Be("mulling");
     }
 
     // ── fixtures ────────────────────────────────────────────────────────────────────────────────

@@ -2021,7 +2021,7 @@ Builds a unit's window layout.
 
 This is the vocabulary Hyperion composes windows from, so it is written to be read back: a layout should say what the window looks like without the reader tracing arithmetic. Compare the two ways of getting an order book beside a chart —
 
-// With this: public UnitLayout Layout => Layout.Columns( Layout.Panel("Price", DrawChart).Star(3), Layout.Panel("Book", DrawBook).Pixels(260)); // Without it, inside one Draw, and every widget's rectangle computed by hand: var area = PlotArea.Of(surface); var (book, chart) = area.SplitRight(260d); DrawChart(surface, chart); DrawBook(surface, book);
+// With this — spelled UnitLayout.*, never Layout.*, because inside a class whose property is // called Layout the identifier binds to the PROPERTY and this line stops compiling: public UnitLayout Layout => UnitLayout.Columns( UnitLayout.Panel("Price", DrawChart).Star(3), UnitLayout.Panel("Book", DrawBook).Pixels(260)); // Without it, inside one Draw, and every widget's rectangle computed by hand: var area = PlotArea.Of(surface); var (book, chart) = area.SplitRight(260d); DrawChart(surface, chart); DrawBook(surface, book);
 
 The second still works and is right for subdividing one panel. The difference is that panels built here are real: each gets its own surface and viewport, its own header, and a separator the user can drag. `PlotArea` divides a picture; this divides a window.
 

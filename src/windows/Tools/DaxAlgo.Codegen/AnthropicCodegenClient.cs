@@ -20,13 +20,30 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
     private readonly string _baseUrl;
     private readonly Uri? _baseUri;
     private readonly string _model;
-    private readonly string? _apiKey;
+    private readonly AnthropicCredential _credential;
     private readonly CodegenEffort _effort;
 
+    /// <summary>The API-key form. Kept as the primary constructor so every existing caller and test is
+    /// unchanged; it is the same thing as <see cref="AnthropicCredential.Key"/>.</summary>
     public AnthropicCodegenClient(
         HttpClient http, string baseUrl, string model, string? apiKey,
         CodegenEffort effort = CodegenEffort.Default)
+        : this(http, baseUrl, model, AnthropicCredential.Key(apiKey), effort)
     {
+    }
+
+    /// <summary>
+    /// The general form: any credential, including the browser sign-in.
+    ///
+    /// <para>The credential is asked for its headers per request rather than read once here, because an
+    /// OAuth access token is short-lived — captured at construction it would authenticate for a while
+    /// and then start failing on a session nobody had touched.</para>
+    /// </summary>
+    public AnthropicCodegenClient(
+        HttpClient http, string baseUrl, string model, AnthropicCredential credential,
+        CodegenEffort effort = CodegenEffort.Default)
+    {
+        _credential = credential ?? throw new ArgumentNullException(nameof(credential));
         _http = http;
         // Blank means the real API. Anything else is a proxy the user typed, so it goes through the
         // same repair the OpenAI-compatible field gets -- and is then held to being a real absolute
@@ -37,14 +54,34 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
             : CodegenBaseUrl.Normalise(baseUrl);
         _baseUri = CodegenBaseUrl.TryAbsolute(_baseUrl);
         _model = model;
-        _apiKey = apiKey;
         _effort = effort;
     }
 
-    public string ProviderId => "anthropic";
-    public string DisplayName => "Anthropic (API key)";
+    /// <summary>The id for the key-authenticated Anthropic provider.</summary>
+    public const string KeyProviderId = "anthropic";
+
+    /// <summary>The id for the same provider reached by signing in.</summary>
+    public const string SignInProviderId = "anthropic-oauth";
+
+    /// <summary>
+    /// Which configuration this client IS, and it follows the credential.
+    ///
+    /// <para>This was the constant <c>"anthropic"</c> whatever the credential, so the signed-in client
+    /// introduced itself as the keyed one. Everything downstream keys off this id: the settings pane
+    /// looked for the sign-in client by id, found none, folded nothing, and showed Anthropic TWICE —
+    /// both rows asking for an API key, including the one whose entire point is not needing one.</para>
+    ///
+    /// <para>They bill different accounts and are stored under different sections, so they are two
+    /// provider ids, and an id that lies about which one it is cannot be recovered from further down.</para>
+    /// </summary>
+    public string ProviderId => _credential.IsOAuth ? SignInProviderId : KeyProviderId;
+
+    /// <summary>Names the credential, because "add a key" is the wrong instruction for a signed-in
+    /// user and "sign in" is the wrong one for somebody holding a key.</summary>
+    public string DisplayName => _credential.IsOAuth ? "Anthropic (signed in)" : "Anthropic (API key)";
+
     public bool IsAvailable =>
-        _baseUri is not null && !string.IsNullOrWhiteSpace(_model) && !string.IsNullOrWhiteSpace(_apiKey);
+        _baseUri is not null && !string.IsNullOrWhiteSpace(_model) && _credential.IsConfigured;
     public string Model => _model;
     public CodegenEffort Effort => _effort;
     public IReadOnlyList<string> KnownModels => AiModelCatalog.Offer(ProviderId, _model);
@@ -53,10 +90,10 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
     /// the picker just falls back to the curated shortlist.</summary>
     public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_apiKey) || _baseUri is null) return [];
+        if (!_credential.IsConfigured || _baseUri is null) return [];
 
         using var req = new HttpRequestMessage(HttpMethod.Get, $"{_baseUrl}/v1/models?limit=100");
-        req.Headers.TryAddWithoutValidation("x-api-key", _apiKey);
+        if (!await _credential.ApplyAsync(req, ct).ConfigureAwait(false)) return [];
         req.Headers.TryAddWithoutValidation("anthropic-version", AnthropicVersion);
 
         try
@@ -89,7 +126,7 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
             yield break;
         }
 
-        using var httpReq = BuildRequest(request, stream: true);
+        using var httpReq = await BuildRequestAsync(request, stream: true, ct).ConfigureAwait(false);
 
         var (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
         if (failure is not null)
@@ -176,7 +213,7 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         if (!IsAvailable)
             return StrategyCodegenResponse.Fail("Anthropic is not configured (model / API key).");
 
-        using var httpReq = BuildRequest(request, stream: false);
+        using var httpReq = await BuildRequestAsync(request, stream: false, ct).ConfigureAwait(false);
 
         try
         {
@@ -218,7 +255,8 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
     /// 4k tokens on Opus — silently doesn't cache; no error, just no saving.)
     /// </para>
     /// </summary>
-    private HttpRequestMessage BuildRequest(StrategyCodegenRequest request, bool stream)
+    private async Task<HttpRequestMessage> BuildRequestAsync(
+        StrategyCodegenRequest request, bool stream, CancellationToken ct)
     {
         var messages = request.Messages
             .Select(m => new WireMessage(
@@ -261,7 +299,16 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         {
             Content = JsonContent.Create(body, options: Json),
         };
-        httpReq.Headers.TryAddWithoutValidation("x-api-key", _apiKey);
+        // Per request, and it can fail: an OAuth profile that has expired is "not signed in" at exactly
+        // this moment, and sending the request unauthenticated would return a 401 the user cannot act on.
+        if (!await _credential.ApplyAsync(httpReq, ct).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(
+                _credential.IsOAuth
+                    ? "Not signed in to Anthropic. Press Sign in under AI providers — the session may have expired."
+                    : "No Anthropic API key is configured.");
+        }
+
         httpReq.Headers.TryAddWithoutValidation("anthropic-version", AnthropicVersion);
         return httpReq;
     }

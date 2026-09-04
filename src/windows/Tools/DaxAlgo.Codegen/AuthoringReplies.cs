@@ -74,4 +74,23 @@ public readonly record struct AuthoringAction(string Label, string Reply, bool I
     /// model.</para>
     /// </summary>
     public static string JustBuildIt => WhenAsked[0].Reply;
+
+    /// <summary>
+    /// Whether a user turn is one of these canned replies — that is, the user has pressed a button that
+    /// means "stop interviewing and build it".
+    ///
+    /// <para>The agent path routes on <c>RoutingState.HasSpec</c>, and a model is free to keep asking
+    /// however plainly it is told not to. When the user has pressed the escape the decision is no longer
+    /// the model's, so the state is advanced here rather than hoped for in a reply. The escape has to
+    /// actually escape.</para>
+    /// </summary>
+    public static bool EndsTheInterview(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return false;
+
+        var text = message.Trim();
+        return Default.Concat(WhenAsked)
+            .Where(action => action.Reply.Length > 0)
+            .Any(action => text.StartsWith(action.Reply, StringComparison.OrdinalIgnoreCase));
+    }
 }

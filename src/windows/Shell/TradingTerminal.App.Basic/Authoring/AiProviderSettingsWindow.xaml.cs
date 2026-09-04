@@ -19,7 +19,9 @@ public partial class AiProviderSettingsWindow : MetroWindow
 
     private void OnKeyChanged(object sender, RoutedEventArgs e)
     {
-        if (DataContext is AiProviderSettingsViewModel { Selected: { } row } && sender is PasswordBox box)
+        // The row from the BOX, not from Selected. Every card now carries its own PasswordBox, so a
+        // single "whichever row is selected" target would put one card's key on another card.
+        if (sender is PasswordBox { DataContext: AiProviderSetupRow row } box)
             row.KeyEntry = box.Password;
     }
 

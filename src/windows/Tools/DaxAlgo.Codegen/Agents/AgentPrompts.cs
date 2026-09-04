@@ -18,6 +18,17 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring.Agents;
 /// </summary>
 public static class AgentPrompts
 {
+    /// <summary>
+    /// The line an Interviewer ends on when the interview is over and the spec is ready to build.
+    ///
+    /// <para>The complement of the <c>questions</c> block, and it exists for the same reason: the loop
+    /// has to tell "here is the specification, go" from "I still need something from you", and prose
+    /// cannot be read for that reliably. A model that asks in bare prose — no block, no marker — is
+    /// taken as still asking, which is the safe direction: the cost is one more user turn, against
+    /// silently building the wrong thing.</para>
+    /// </summary>
+    public const string Handover = "SPECIFICATION COMPLETE";
+
     /// <summary>The instruction for <paramref name="role"/>.</summary>
     public static string For(AgentRole role) => role switch
     {
@@ -33,11 +44,16 @@ public static class AgentPrompts
             differ, do not ask — choose the default and say you chose it. When the next question would
             not change a line, stop and hand over the specification.
 
-            Put the specification up for approval when it is ready. That is itself a question — it ends
-            the turn waiting on the user — so it gets a questions block with approval as its options.
+            Put the specification up for approval when it is ready — that is itself a question, so it
+            gets a questions block with approval as its options.
 
             If the user says to build it, the interview is over. Hand over immediately, and say in one
             paragraph what you assumed for anything still open.
+
+            HANDING OVER: end with SPECIFICATION COMPLETE on its own line, and no questions block.
+            STILL ASKING: end ON the question — a questions block, or a sentence ending in a question
+            mark. A reply ending on neither is taken as the finished specification and the build starts,
+            so never trail off into commentary after something you need answered.
 
             Write no code. A specification with a code block in it is a coder's turn wearing the wrong
             label, and the next agent will not know which half to trust.
