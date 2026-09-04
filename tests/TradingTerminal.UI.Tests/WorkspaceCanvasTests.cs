@@ -95,12 +95,26 @@ public sealed class WorkspaceCanvasTests
     }
 
     [WpfFact]
-    public void Every_registered_canvas_materialises()
+    public void A_registered_canvas_is_built_and_laid_out_on_activation()
     {
         // THE LESSON FROM THE HYP.ShimmerLabel CRASH, applied one layer up. A canvas that parses is not
         // a canvas that renders: WPF expands templates during Measure, and a resource it cannot resolve
         // throws there — on the dispatcher, on every layout pass. A factory that is only ever called in
         // production is a factory whose first run is on a user's machine.
+        //
+        // NAMED FOR WHAT IT ACTUALLY COVERS. This drives the SEAM with a stub canvas: activation calls
+        // the factory exactly once and the result survives a layout pass. It does NOT prove the real
+        // price-chart canvas renders — that one builds a WebView2, which wants the Edge runtime and a
+        // real window — and a test that quietly substituted a stub for it would report coverage it does
+        // not have.
+        //
+        // Driving the real one was tried and deliberately abandoned: it needs four faked services and
+        // then depends on whether WebView2 defers its initialisation, which is a machine-dependent
+        // answer. This suite gates every promotion, and an intermittent failure here costs more than
+        // the thing it tests, because the next real failure gets read as noise. The risk it would have
+        // covered — an unresolvable StaticResource in the shell's own chrome — is covered directly by
+        // The_shell_renders_against_the_real_styles below, which is verified to fail when a key is
+        // broken and pass when it is not.
         var built = 0;
         var canvas = new WorkspaceCanvas(
             "probe", "Probe", "Charts",
@@ -118,6 +132,64 @@ public sealed class WorkspaceCanvasTests
 
         Assert.Equal(1, built);
         Assert.True(view.View.ActualWidth > 0, "the canvas produced no visual — it did not expand");
+    }
+
+    /// <summary>
+    /// The shell's own chrome is MATERIALISED against the real Components.xaml.
+    ///
+    /// <para><b>Nothing rendered this before.</b> WorkspaceShell.xaml resolves five styles by
+    /// <c>StaticResource</c> — App.HeaderBar, App.FooterBar, App.OptionsRail, App.IconToggle,
+    /// App.GroupLabel — and a StaticResource that cannot be found throws at PARSE time, which for a
+    /// UserControl means inside its constructor, on the dispatcher, the first time a user opens the
+    /// window. That is the shape of the bug that froze Hyperion earlier today with thirty crash
+    /// reports a second. Grepping for the keys proves they exist somewhere; only constructing the
+    /// control proves they resolve from where it looks.</para>
+    /// </summary>
+    [WpfFact]
+    public void The_shell_renders_against_the_real_styles()
+    {
+        EnsureComponentStyles();
+
+        var shell = new WorkspaceShell(new EmptyServices())
+        {
+            DataContext = Model(Canvas("probe")),
+        };
+
+        shell.Measure(new Size(1280, 800));
+        shell.Arrange(new Rect(0, 0, 1280, 800));
+        shell.UpdateLayout();
+
+        Assert.True(
+            System.Windows.Media.VisualTreeHelper.GetChildrenCount(shell) > 0,
+            "the shell produced no visual — its chrome did not expand");
+    }
+
+    /// <summary>
+    /// Puts Components.xaml where the shell's <c>StaticResource</c> lookups will find it: an
+    /// Application's resources, which is the last place WPF looks and exactly where the running app
+    /// merges it. Adding it to the control's own resources would be too late — the lookups happen
+    /// while the constructor parses the XAML.
+    /// </summary>
+    private static void EnsureComponentStyles()
+    {
+        // Registers the "pack" scheme; a bare test host has not, and the Uri below then fails with
+        // "Invalid port specified".
+        _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
+
+        // An Application can only be constructed once per AppDomain, and other tests in this assembly
+        // may have made one already.
+        var app = Application.Current ?? new Application();
+
+        if (app.Resources.MergedDictionaries.Any(d =>
+                d.Source?.OriginalString.Contains("Components.xaml", StringComparison.Ordinal) == true))
+        {
+            return;
+        }
+
+        app.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("/TradingTerminal.UI;component/Themes/Components.xaml", UriKind.Relative),
+        });
     }
 
     [WpfFact]
