@@ -360,6 +360,16 @@ public sealed class StrategyBuildSession
                     events?.Report(evt);
                     break;
 
+                // Forwarded — and this switch is precisely why that has to be written down. It
+                // enumerates the event types it passes on, so a NEW one is dropped in silence rather
+                // than failing anywhere a compiler or a test would notice. That is what happened to the
+                // model's thinking: the client emitted it, the workspace had a panel waiting for it,
+                // and this case did not exist, so a reasoning model still showed the user nothing at
+                // all for minutes at a time.
+                case CodegenEvent.ReasoningDelta:
+                    events?.Report(evt);
+                    break;
+
                 case CodegenEvent.UsageUpdate update:
                     // Absolute for THIS generation — replace it, then re-derive the running totals, so
                     // an auto-fix retry doesn't double-count the generations before it.

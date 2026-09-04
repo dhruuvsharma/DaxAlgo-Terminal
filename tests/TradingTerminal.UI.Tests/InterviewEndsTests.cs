@@ -21,9 +21,16 @@ namespace TradingTerminal.UI.Tests;
 /// answer to; and the loop returned AwaitingUser on every reply that carried no code, so the handover
 /// the Interviewer's own prompt promises had no code to perform it.</para>
 ///
-/// <para>It only ever affected Deep and Max — the two efforts that route through the agents. Quick and
-/// Standard use the single conversation and were always fine, which is why the dial's top two settings
+/// <para>It only ever affected Deep and Max — the two efforts that routed through the agents. Quick and
+/// Standard used the single conversation and were always fine, which is why the dial's top two settings
 /// were the broken ones.</para>
+///
+/// <para><b>The committee is gone.</b> Those three causes were each fixed and the builder still shipped
+/// nothing on a real provider: the agent loop calls the BLOCKING, unstreamed entry point, so a Deep or
+/// Max turn was one silent HTTP request per role with no timeout — no text, no thinking, no token
+/// movement. Every effort is one streaming conversation now, so these tests drive that instead. They
+/// keep their names and their scenario, because the property they guard — the interview must end and
+/// code must arrive — is the same one.</para>
 /// </summary>
 [Collection(AuthoringCollection.Name)]
 public sealed class InterviewEndsTests : IDisposable
@@ -68,10 +75,11 @@ public sealed class InterviewEndsTests : IDisposable
     [Fact]
     public async Task A_max_effort_session_stops_interviewing_once_the_spec_is_settled()
     {
+        // Two replies, because Max is a single streaming conversation now rather than a committee: the
+        // model asks, the user answers, and the NEXT reply carries the code. It used to take three,
+        // with the middle one spending a magic sentence to get the router from Interviewer to Coder.
         var builder = new ScriptedBuilder(
             "Which timeframe, and one position at a time?",
-            "Specification: three-candle triangles on 1-minute bars, one position at a time. "
-            + AgentPrompts.Handover,
             Kernel);
 
         var pane = Pane(builder);
@@ -90,11 +98,13 @@ public sealed class InterviewEndsTests : IDisposable
         pane.Composer = "approved, now start building";
         await pane.SendCommand.ExecuteAsync(null);
 
-        Assert.False(
-            builder.Client.Roles.Skip(1).All(role => role.Contains("Interviewer")),
-            "the run never left the Interviewer — this is the deadlock, and it is what the user saw");
-
+        // THE DEADLOCK, pinned where it can still happen. The answer has to reach the model, and the
+        // code it replies with has to land in the editor. There is no routing state between the two
+        // any more, which is the point: nothing sits between a settled brief and its code.
+        Assert.Contains(builder.Client.Prompts,
+            p => p.Contains("approved, now start building", StringComparison.Ordinal));
         Assert.Contains(pane.Files, f => f.Content.Contains("TriangleKernel"));
+        Assert.False(pane.AwaitingAnswer, "code arrived, so nothing is waiting on the user");
     }
 
     /// <summary>
@@ -125,11 +135,21 @@ public sealed class InterviewEndsTests : IDisposable
     }
 
     /// <summary>
-    /// The escape has to escape. Pressing "Just build it" ends the interview in the routing state, so it
-    /// does not depend on the model choosing to honour the sentence.
+    /// The escape has to actually be sent.
+    ///
+    /// <para><b>This assertion is weaker than it was, and deliberately so.</b> It used to check that
+    /// the escape flipped the ROUTING STATE, forcing a Coder turn whatever the model wanted — a
+    /// guarantee only a committee can make. The committee is gone: at every effort this is now one
+    /// streaming conversation, because the committee never delivered a file on a real provider and its
+    /// blocking, unstreamed calls are what left users watching a status line for minutes.</para>
+    ///
+    /// <para>What a single conversation can promise is that the instruction REACHES the model, which is
+    /// exactly what every other coding tool promises. So that is what is pinned: press the escape, and
+    /// the words go up the wire. A button that renders and sends nothing is still the defect worth
+    /// catching, and it is the one that can actually regress here.</para>
     /// </summary>
     [Fact]
-    public async Task Pressing_just_build_it_ends_the_interview_even_if_the_model_keeps_asking()
+    public async Task Pressing_just_build_it_sends_the_escape_to_the_model()
     {
         // A model that asks forever, which is exactly the failure mode observed live.
         var builder = new ScriptedBuilder("But what about the stop loss?");
@@ -144,8 +164,8 @@ public sealed class InterviewEndsTests : IDisposable
         await pane.SendCommand.ExecuteAsync(null);
 
         Assert.Contains(
-            builder.Client.Roles.Skip(1),
-            role => role.Contains("Coder"));
+            builder.Client.Prompts.Skip(1),
+            prompt => prompt.Contains("Stop asking", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

@@ -1309,14 +1309,27 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             ticking = TickElapsedAsync(_generateCts.Token);
 
-            // Deep and Max buy the agents. Quick and Standard keep the single conversation below,
-            // which is cheaper and right for a brief that does not need a committee.
-            if (profile.UseAgents)
-            {
-                await RunAgentsAsync(choice, prompt, profile, _generateCts.Token);
-                return;
-            }
-
+            // ONE STREAMING CONVERSATION, AT EVERY EFFORT. Deep and Max used to route to the six-agent
+            // committee, and that is where the builder went to die.
+            //
+            // The committee calls GenerateAsync, which posts with stream:false. One blocking HTTP
+            // request per agent turn, no streaming, and (by deliberate design) NO TIMEOUT — the Stop
+            // button is the control. On a reasoning model over a slow route that is an unbounded silent
+            // wait: no text, no thinking, no token movement, nothing but a status line reading
+            // "Working out what to build - turn 1 of 10" for as long as the user is willing to stare at
+            // it. Measured from a user's own state: five saved TokenRouter/GLM sessions, every single
+            // completed agent turn logged as "Interviewer - answered without code", 0/0 tokens on four
+            // of them, and not one line of generated code across any of them.
+            //
+            // The single conversation is what the other coding tools do and what the user asked for by
+            // name: it STREAMS, so the reply and the model's thinking arrive as they are written; prose
+            // without code is simply a question, which the user answers and the next turn acts on; and
+            // there is no router, no reward ladder and no handover gate between a brief and its code.
+            //
+            // Deep and Max keep everything else they buy — more skill packs, more auto-fix attempts,
+            // the self-review pass, the verification ladder. What they no longer buy is a committee
+            // that could not deliver a file. UseAgents stays on the profile for the CLI and the
+            // benchmark; the interactive builder is done with it.
             var session = EnsureSession(choice, profile);
             var tokensBefore = session.TotalUsage;
             _streamingReply = null;
@@ -1431,8 +1444,25 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
         catch (OperationCanceledException)
         {
-            AiStatus = "Stopped.";
-            PushActivity("Stopped by the user.");
+            // A CARD, not just a status line. This used to set AiStatus and append nothing, so a turn
+            // that ended here left the transcript holding the user's message and no reply — and
+            // AiStatus is not saved, so reopening the session showed a brief that was apparently never
+            // answered. That is exactly what a user's stalled TokenRouter sessions look like on disk:
+            // three prompts, no replies, no errors, nothing to explain any of it.
+            //
+            // Named honestly, too. Reaching here without the token being cancelled means the request
+            // died on its own — a dropped connection, a gateway hanging up — which is not something the
+            // user did, and telling them they stopped it sends them looking for a button they never
+            // pressed.
+            var byUser = _generateCts?.IsCancellationRequested ?? false;
+            AiStatus = byUser ? "Stopped." : "The provider closed the connection before answering.";
+            PushActivity(AiStatus);
+            Append(AuthoringMessage.Tool(
+                byUser ? "Info" : "Fail",
+                byUser ? "Stopped" : "Connection lost",
+                byUser
+                    ? "You stopped this turn. Nothing was changed."
+                    : "The request ended without a reply. Send again, or pick a different model."));
             FailRunningTasks();
         }
         catch (Exception ex)
