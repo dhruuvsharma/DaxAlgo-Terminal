@@ -60,6 +60,19 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         new ChartTimeframe("1D",  BarSize.OneDay,         TimeSpan.FromDays(365)),
     };
 
+    /// <summary>
+    /// The timeframes the product offers, as one list.
+    ///
+    /// <para>Exposed because the workspace shell puts the timeframe switcher in ITS header and hands
+    /// the choice down to whichever canvas is showing. Two lists would be two vocabularies: a shell
+    /// offering "30m" over a chart that only knows how to load five sizes is a switch that silently
+    /// does nothing, which is the failure this whole arrangement exists to remove.</para>
+    ///
+    /// <para>Each entry carries its own <c>Lookback</c>, so how much history a size pulls stays a
+    /// property of the size rather than a rule each caller reinvents.</para>
+    /// </summary>
+    public static IReadOnlyList<ChartTimeframe> AvailableTimeframes() => AllTimeframes;
+
     public ChartsViewModel(
         IMarketDataRepository repository,
         IMarketDataHub hub,

@@ -40,6 +40,7 @@
   </Folder>
   <Folder Name="/Charts/">
     <Project Path="src/windows/Charts/TradingTerminal.Charts/TradingTerminal.Charts.csproj" />
+    <Project Path="src/windows/Charts/TradingTerminal.Workspace/TradingTerminal.Workspace.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.OrderBook/TradingTerminal.OrderBook.csproj" />
     <Project Path="src/windows/Charts/TradingTerminal.VolumeFootprint/TradingTerminal.VolumeFootprint.csproj" />
   </Folder>

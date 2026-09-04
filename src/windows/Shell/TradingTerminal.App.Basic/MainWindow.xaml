@@ -472,6 +472,14 @@
                           ToolTip="Open the live colour editor — tweak any palette token, then save and share custom themes." />
             </MenuItem>
 
+            <MenuItem Header="_Charts">
+                <!-- One entry, and the price chart is simply its default view. The workspace owns the
+                     instrument and the timeframe; what fills the centre is a choice inside it. -->
+                <MenuItem Icon="📈" Header="_Charts workspace"
+                          Command="{Binding OpenWorkspaceCommand}"
+                          ToolTip="Pick an instrument and a timeframe once, then switch what is drawn on it — price chart today, more views as they are added." />
+            </MenuItem>
+
 
             <MenuItem x:Name="StrategyStudioMenuItem">
                 <MenuItem.Header>

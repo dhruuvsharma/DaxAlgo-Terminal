@@ -25,6 +25,7 @@ using TradingTerminal.ExecutionUi;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
 using TradingTerminal.Login;
+using TradingTerminal.Workspace;
 
 namespace TradingTerminal.App.Composition;
 
@@ -72,6 +73,7 @@ public static class AppDependencyInjection
         services.AddLogin();
         services.AddShell();
         services.AddSupport();
+        services.AddWorkspaceSurface();
         services.AddSettingsSurface();
         services.AddArchiveSurface();
 
@@ -247,6 +249,24 @@ public static class AppDependencyInjection
         services.AddTransient<TradingTerminal.App.Support.SupportViewModel>();
         services.AddTransient<TradingTerminal.App.Support.SupportWindow>();
         services.AddSingleton<TradingTerminal.App.Support.ISupportPrompt, TradingTerminal.App.Support.SupportPrompt>();
+        return services;
+    }
+
+    /// <summary>
+    /// The workspace: one instrument/timeframe header over a swappable canvas.
+    ///
+    /// <para><c>AddWorkspace</c> brings the shell and the price-chart canvas. Any further canvas is
+    /// registered HERE rather than inside the workspace project, which is what lets a surface join the
+    /// picker without the shell referencing it — and what keeps a Professional-only canvas out of the
+    /// open-core edition entirely, since this file is <c>owned</c> per repo and never promoted.</para>
+    /// </summary>
+    public static IServiceCollection AddWorkspaceSurface(this IServiceCollection services)
+    {
+        services.AddWorkspace();
+
+        // The chart's own view-model, resolved per canvas activation. Transient because the canvas
+        // disposes it on every swap — a WebView2 left running behind another canvas paints over it.
+        services.AddTransient<TradingTerminal.Charts.ChartsViewModel>();
         return services;
     }
 

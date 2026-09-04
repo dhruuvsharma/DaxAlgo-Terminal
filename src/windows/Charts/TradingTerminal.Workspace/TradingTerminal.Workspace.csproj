@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+    <Description>The workspace shell: one instrument/timeframe header over a swappable canvas. The price chart is a canvas; so is an authored unit.</Description>
+  </PropertyGroup>
+
+  <!--
+    DELIBERATELY NARROW. This references the price chart because it ships the default canvas,
+    and the UI library for the shared instrument picker and the authored-unit render hosts.
+
+    It must NOT reference OrderBook, VolumeFootprint, or any Pro chart project. Those join
+    through AddWorkspaceCanvas from whichever composition root owns them, which is the whole
+    point of the descriptor: a canvas the base shell has never heard of can still appear in it,
+    and the open-core edition does not acquire a reference to a Professional surface.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\windows\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\windows\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <ProjectReference Include="..\..\..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\..\src\windows\Charts\TradingTerminal.Charts\TradingTerminal.Charts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.10" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

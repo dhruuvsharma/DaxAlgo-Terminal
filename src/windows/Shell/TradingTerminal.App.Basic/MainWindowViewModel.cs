@@ -46,6 +46,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     private const string ArchiveSettingsWindowId = "settings.archive";
     private const string ArchiveActivityWindowId = "settings.archive.activity";
     private const string ThemeStudioWindowId = "settings.themestudio";
+    private const string WorkspaceWindowId = "tool.workspace";
     private const string ExecutionConsoleWindowId = "tools.execution-console";
 
     private readonly IStrategyFactory _factory;
@@ -831,6 +832,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     public void OpenThemeStudio() =>
         _host.OpenHostedTool<TradingTerminal.App.Theming.ThemeStudioViewModel, TradingTerminal.App.Theming.ThemeStudioView>(
             ThemeStudioWindowId, "Theme Studio", "Loading the theme editor…");
+
+    /// <summary>
+    /// The charts workspace: one instrument/timeframe header over a swappable canvas.
+    ///
+    /// <para>ONE entry, with the price chart as the default canvas. The standalone
+    /// <c>ChartsWindow</c> is deliberately not also wired up — two doors onto the same chart, one
+    /// carrying the shell's chrome and one carrying its own, is exactly the duplication the workspace
+    /// exists to remove. (It had no menu entry either, so nothing is being taken away.)</para>
+    /// </summary>
+    [RelayCommand]
+    public void OpenWorkspace() =>
+        _host.OpenHostedTool<TradingTerminal.Workspace.WorkspaceViewModel, TradingTerminal.Workspace.WorkspaceShell>(
+            WorkspaceWindowId, "Charts", "Loading instruments…", width: 1320, height: 840);
 
     /// <summary>Copies the selected activity-log rows to the clipboard (tab-aligned text). Falls back
     /// to copying every currently-visible row when nothing is selected, so Ctrl+C / "Copy" always

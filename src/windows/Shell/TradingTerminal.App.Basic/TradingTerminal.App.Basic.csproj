@@ -40,6 +40,10 @@
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
+    <!-- The workspace shell, and through it the price-chart canvas. Any further canvas is registered
+         from Composition/AppDependencyInjection.cs, so this stays the edition's only chart-surface
+         reference however many canvases the picker grows. -->
+    <ProjectReference Include="..\..\Charts\TradingTerminal.Workspace\TradingTerminal.Workspace.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,148 @@
+<UserControl x:Class="TradingTerminal.Workspace.WorkspaceShell"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+             mc:Ignorable="d"
+             d:DesignHeight="700" d:DesignWidth="1200"
+             Background="{DynamicResource Background.Primary}"
+             Foreground="{DynamicResource Text.Primary}">
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════
+         THE WORKSPACE SHELL. The Charts window's chrome, generalised.
+
+         The layout is deliberately the same three rows the price chart already had, because
+         that arrangement is the thing people said they liked: a header that answers "what am
+         I looking at, and over what period", the picture, and a quiet status line.
+
+         What changed is ownership. The chart used to OWN the instrument and the timeframe;
+         now the shell owns them and the chart is one canvas among several. The canvas picker
+         is the only genuinely new control.
+         ═══════════════════════════════════════════════════════════════════════════════════ -->
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══ Header: canvas · instrument · timeframe ═══════════════════════════════════ -->
+        <Border Grid.Row="0" Style="{StaticResource App.HeaderBar}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- The one new control. Grouped, because "Charts" and "Order flow" and
+                     "Authored" are different kinds of thing and a flat list of nine stops
+                     being scannable at about five. -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="0,0,14,0">
+                    <TextBlock Text="View" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <ComboBox Width="188"
+                              ItemsSource="{Binding CanvasesView}"
+                              SelectedItem="{Binding SelectedCanvas}"
+                              DisplayMemberPath="DisplayName"
+                              ToolTip="What fills the centre. The instrument and timeframe above apply to whichever view is showing.">
+                        <ComboBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource App.GroupLabel}"
+                                                   Margin="2,6,0,2" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ComboBox.GroupStyle>
+                    </ComboBox>
+                </StackPanel>
+
+                <TextBlock Grid.Column="1" Text="Symbol" VerticalAlignment="Center" Margin="0,0,6,0"
+                           Foreground="{DynamicResource Text.Secondary}" FontSize="11"
+                           Visibility="{Binding ShowsInstrument, Converter={StaticResource BoolToVis}}" />
+                <uic:InstrumentPicker Grid.Column="2" Width="376" HorizontalAlignment="Left"
+                                      ItemsSource="{Binding Instruments}"
+                                      SelectedInstrument="{Binding SelectedInstrument, Mode=TwoWay}"
+                                      SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
+                                      IsEnabled="{Binding CanPickInstrument}"
+                                      MaxDropDownHeight="420" Margin="0,0,12,0"
+                                      Visibility="{Binding ShowsInstrument, Converter={StaticResource BoolToVis}}" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding ShowsTimeframe, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Timeframe" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="{DynamicResource Text.Secondary}" FontSize="11" />
+                    <ComboBox Width="76"
+                              ItemsSource="{Binding Timeframes}"
+                              SelectedItem="{Binding SelectedTimeframe}"
+                              IsEnabled="{Binding CanPickTimeframe}"
+                              DisplayMemberPath="Label" />
+                </StackPanel>
+
+                <!-- A disabled control's only question is "why", answered beside it. -->
+                <TextBlock Grid.Column="4" VerticalAlignment="Center" Margin="14,0,0,0"
+                           FontSize="10.5" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Text="{Binding PinnedReason}" />
+
+                <ToggleButton Grid.Column="5" x:Name="OptionsToggle"
+                              Style="{StaticResource App.IconToggle}" Content="⚙"
+                              IsChecked="True" Margin="0"
+                              ToolTip="Show / hide this view's options" />
+            </Grid>
+        </Border>
+
+        <!-- ═══ The canvas, and whatever rail it brought with it ══════════════════════════ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!--
+                ONE CHILD AT A TIME, and this is the constraint that shapes the whole control.
+
+                The price chart is a WebView2, whose out-of-process composition is painted ABOVE
+                any WPF content occupying the same cell (airspace). A canvas left realised behind
+                another therefore does not sit quietly underneath it — the browser paints straight
+                over whatever replaced it, and the user sees a chart with an order book's controls.
+
+                So the host holds exactly one child and the outgoing canvas is disposed on every
+                swap. See WorkspaceShell.xaml.cs · ShowCanvas.
+            -->
+            <ContentControl Grid.Column="0" x:Name="CanvasHost" />
+
+            <Border Grid.Column="1" Style="{StaticResource App.OptionsRail}" Width="200"
+                    x:Name="RailHost"
+                    Visibility="Collapsed">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ContentControl x:Name="RailContent" />
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- ═══ Status ═══ -->
+        <Border Grid.Row="2" Style="{StaticResource App.FooterBar}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" FontSize="11"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Text="{Binding SelectedCanvas.DisplayName}" />
+                <TextBlock Text="{Binding Status}" FontSize="11"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>
