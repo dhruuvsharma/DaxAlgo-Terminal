@@ -223,6 +223,46 @@
         <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
+    <!-- The working verb. A shimmer along the text, secondary→accent→secondary, animated only
+         while it is on screen. -->
+    <Style x:Key="HYP.ShimmerLabel" TargetType="ContentControl">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <TextBlock Text="{TemplateBinding Content}" FontSize="11.5" FontWeight="SemiBold">
+                        <TextBlock.Foreground>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0" MappingMode="RelativeToBoundingBox" SpreadMethod="Repeat">
+                                <LinearGradientBrush.RelativeTransform>
+                                    <TranslateTransform x:Name="ShimmerSlide" X="0" />
+                                </LinearGradientBrush.RelativeTransform>
+                                <GradientStop Color="#787B86" Offset="0" />
+                                <GradientStop Color="#C4B5FD" Offset="0.4" />
+                                <GradientStop Color="#787B86" Offset="0.8" />
+                            </LinearGradientBrush>
+                        </TextBlock.Foreground>
+                    </TextBlock>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsVisible" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="Shimmer">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ShimmerSlide" Storyboard.TargetProperty="X"
+                                                         From="-1" To="1" Duration="0:0:2.4"
+                                                         RepeatBehavior="Forever" Timeline.DesiredFrameRate="24" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="Shimmer" />
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- A small state token (DRAFT / REGISTERED / a timer). -->
     <Style x:Key="HYP.StateChip" TargetType="Border">
         <Setter Property="CornerRadius" Value="{StaticResource HYP.Radius.S}" />
@@ -1038,46 +1078,6 @@
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="bd" Property="Background" Value="{DynamicResource Ai.Soft}" />
                             <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Ai.Accent.Brush}" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- The working verb. A shimmer along the text, secondary→accent→secondary, animated only
-         while it is on screen. -->
-    <Style x:Key="HYP.ShimmerLabel" TargetType="ContentControl">
-        <Setter Property="Focusable" Value="False" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ContentControl">
-                    <TextBlock Text="{TemplateBinding Content}" FontSize="11.5" FontWeight="SemiBold">
-                        <TextBlock.Foreground>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0" MappingMode="RelativeToBoundingBox" SpreadMethod="Repeat">
-                                <LinearGradientBrush.RelativeTransform>
-                                    <TranslateTransform x:Name="ShimmerSlide" X="0" />
-                                </LinearGradientBrush.RelativeTransform>
-                                <GradientStop Color="#787B86" Offset="0" />
-                                <GradientStop Color="#C4B5FD" Offset="0.4" />
-                                <GradientStop Color="#787B86" Offset="0.8" />
-                            </LinearGradientBrush>
-                        </TextBlock.Foreground>
-                    </TextBlock>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsVisible" Value="True">
-                            <Trigger.EnterActions>
-                                <BeginStoryboard x:Name="Shimmer">
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="ShimmerSlide" Storyboard.TargetProperty="X"
-                                                         From="-1" To="1" Duration="0:0:2.4"
-                                                         RepeatBehavior="Forever" Timeline.DesiredFrameRate="24" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.EnterActions>
-                            <Trigger.ExitActions>
-                                <StopStoryboard BeginStoryboardName="Shimmer" />
-                            </Trigger.ExitActions>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

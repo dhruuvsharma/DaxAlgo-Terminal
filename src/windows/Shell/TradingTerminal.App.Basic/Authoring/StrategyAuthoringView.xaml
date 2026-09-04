@@ -305,6 +305,25 @@
                                            Text="{Binding StepText}" />
                             </StackPanel>
 
+                            <!-- A reasoning model can think for a quarter of an hour before writing a
+                                 word, and a character counter climbing past a hundred thousand does not
+                                 tell anybody whether to keep waiting. This does. It appears at ninety
+                                 seconds, only while the model is thinking and has written nothing, and
+                                 goes away the moment the reply starts. -->
+                            <Border Margin="0,10,0,0" Padding="11,8"
+                                    CornerRadius="{StaticResource HYP.Radius.S}"
+                                    Background="{DynamicResource Background.Elevated}"
+                                    BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                    Visibility="{Binding LongThinkNotice, Converter={StaticResource HYP.S2V}}">
+                                <Grid>
+                                    <Border Width="2" HorizontalAlignment="Left" Margin="-11,-8,0,-8"
+                                            Background="{DynamicResource Warning.Brush}" />
+                                    <TextBlock Margin="4,0,0,0" TextWrapping="Wrap" FontSize="11.5"
+                                               Foreground="{DynamicResource Text.Secondary}"
+                                               Text="{Binding LongThinkNotice}" />
+                                </Grid>
+                            </Border>
+
                             <!-- The model's questions, as part of the turn that asked them. -->
                             <ItemsControl Margin="0,14,0,0"
                                           ItemsSource="{Binding Questions}"

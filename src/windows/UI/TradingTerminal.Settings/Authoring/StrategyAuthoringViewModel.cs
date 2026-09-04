@@ -1487,6 +1487,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             ElapsedText = null;
             ElapsedCompact = null;
+            LongThinkNotice = null;
             Save();   // a turn is expensive — never lose one to a crash or a restart
         }
     }
@@ -1557,6 +1558,47 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
     }
 
+    /// <summary>
+    /// Said out loud when the model has been reasoning for a while and has not begun its answer — null
+    /// the rest of the time, so the composer carries nothing during an ordinary turn.
+    /// </summary>
+    [ObservableProperty] private string? _longThinkNotice;
+
+    /// <summary>
+    /// THE SENTENCE THAT WOULD HAVE SAVED A USER SEVERAL HOURS.
+    ///
+    /// <para>Measured, not guessed. A real brief — three-candle triangles, area comparison, position
+    /// continuation and a three-panel window — was driven through this session against
+    /// z-ai/glm-5.3-free on TokenRouter: <b>14 minutes 32 seconds of pure reasoning before the first
+    /// character of the answer</b>, then a clean compile on one generation. Nothing was wrong. The
+    /// model simply thinks for a quarter of an hour on a brief that size.</para>
+    ///
+    /// <para>The thinking panel already proves something is happening, but a counter climbing past a
+    /// hundred thousand characters does not tell somebody whether to keep waiting or give up — and
+    /// giving up is what they did, repeatedly, on a build that would have worked. So the number is
+    /// turned into advice, and the advice escalates: at ninety seconds it is normal, and past five
+    /// minutes it names the fifteen-minute measurement rather than leaving the user to wonder whether
+    /// they are the first person to see this.</para>
+    ///
+    /// <para>Only while the model is demonstrably thinking and has written nothing. Once a single
+    /// character of the reply lands there is something to watch, and the notice gets out of the way.
+    /// </para>
+    /// </summary>
+    private string? LongThinkNoticeFor(TimeSpan elapsed)
+    {
+        if (_thinking is null || _streamingReply is not null) return null;
+        if (elapsed < TimeSpan.FromSeconds(90)) return null;
+
+        var minutes = Math.Max(1, (int)elapsed.TotalMinutes);
+
+        return elapsed < TimeSpan.FromMinutes(5)
+            ? $"Still thinking after {minutes}m, and it has not started writing yet. That is normal for "
+              + "a reasoning model on a detailed brief."
+            : $"Still thinking after {minutes}m. Slow, but not stuck — a brief this size has taken about "
+              + "15 minutes on a free route before the first word of the answer. Open the thinking panel "
+              + "to watch it work, or press Stop.";
+    }
+
     /// <summary>Ticks the elapsed clock on the UI context until the turn ends or the user stops it.</summary>
     private async Task TickElapsedAsync(CancellationToken ct)
     {
@@ -1572,6 +1614,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 ElapsedText = elapsed.TotalSeconds < 60
                     ? $"{elapsed.TotalSeconds:0}s elapsed…"
                     : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds:00}s elapsed — a detailed brief at a high effort takes minutes.";
+                LongThinkNotice = LongThinkNoticeFor(elapsed);
             }
         }
         catch (OperationCanceledException)

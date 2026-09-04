@@ -123,7 +123,37 @@ public static class SdkSurfaceSelector
     /// 112,219 to 94,435 characters — a real 16% — and the wall that prompted the work is at roughly
     /// 67,000. The surface is no longer the single largest thing in the prompt: after the cut it is
     /// 57,000, and the rest is the conventions (10,658), the worked exemplar (about 11,000) and the
-    /// domain packs (up to 18,000). Whoever takes the next bite should take it there.</para>
+    /// domain packs (up to 18,000).</para>
+    ///
+    /// <para><b>Measured again 2026-09-04</b>, on a UI-heavy brief (three-candle triangles, area
+    /// comparison, a three-panel window) at Standard, to find where the next bite should come from.
+    /// Surface 121,539 cut to 81,615; conventions 11,828; joined 93,450, dividing like this:</para>
+    ///
+    /// <code>
+    ///  38,230  Vocabulary          &lt;- largest, and NOT rationed
+    ///  19,681  Drawing helpers     &lt;- rationed
+    ///  12,836  Quant helpers       &lt;- rationed
+    ///   6,874  What you implement  }
+    ///   4,999  Output contract     }  contract sections, never cut
+    ///   4,757  What you draw onto  }
+    /// </code>
+    ///
+    /// <para><b>The next bite is not there, and that is the finding.</b> Vocabulary is larger than both
+    /// rationed libraries together, so it looks like the obvious target — and it is 46 entries
+    /// averaging 820 characters, every one a type an author writes against: <c>OhlcvBar</c>,
+    /// <c>Quote</c>, <c>TradePrint</c>, <c>InstrumentId</c>, <c>UnitLayout</c>, <c>StrategyParameter</c>.
+    /// Rationing it would reduce <c>OhlcvBar</c> to a one-line entry, and a brief about candle highs and
+    /// lows needs its members. <c>SdkSurfaceGenerator.HelperSections</c> already says this ("the
+    /// vocabulary those two are written in ... never rationed however long the brief is"); the
+    /// measurement confirms it rather than overturning it.</para>
+    ///
+    /// <para>So the only remaining lever here is this budget, worth about 7,700 characters of a
+    /// 121,000-character prompt — six per cent, against a real risk of degrading a configuration
+    /// measured to work. <b>And the prompt is not what makes a slow model slow:</b> the same brief on
+    /// z-ai/glm-5.3-free spent 14m32s reasoning before its first output character, then compiled
+    /// cleanly in one generation. Whoever wants that quarter of an hour back should spend it on the
+    /// model or on prompt caching — that route reports <c>cached=0</c>, so every turn re-pays for the
+    /// entire prompt — and not on cutting the surface further.</para>
     ///
     /// <para><c>SdkSurfaceSelectionTests</c> pins both directions: that a real brief is cut, and that
     /// the types it named survive the cut.</para>
