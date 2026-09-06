@@ -112,11 +112,18 @@ public sealed class StrategySkillLibrary
     /// gets wrong. Two paragraphs of the drawing pack WERE cut first — a worked snippet that restated
     /// the table above it — which bought about 500 of the 1,000. The rest is the ceiling moving.</para>
     ///
+    /// <para><b>Raised again to 24,000 on 2026-09-06, for the chart.</b> <c>PriceChart</c> is the
+    /// largest thing the drawing library has gained — a control rather than a widget, with a vocabulary
+    /// of overlays, markers, panes and a view to map back through — and the catalogue has to teach it,
+    /// or a brief asking for "a chart" gets bare candles and hand-rolled furniture, which is precisely
+    /// the cost this pack exists to remove. The section was written tight and its table row carries
+    /// most of the weight; the rest is the ceiling moving, for the reason it moved last time.</para>
+    ///
     /// <para><b>Deliberately no number for "the three heaviest" here.</b> The last time this comment
     /// carried one it was stale, and read as a comfortable margin while the real figure was
     /// forty-nine characters from dropping a pack. <c>SkillBudgetTests</c> computes it.</para>
     /// </remarks>
-    public const int MaxCharacters = 21_000;
+    public const int MaxCharacters = 24_000;
 
     /// <summary>
     /// How much of <see cref="MaxCharacters"/> must remain unused by the three heaviest packs.

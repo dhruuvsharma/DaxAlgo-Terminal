@@ -182,6 +182,33 @@ public sealed class WidgetLibraryTests
             s => Ladder.Draw(s, Depth()),
             s => Ladder.Draw(s, Depth(), new LadderOptions()),
             s => Ladder.Draw(s, null)),
+
+        new("PriceChart",
+            s => PriceChart.Draw(
+                s,
+                Bars(),
+                PriceChartOptions.Default with { Symbol = "ES", ShowWatermark = true },
+                overlays: [SeriesData.Line("ema", Values(12))],
+                markers: [new Signal(3, 100d, SignalKind.Buy, "in")],
+                levels: [new Level(100d, "stop", RenderThemeColor.Bearish)],
+                panes: [new ChartPane(SeriesData.Line("rsi", Values(12)), 60d, 100d)]),
+            s => PriceChart.Draw(s, Bars(), new PriceChartOptions()),
+            s => PriceChart.Draw(s, [])),
+
+        new("ChartSeries",
+            s => ChartSeries.Draw(s, Bars()),
+            s => ChartSeries.Draw(s, Bars(), default, new ChartSeriesOptions()),
+            s => ChartSeries.Draw(s, [])),
+
+        new("PriceScale",
+            s => PriceScale.Draw(s, new PlotRange(99d, 101d)),
+            s => PriceScale.Draw(s, new PlotRange(99d, 101d), new PriceScaleOptions()),
+            s => PriceScale.Draw(s, PlotRange.Empty)),
+
+        new("TimeAxis",
+            s => TimeAxis.Draw(s, Bars()),
+            s => TimeAxis.Draw(s, Bars(), default, new TimeAxisOptions()),
+            s => TimeAxis.Draw(s, [])),
     ];
 
     private static IReadOnlyList<OhlcvBar> Bars(int count = 12)

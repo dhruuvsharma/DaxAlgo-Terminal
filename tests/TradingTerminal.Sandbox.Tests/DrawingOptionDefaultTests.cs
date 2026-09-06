@@ -1,5 +1,6 @@
 using DaxAlgo.Sdk;
 using DaxAlgo.Sdk.Drawing;
+using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.MarketData;
 using Xunit;
@@ -83,6 +84,63 @@ public sealed class DrawingOptionDefaultTests
             ]);
 
         Assert.True(surface.Operations > 0, "Footprint.Draw with default options drew nothing");
+    }
+
+    [Fact]
+    public void PriceChartDefaultsAreTheDeclaredOnes()
+    {
+        Assert.Equal(ChartWindow.DefaultBars, PriceChartOptions.Default.MaximumBars);
+        Assert.Equal(62d, PriceChartOptions.Default.ScaleWidth);
+        Assert.Equal(0.18d, PriceChartOptions.Default.VolumeShare);
+        Assert.True(PriceChartOptions.Default.ShowVolume);
+        Assert.True(PriceChartOptions.Default.ShowLegend);
+        Assert.True(PriceChartOptions.Default.ShowTimeAxis);
+        Assert.True(PriceChartOptions.Default.ShowCrosshair);
+        Assert.True(PriceChartOptions.Default.ShowLastPrice);
+    }
+
+    [Fact]
+    public void TheChartFurnitureDefaultsAreTheDeclaredOnes()
+    {
+        Assert.Equal(0.72d, ChartSeriesOptions.Default.BodyFraction);
+        Assert.Equal(1.4d, ChartSeriesOptions.Default.Thickness);
+        Assert.Equal(0.16d, ChartSeriesOptions.Default.FillAlpha);
+        Assert.True(double.IsNaN(ChartSeriesOptions.Default.Baseline));
+
+        Assert.Equal(62d, PriceScaleOptions.Default.Width);
+        Assert.Equal(6, PriceScaleOptions.Default.ApproximateTicks);
+        Assert.True(PriceScaleOptions.Default.ShowGrid);
+
+        Assert.Equal(18d, TimeAxisOptions.Default.Height);
+        Assert.Equal(6, TimeAxisOptions.Default.ApproximateTicks);
+        Assert.True(TimeAxisOptions.Default.ShowGrid);
+    }
+
+    [Fact]
+    public void AChartDrawnWithNoOptionsAtAllStillDrawsSomething()
+    {
+        // The whole control behind one fallback: every piece of furniture on it is a bool that lands on
+        // false, so a zeroed options record would have drawn bare candles with no scale, no axis and no
+        // legend — and looked deliberate.
+        var surface = new CountingSurface(640d, 400d);
+
+        PriceChart.Draw(surface, Bars());
+
+        Assert.True(surface.Operations > 0, "PriceChart.Draw with default options drew nothing");
+    }
+
+    private static IReadOnlyList<OhlcvBar> Bars(int count = 12)
+    {
+        var bars = new OhlcvBar[count];
+        for (var index = 0; index < count; index++)
+        {
+            var open = 100d + Math.Sin(index / 2d);
+            bars[index] = new OhlcvBar(
+                new InstrumentId(1), BarSize.OneMinute, DateTime.UnixEpoch.AddMinutes(index),
+                open, open + 1d, open - 1d, open + 0.5d, 1_000L, BrokerKind.Simulated, IsFinal: true);
+        }
+
+        return bars;
     }
 
     private sealed class CountingSurface(double width, double height) : IRenderSurface

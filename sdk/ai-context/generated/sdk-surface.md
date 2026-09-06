@@ -1095,6 +1095,121 @@ PlotRange Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, CandleOptio
 ```
 
 
+<!-- @type ChartPane | Drawing helpers -->
+### `ChartPane`
+
+One pane below the price — RSI, MACD, delta, position, anything on its own scale.
+
+```csharp
+new ChartPane(SeriesData Series, double Height = 72, double Reference = NaN)
+double Height { get; }
+double Reference { get; }
+SeriesData Series { get; }
+```
+
+- `.ctor` — One pane below the price — RSI, MACD, delta, position, anything on its own scale. A `SeriesData` and a height, deliberately: the pane is the same series a unit would have drawn beside the chart, so nothing new has to be learned to put it underneath one. It shares the chart's columns and its window, which is the whole point — an oscillator scrolled independently of its own prices is worse than no oscillator.
+- `Height` — Pixels. Shrunk proportionally, and dropped altogether, when the panel is too short to give the price pane a usable height.
+- `Reference` — A line to draw across the pane and fold into its scale — zero for a MACD, 50 for an RSI. NaN leaves it out.
+- `Series` — What to draw. `Options.Kind == RenderSeriesKind.Bars` makes it a histogram, coloured by sign; anything else is a line.
+
+<!-- @type ChartSeries | Drawing helpers -->
+### `ChartSeries`
+
+The price series of a chart, in whichever style was asked for, over whichever slice is on screen.
+
+```csharp
+PlotRange Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, ChartWindow window = null, ChartSeriesOptions options = null, PlotRange range = null, PlotArea area = null)
+void Overlay(IRenderSurface surface, string name, IReadOnlyList<double> values, ChartWindow window, PlotRange range, SeriesOptions options = null, PlotArea area = null)
+PlotRange RangeOf(IReadOnlyList<OhlcvBar> bars, ChartWindow window = null, ChartStyle style = Candles, double baseline = NaN)
+```
+
+
+<!-- @type ChartSeriesOptions | Drawing helpers -->
+- `ChartSeriesOptions` — How a price series is drawn. Fields: Baseline, BodyFraction, FillAlpha, Style, Thickness. Use `ChartSeriesOptions.Default`, never `new()`.
+
+<!-- @type ChartStyle | Drawing helpers -->
+### `ChartStyle`
+
+How the price itself is drawn — the choice a reader makes first on a real terminal, and the one an authored picture never had.
+
+- `Candles` — Filled bodies with wicks. What a trader expects unless told otherwise.
+- `HollowCandles` — Bodies outlined when the bar closed up and filled when it closed down. Reads better on a dense chart, where a wall of filled bodies hides the direction it is supposed to show.
+- `Bars` — OHLC bars: a high-low stick with the open ticked left and the close ticked right. Half the ink of a candle, which is why it survives at a hundred bars to the inch.
+- `Line` — Closes joined. The honest choice when the opens and the wicks are not the point.
+- `Area` — Closes joined and filled to the floor.
+- `Baseline` — Closes filled to a reference and coloured either side of it — a session open, an entry, a fair value. Says "relative to this" in a way a line never does.
+- `HeikinAshi` — Heikin-Ashi: each candle averaged into the last, so the trend survives and the noise does not. These are not real prices and nothing should be executed off them.
+
+<!-- @type ChartView | Drawing helpers -->
+### `ChartView`
+
+What was drawn, and the mapping back into it.
+
+```csharp
+new ChartView(ChartWindow Window, PlotRange Range, PlotArea Price, PlotArea Volume, PlotArea Scale, PlotArea Axis, int HoveredIndex)
+PlotArea Axis { get; }
+double ColumnWidth { get; }
+int HoveredIndex { get; }
+int IndexAt(double x)
+bool IsHovering { get; }
+bool IsValid { get; }
+ChartView None { get; }
+PlotArea Price { get; }
+double PriceAt(double y)
+PlotRange Range { get; }
+PlotArea Scale { get; }
+PlotArea Volume { get; }
+ChartWindow Window { get; }
+double X(int index)
+double Y(double price)
+```
+
+- `.ctor` — What was drawn, and the mapping back into it. This is what keeps the control from being a black box. A widget that draws a picture and returns nothing forces the next thing onto a second, hand-rolled coordinate system that agrees with the first only by accident. Hand this to `X` and `Y` and your own annotation lands on the same bar and the same price the candles did.
+- `Axis` — The time strip, or `None` when the axis is off.
+- `ColumnWidth` — Width of one bar's column.
+- `HoveredIndex` — The bar under the pointer, or -1 when the pointer is elsewhere. This is the index a readout, a tooltip or a pinned annotation is written from.
+- `IndexAt` — The bar at an X, clamped into the window. -1 when there is no chart.
+- `IsHovering` — True when the pointer is over a bar.
+- `IsValid` — True when there is a chart to draw on top of.
+- `None` — Nothing was drawn — no bars, or no room. Returned rather than a half-valid view, so a caller cannot map coordinates against a chart that is not there.
+- `Price` — The price pane, gutter and axis excluded.
+- `PriceAt` — The price at a Y — for turning the pointer, or a pinned click, back into a number.
+- `Range` — The price scale they were drawn against.
+- `Scale` — The price gutter.
+- `Volume` — The volume strip along the floor of the price pane, or `None` when volume is off.
+- `Window` — Which bars were drawn.
+- `X` — The X of a bar's column centre. Check `Window.Contains(index)` first: an index that scrolled off maps to a coordinate outside the plot, and drawing it there says the event happened at the edge of the screen.
+- `Y` — The Y of a price.
+
+<!-- @type ChartWindow | Drawing helpers -->
+### `ChartWindow`
+
+Which slice of a bar history is on screen: the first index drawn, and how many.
+
+```csharp
+new ChartWindow(int First, int Count)
+ChartWindow All(int barCount)
+ChartWindow ClampedTo(int barCount)
+bool Contains(int index)
+int Count { get; }
+int First { get; }
+bool IsEmpty { get; }
+int Last { get; }
+ChartWindow None { get; }
+ChartWindow Of(IRenderSurface surface, int barCount, int maximumBars = 240, PlotArea area = null)
+```
+
+- `.ctor` — Which slice of a bar history is on screen: the first index drawn, and how many. This is the piece the library was missing, and it is why every generated chart showed whatever happened to be in the buffer. The gesture contract says to apply `Zoom` to your data range and `PanX` to which slice you show — but no widget did it, so a unit either ignored the wheel entirely or invented its own arithmetic and got the clamping wrong at the ends. `Of` is that arithmetic, once. Indices are into the caller's bar list, not into the window, so a window travels with the data it came from: `bars[window.First]` is the leftmost bar drawn and `bars[window.Last]` the rightmost. The right edge is the newest bar until somebody drags, which is what makes a live chart follow the market on its own.
+- `All` — The whole history — the window a widget uses when the caller has not asked for one.
+- `ClampedTo` — The same window, made safe for a list of `barCount` bars. A window is held across frames by anything that keeps one, and the list it indexes grows on every bar and is trimmed when the buffer is bounded. This is the guard that turns that into a shorter window rather than an `IndexOutOfRangeException` on the render thread.
+- `Contains` — True when an index falls inside the window, which is the guard before mapping one to an X coordinate: a marker on a bar that scrolled off must not be drawn at the edge as though it belonged there.
+- `Count` — How many bars are drawn.
+- `First` — Index of the leftmost bar drawn.
+- `IsEmpty` — True when there is nothing to draw.
+- `Last` — Index of the rightmost bar drawn — the newest one, unless the viewer has panned back.
+- `None` — No bars. What every routine here returns rather than drawing an empty picture.
+- `Of` — The slice the viewer has asked for, from the wheel and the drag. Zoom divides the count, never the coordinates. 240 bars at zoom 2 is 120 bars at the same size, which is what zooming in means on a chart; scaling the drawing instead magnifies the candles, the text and the line widths together and reads as a bug. Pan is measured in bars, not pixels, by dividing the accumulated drag by the width one column happens to have. So a drag moves the data under the pointer by the amount the pointer moved, at every zoom level — which is the difference between a chart that feels attached to the mouse and one that crawls when you zoom in. Clamped at both ends: the newest bar cannot be dragged off the right, and there is nothing to the left of the first bar. A viewer who flings the chart lands on the end of the history rather than on an empty panel they cannot recover from.
+
 <!-- @type ColorScale | Drawing helpers -->
 ### `ColorScale`
 
@@ -1515,6 +1630,35 @@ double Span { get; }
 - `Minimum` — Lower bound.
 - `Padded` — Pads by a fraction of the span so data does not sit flush against the panel edge, and gives a flat range a usable width — a series of identical prices would otherwise be a zero-height range that nothing can be plotted against.
 
+<!-- @type PriceChart | Drawing helpers -->
+### `PriceChart`
+
+The chart a trader recognises: candles on a price gutter and a time axis, with volume along the floor, the last price tagged, a legend that reads the bar under the pointer, overlays on the price scale, panes underneath, and a crosshair that snaps to a bar and says where it is in both axes.
+
+```csharp
+ChartView Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, PriceChartOptions options = null, IReadOnlyList<SeriesData> overlays = null, IReadOnlyList<Signal> markers = null, IReadOnlyList<Level> levels = null, IReadOnlyList<ChartPane> panes = null, PlotArea area = null)
+```
+
+
+<!-- @type PriceChartOptions | Drawing helpers -->
+- `PriceChartOptions` — How the chart is put together. Fields: Interval, MaximumBars, PriceFormat, ScaleWidth, ShowCrosshair, ShowLastPrice, ShowLegend, ShowTimeAxis, ShowVolume, ShowWatermark, Style, Symbol, VolumeShare. Use `PriceChartOptions.Default`, never `new()`.
+
+<!-- @type PriceScale | Drawing helpers -->
+### `PriceScale`
+
+The price gutter down the right-hand side, and the tags that live in it.
+
+```csharp
+PlotArea Draw(IRenderSurface surface, PlotRange range, PriceScaleOptions options = null, PlotArea area = null)
+void Tag(IRenderSurface surface, PlotRange range, double price, string text = null, RenderThemeColor color = Accent, PriceScaleOptions options = null, PlotArea area = null)
+```
+
+- `Draw` — Draws the gutter — ticks on a 1/2/5 progression, a label each, the separator, and a gridline across the plot — and returns the plot area to its left, so a caller lays a chart out by assignment rather than by arithmetic.
+- `Tag` — A filled pill in the gutter at one price — the last trade, the crosshair, a level. Skipped rather than clamped when the price is off the scale. A tag pinned to the top of the gutter reads as a real price at that height, and somebody will act on it.
+
+<!-- @type PriceScaleOptions | Drawing helpers -->
+- `PriceScaleOptions` — How the price gutter is drawn. Fields: ApproximateTicks, FontSize, Format, ShowGrid, Width. Use `PriceScaleOptions.Default`, never `new()`.
+
 <!-- @type ProfileOptions | Drawing helpers -->
 - `ProfileOptions` — How a volume profile is drawn. Fields: Alpha, FromRight, ShowPoc, SplitSides, ValueAreaShare, Width. Use `ProfileOptions.Default`, never `new()`.
 
@@ -1722,6 +1866,25 @@ void One(IRenderSurface surface, Tile tile, TileOptions options = null, PlotArea
 ```
 
 - `One` — Draws a single tile into an exact rectangle, for a caller composing its own layout.
+
+<!-- @type TimeAxis | Drawing helpers -->
+### `TimeAxis`
+
+The time strip along the bottom, labelled on round times.
+
+```csharp
+PlotArea Draw(IRenderSurface surface, IReadOnlyList<OhlcvBar> bars, ChartWindow window = null, TimeAxisOptions options = null, PlotArea area = null)
+string Label(DateTime stamp, TimeSpan step, bool dayChanged = false)
+TimeSpan StepFor(TimeSpan span, int approximateTicks = 6)
+void Tag(IRenderSurface surface, double x, string text, RenderThemeColor color = Neutral, TimeAxisOptions options = null, PlotArea area = null)
+```
+
+- `Label` — One label, at the resolution the step implies: the year for a decade, the month for a year, the date for a week, the clock for a session — and the date wherever the day changed, because that is the one place an intraday axis has to say more than the time.
+- `StepFor` — The round interval to label on for a span of time — the smallest rung of the ladder that keeps the label count near `approximateTicks`.
+- `Tag` — A filled pill in the strip at one X — where the crosshair is, in words.
+
+<!-- @type TimeAxisOptions | Drawing helpers -->
+- `TimeAxisOptions` — How the time strip is drawn. Fields: ApproximateTicks, FontSize, Format, Height, ShowGrid. Use `TimeAxisOptions.Default`, never `new()`.
 
 <!-- @type VolumeProfile | Drawing helpers -->
 ### `VolumeProfile`

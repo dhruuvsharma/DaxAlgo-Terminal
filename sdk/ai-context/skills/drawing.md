@@ -28,9 +28,13 @@ transparent widget looks exactly like a broken one. To change one field:
 
 | Want | Call |
 |---|---|
+| **The whole trading chart** — candles, price gutter, time axis, volume, last price, legend, crosshair, zoom and pan | `PriceChart.Draw(surface, bars)` |
 | A line, area, step or scatter series | `Series.Draw(surface, "name", values)` |
 | Several series on **one shared scale**, with grid, axes, legend and crosshair | `Series.Chart(surface, [SeriesData.Line("fast", fast), SeriesData.Line("slow", slow)])` |
-| OHLC candles | `Candles.Draw(surface, bars)` |
+| Bare OHLC candles filling a panel | `Candles.Draw(surface, bars)` |
+| Candles in another style, or drawn into furniture you built | `ChartSeries.Draw(surface, bars, window, ChartSeriesOptions.Default with { Style = ChartStyle.HeikinAshi })` |
+| A price gutter, or a time strip, on its own | `PriceScale.Draw(surface, range)` · `TimeAxis.Draw(surface, bars)` |
+| Which slice of a history the wheel and the drag are asking for | `ChartWindow.Of(surface, bars.Count, 240, area)` |
 | Signed bars from a baseline — MACD, delta, volume | `Histogram.Draw(surface, values)` |
 | A shaded envelope — Bollinger, Keltner, VWAP bands | `Bands.Draw(surface, upper, lower, middle)` |
 | Entry/exit/cross markers | `Signals.Draw(surface, signals, count, range)` |
@@ -59,6 +63,34 @@ transparent widget looks exactly like a broken one. To change one field:
 | A shaded matrix — correlation, liquidity, hour-of-day | `Heatmap.Draw(surface, columns, rows, (c, r) => value)` |
 | A value-to-colour ramp | `ColorScale.Diverging(surface, value, extent)` |
 | Grid, axes, crosshair, the "waiting" frame | `Plot.*` |
+
+## The chart
+
+`PriceChart` draws a whole instrument rather than one quantity, and it is what a brief asking for "a
+chart" means. One call gets the furniture — price gutter, a time strip labelled on real bar times,
+volume along the floor, the last price tagged, a legend reading **the bar under the pointer** — and it
+answers the wheel and the drag itself, which nothing else here does.
+
+Its inputs are the library's own vocabulary: overlays are `SeriesData`, markers are `Signal`, lines are
+`Level`, a pane underneath is a `ChartPane` around a series. **Overlays are indexed like the bars** —
+`values[i]` belongs to `bars[i]`, `double.NaN` for the warm-up — so an average cannot slide off its
+own prices.
+
+```csharp
+var view = PriceChart.Draw(surface, _bars,
+    PriceChartOptions.Default with { Symbol = "ES", Style = ChartStyle.Candles },
+    overlays: [SeriesData.Line("EMA 20", _ema20)],
+    markers:  _fills,                      // Signal(barIndex, price, SignalKind.Buy)
+    levels:   [new Level(_stop, "stop", RenderThemeColor.Bearish)],
+    panes:    [new ChartPane(SeriesData.Line("RSI", _rsi), 70d, Reference: 50d)]);
+```
+
+The `ChartView` it returns maps back into the picture — `X(index)`, `Y(price)`, `PriceAt(y)`,
+`IndexAt(x)`, `HoveredIndex`, `Window`, `Range` — so anything you add lands on the bar and the price
+the candles did. A second coordinate system of your own is how the two end up disagreeing.
+
+Styles: `Candles`, `HollowCandles`, `Bars`, `Line`, `Area`, `Baseline`, `HeikinAshi`. Go past the
+control to `Candles.Draw` or `ChartSeries.Draw` only when you want no furniture at all.
 
 ## What the widgets already handle
 
