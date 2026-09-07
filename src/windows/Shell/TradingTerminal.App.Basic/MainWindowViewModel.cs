@@ -112,37 +112,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                 .Value.SeedCatalogFixtures)
             CatalogItems.Add(new StrategyCatalogItemViewModel(DevCatalogSeed.FixtureVisualizer));
 
-        // Strategies authored in the app. `IStrategyKernelRegistry` is where `AuthoredUnitSink` puts a
-        // compiled `IStrategyKernel`, and the user is told "Registered strategy 'X'. Open it from the
-        // catalog" — but NOTHING read that registry, so the card never appeared and the sentence was
-        // false. The registry's own documentation says `Changed` "is what lets a strategy authored in
-        // Hyperion appear in the catalog without a restart"; this is the subscriber that makes it so.
         _kernels = services.GetService<IStrategyKernelRegistry>();
-        if (_kernels is not null)
-        {
-            foreach (var registration in _kernels.All) AddOrReplaceKernelCard(registration);
 
-            _kernels.Changed += (_, _) =>
-            {
-                void Apply()
-                {
-                    // Re-read the whole set rather than diffing: registration replaces by id, removal
-                    // is possible, and the list is a handful of entries.
-                    foreach (var registration in _kernels.All) AddOrReplaceKernelCard(registration);
-
-                    var live = _kernels.All.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
-                    foreach (var stale in CatalogItems
-                                 .Where(i => i.Kernel is not null && !live.Contains(i.Id))
-                                 .ToList())
-                        CatalogItems.Remove(stale);
-                }
-
-                if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
-                    dispatcher.Invoke(Apply);
-                else
-                    Apply();
-            };
-        }
         // Strategies contributed by an UNSIGNED plugin (neither shipped-by-us nor from a pinned
         // publisher) wear the DEV badge on their catalog card, mirroring the Plugin Manager.
         _unsignedStrategyIds = System.Linq.Enumerable.ToHashSet(
@@ -151,6 +122,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                     s => pluginContext.UnsignedStrategyTypeNames.Contains(s.GetType().FullName ?? string.Empty)),
                 s => s.Id),
             System.StringComparer.Ordinal);
+
+        // Units authored in the app or installed from a pack — BOTH kinds. The registries are where
+        // `AuthoredUnitSink` and `PluginUnitBinder` put them, and the user is told "Registered X. Open
+        // it from the catalog"; this is what makes that sentence true. It used to be a hand-rolled
+        // block here that read the kernel registry only, so a registered VISUALIZER produced no card
+        // at all — the same defect the strategy half had already been fixed for once.
+        //
+        // Placed after the unsigned set exists because the binder marks each card's id into it while
+        // seeding, and an installed unit means that seeding pass is not empty.
+        _catalogBinding = AuthoredUnitCatalog.Bind(
+            CatalogItems,
+            _kernels,
+            services.GetService<IVisualizerRegistry>(),
+            markUnsigned: id => _unsignedStrategyIds.Add(id));
         // A strategy registered while the app is running should appear immediately in both backing
         // collections. Runtime-authored strategies are unsigned, so add the badge id before the card.
         factory.Changed += (_, change) =>
@@ -572,17 +557,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     private readonly IStrategyKernelRegistry? _kernels;
 
-    private void AddOrReplaceKernelCard(StrategyKernelRegistration registration)
-    {
-        // Authored units are unsigned by definition — nobody signed what the user just wrote — so the
-        // card wears the same DEV badge a plugin from an unpinned publisher does.
-        _unsignedStrategyIds.Add(registration.Id);
-
-        var card = new StrategyCatalogItemViewModel(registration);
-        var existing = CatalogItems.FirstOrDefault(i => i.Id == registration.Id);
-        if (existing is not null) CatalogItems[CatalogItems.IndexOf(existing)] = card;
-        else CatalogItems.Add(card);
-    }
+    /// <summary>Holds the catalog in step with both unit registries for the life of the window.</summary>
+    private readonly IDisposable _catalogBinding;
 
     /// <summary>
     /// Opens an authored strategy: one sandboxed runtime, one picture, one virtual book.

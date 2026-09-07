@@ -12,8 +12,13 @@ namespace TradingTerminal.UI.Tests;
 /// <para>Registration was covered; the step AFTER it was not, and that was the broken one. Nothing in
 /// the tree read <c>IStrategyKernelRegistry</c> — the sink wrote to it, the plugin binder wrote to it,
 /// DI constructed it, and no reader existed — while the user was told "Registered strategy 'X'. Open
-/// it from the catalog." The visualizer half shipped and worked; the strategy half stopped at
-/// registration, which is the half people ask for.</para>
+/// it from the catalog."</para>
+///
+/// <para><b>This summary used to say "the visualizer half shipped and worked".</b> It did not, and
+/// saying so here is part of why it went on not working for another month: the visualizer registry had
+/// no reader either, so a registered visualizer produced no card at all. Corrected, and covered by
+/// <see cref="AuthoredVisualizerReachesTheCatalogTests"/>. A claim about a neighbouring path, written
+/// in a test file and asserted by nothing, is worth less than no claim.</para>
 ///
 /// <para>So this drives the real chain: source text through the real Roslyn compiler, the discovered
 /// unit through the real sink into the real registry, and the registration into the real catalog row

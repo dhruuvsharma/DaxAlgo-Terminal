@@ -34,7 +34,11 @@ public sealed class AuthoredUnitSink(
         {
             if (unit.Kind == AuthoringKind.Visualizer)
             {
-                _visualizers.Register(VisualizerDescriptors.FromType(unit.Type, id));
+                // The name goes through, as it does for a strategy one line below. It did not, and the
+                // consequence is the one PluginUnitBinder already records from the strategy side: the
+                // descriptor fell back to humanising the type, so the message said "Registered
+                // visualizer 'Order flow pressure'" and the card underneath it read "Pressure Kernel".
+                _visualizers.Register(VisualizerDescriptors.FromType(unit.Type, id, displayName));
                 return $"Registered visualizer '{displayName ?? id}'. Open it from the catalog.";
             }
 
