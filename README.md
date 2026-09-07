@@ -1,11 +1,34 @@
-# DaxAlgo Terminal
+<div align="center">
 
-> **AI-native trading terminal. Vibe code your strategies.**
+<a href="https://daxalgo.ai">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/DaxAlgoLogo-White.png">
+    <img src="assets/DaxAlgoLogo-BackgroundLess.png" alt="DaxAlgo" width="118">
+  </picture>
+</a>
 
-DaxAlgo Terminal is a Windows workspace for market data, strategy authoring, and order execution.
-Describe a strategy in **Hyperion**, launch an agent CLI from **Vibe Code**, or scaffold a
-capability-scoped strategy with the **DaxAlgo SDK**. The public repository ships one .NET 9 WPF
-application: `TradingTerminal.App.Basic`.
+<h1>DaxAlgo Terminal</h1>
+
+**Describe a strategy in plain English. Watch it trade.**
+
+An AI-native trading terminal for Windows. Author a strategy by describing it, compile it, and
+run it on live market data — with two hard gates between you and real money.
+
+[**daxalgo.ai**](https://daxalgo.ai) &nbsp;·&nbsp;
+[Join the waitlist](https://daxalgo.ai) &nbsp;·&nbsp;
+[Build it](#build-and-run) &nbsp;·&nbsp;
+[Write a strategy](#author-a-strategy-in-the-application)
+
+[![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?style=flat-square&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=flat-square&logo=windows&logoColor=white)](#requirements)
+[![License AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square)](LICENSE)
+[![SDK MIT](https://img.shields.io/badge/SDK-MIT-brightgreen?style=flat-square)](src/windows/Sdk/LICENSE)
+
+</div>
+
+---
+
+## Idea to live order
 
 ```text
 strategy idea
@@ -14,9 +37,13 @@ strategy idea
     -> review, register, and run against its own virtual book
 ```
 
-The application has no DaxAlgo product account, subscription sign-in, or entitlement gate. On a normal
-start it opens the broker-selection window. Broker credentials are requested only when the selected data
-source needs them.
+Describe a strategy in **Hyperion**, launch an agent CLI from **Vibe Code**, or scaffold a
+capability-scoped strategy with the **DaxAlgo SDK**. The public repository ships one .NET 9 WPF
+application: `TradingTerminal.App.Basic`.
+
+**No account, no subscription, no entitlement gate.** On a normal start it opens the
+broker-selection window, and broker credentials are requested only when the selected data source
+needs them.
 
 ## Repository scope
 
