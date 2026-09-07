@@ -37,7 +37,8 @@ internal static class AuthoredVisualizerComposition
         IMarketDataHub hub,
         IClock clock,
         InMemoryLogSink log,
-        IReadOnlyList<AuthoredUnitInstrument>? instruments = null)
+        IReadOnlyList<AuthoredUnitInstrument>? instruments = null,
+        Func<IReadOnlyDictionary<string, object?>, Task>? onApplied = null)
     {
         ArgumentNullException.ThrowIfNull(createVisualizer);
         ArgumentNullException.ThrowIfNull(log);
@@ -65,6 +66,12 @@ internal static class AuthoredVisualizerComposition
             {
                 if (runtime.IsRunning) await runtime.PauseAsync();
                 foreach (var (key, value) in values) runtime.SetParameter(key, value);
+
+                // The shell's chance to follow the new values before the unit runs on them — the
+                // instrument may have moved, and its feed has to move with it or the unit resumes
+                // subscribed to a stream nobody is publishing.
+                if (onApplied is not null) await onApplied(values);
+
                 await runtime.ResumeAsync();
             },
             setPaused: async pause =>

@@ -130,7 +130,7 @@ public sealed class AuthoredVisualizerCompositionTests
         // defect this project was created to catch.
         var (runtime, unit) = Compose(
         [
-            new TradingTerminal.UI.Controls.Render.AuthoredUnitInstrument(new InstrumentId(4), "BTCUSDT"),
+            TradingTerminal.UI.Controls.Render.AuthoredUnitInstrument.Unresolved(new InstrumentId(4), "BTCUSDT"),
         ]);
 
         using (runtime)

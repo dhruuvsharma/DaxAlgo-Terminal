@@ -22,8 +22,8 @@ public sealed class AuthoredUnitInstrumentPickerTests
 {
     private static readonly AuthoredUnitInstrument[] Two =
     [
-        new(new InstrumentId(7), "BTCUSDT · Binance"),
-        new(new InstrumentId(9), "ES MAR26 · Interactive Brokers"),
+        AuthoredUnitInstrument.Unresolved(new InstrumentId(7), "BTCUSDT · Binance"),
+        AuthoredUnitInstrument.Unresolved(new InstrumentId(9), "ES MAR26 · Interactive Brokers"),
     ];
 
     [Fact]

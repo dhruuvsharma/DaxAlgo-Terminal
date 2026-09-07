@@ -527,14 +527,30 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         {
             // Every seam in one place, and testable: see AuthoredVisualizerComposition, which exists
             // because this wiring sat inside a lambda inside a window and nothing could check it.
+            var schema = SafeSchema(registration);
+            var requirement = SafeRequirement(registration);
+
+            // The DATA. The runtime subscribes to the hub, and the hub only carries what a broker was
+            // asked to stream — so without this the unit ran, drew, and had nothing to draw.
+            var feed = OpenFeeds(schema, null, requirement);
+
             var (runtime, unit) = AuthoredVisualizerComposition.Create(
                 name,
                 registration.Create,
-                SafeSchema(registration),
+                schema,
                 _services.GetRequiredService<IMarketDataHub>(),
                 _services.GetRequiredService<IClock>(),
                 LogSink,
-                SelectableInstruments());
+                SelectableInstruments(),
+                onApplied: values =>
+                {
+                    // Point the feeds at wherever the instrument is now, and only then let go of the
+                    // old ones — releasing first would stop a stream the new selection also wants.
+                    var previous = feed;
+                    feed = OpenFeeds(schema, values, requirement);
+                    previous.Dispose();
+                    return Task.CompletedTask;
+                });
             var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
             window.Owner = Application.Current.MainWindow;
             TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
@@ -542,6 +558,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             {
                 _host.Unregister(capturedId);
                 unit.Dispose();
+                // Releases this window's reference to each stream; another window on the same
+                // instrument keeps it running.
+                feed.Dispose();
                 await runtime.DisposeAsync();
             };
 
@@ -597,6 +616,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                 LogSink.Append,
                 alert => LogSink.Append(alert.Source, alert.Level.ToString(), alert.Message));
 
+            // The DATA, for the same reason the visualizer path needs it: the runtime reads the hub,
+            // and the hub carries only what a broker was asked to stream.
+            var requirement = SafeRequirement(registration);
+            var feed = OpenFeeds(schema, null, requirement);
+
             var unit = new AuthoredUnitHost(
                 name, runtime.TryDraw, schema, values: null, LogSink,
                 hasBook: true,
@@ -604,6 +628,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                 {
                     if (runtime.IsRunning && !runtime.IsPaused) await runtime.PauseAsync();
                     foreach (var (key, value) in values) runtime.SetParameter(key, value);
+
+                    var previous = feed;
+                    feed = OpenFeeds(schema, values, requirement);
+                    previous.Dispose();
+
                     await runtime.ResumeAsync();
                 },
                 setPaused: async pause =>
@@ -660,6 +689,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
                 _host.Unregister(capturedId);
                 runtime.SnapshotChanged -= PushBook;
                 unit.Dispose();
+                feed.Dispose();
                 await runtime.DisposeAsync();
             };
 
@@ -722,16 +752,99 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     /// <summary>The visualizer's declared parameters, or none when it cannot even be constructed.</summary>
     /// <summary>
-    /// The instruments an authored unit may be pointed at — the same list, resolved the same way, as
-    /// the picker in Charts / OrderBook / VolumeFootprint.
+    /// The instruments an authored unit may be pointed at — every connected broker's own universe,
+    /// resolved the same way as the picker in Charts / OrderBook / VolumeFootprint.
     ///
-    /// <para>Asked per window rather than cached, because a broker connects while the terminal is
-    /// running and a list captured at start-up would be empty for the whole session.</para>
+    /// <para><b>It used to say that and not do it.</b> The list came from
+    /// <c>SignalInstrumentCatalog</c>, whose rows are deliberately broker-agnostic, so the "use the
+    /// instrument's own venue when it is connected" rule never fired and every row was attributed to
+    /// the first connected broker — and the id each resolved to belonged to that broker too, so a
+    /// unit pointed at one subscribed to a feed the user's actual venue was never going to publish.</para>
+    ///
+    /// <para>Loaded asynchronously and kept, because the universe now comes from the brokers over a
+    /// repository call rather than from a static list, and a window must not block on it. Refreshed
+    /// as a unit opens; a window already open keeps the list it opened with.</para>
     /// </summary>
-    private IReadOnlyList<AuthoredUnitInstrument> SelectableInstruments() =>
-        AuthoredUnitInstruments.Selectable(
-            _services.GetRequiredService<IBrokerSelector>(),
-            _services.GetRequiredService<IMarketDataIngest>());
+    private IReadOnlyList<AuthoredUnitInstrument> SelectableInstruments()
+    {
+        _ = RefreshAuthoredInstrumentsAsync();
+        return _authoredInstruments;
+    }
+
+    private volatile IReadOnlyList<AuthoredUnitInstrument> _authoredInstruments = [];
+
+    private async Task RefreshAuthoredInstrumentsAsync()
+    {
+        try
+        {
+            _authoredInstruments = await AuthoredUnitInstruments.LoadAsync(
+                _services.GetRequiredService<IMarketDataRepository>(),
+                _services.GetRequiredService<IInstrumentRegistry>(),
+                _services.GetRequiredService<IBrokerSelector>(),
+                _services.GetRequiredService<IMarketDataIngest>(),
+                _services.GetService<ILogger<MainWindowViewModel>>()).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // A picker that cannot populate must not take the shell down with it; the row falls back
+            // to the text editor, which is what it did before any of this existed.
+            _logger.LogWarning(ex, "Authored-unit instrument list failed to load");
+        }
+    }
+
+    /// <summary>
+    /// The feeds a unit's declared instruments need, started on the brokers they were resolved
+    /// against.
+    ///
+    /// <para><b>Without this a unit drew nothing.</b> Its runtime subscribes to the hub, and the hub
+    /// carries only what a broker has been asked to stream — so an authored unit only ever saw data
+    /// when another window happened to be streaming the same instrument.</para>
+    /// </summary>
+    private AuthoredUnitFeed OpenFeeds(
+        StrategyParameterSchema? schema,
+        IReadOnlyDictionary<string, object?>? values,
+        StrategyDataRequirement requirement)
+    {
+        if (schema is null || requirement == default) return AuthoredUnitFeed.None;
+        if (_services.GetService<IMarketDataIngest>() is not { } ingest) return AuthoredUnitFeed.None;
+
+        var picked = new List<AuthoredUnitInstrument?>();
+        foreach (var parameter in schema.Parameters)
+        {
+            if (parameter.Kind != ParameterKind.Instrument) continue;
+
+            var value = values is not null && values.TryGetValue(parameter.Key, out var supplied)
+                ? supplied
+                : parameter.Default;
+
+            var idText = value switch
+            {
+                InstrumentId id => id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                _ => value?.ToString(),
+            };
+
+            if (string.IsNullOrWhiteSpace(idText)) continue;
+            picked.Add(_authoredInstruments.FirstOrDefault(i => string.Equals(i.IdText, idText, StringComparison.Ordinal)));
+        }
+
+        return AuthoredUnitFeed.OpenAll(
+            ingest, picked, requirement, logger: _services.GetService<ILogger<MainWindowViewModel>>());
+    }
+
+    /// <summary>What the unit says it consumes, or nothing when it cannot even be constructed.</summary>
+    private static StrategyDataRequirement SafeRequirement(VisualizerRegistration registration)
+    {
+        try { return registration.Create().DataRequirement; }
+        catch (Exception) { return default; }
+    }
+
+    /// <summary>The same for an authored kernel. A strategy reads the hub exactly as a visualizer
+    /// does, so it needs its feeds started exactly as one.</summary>
+    private static StrategyDataRequirement SafeRequirement(StrategyKernelRegistration registration)
+    {
+        try { return registration.Create().DataRequirement; }
+        catch (Exception) { return default; }
+    }
 
     private StrategyParameterSchema? SafeSchema(VisualizerRegistration registration)
     {

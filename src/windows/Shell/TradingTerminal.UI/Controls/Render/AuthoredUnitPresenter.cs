@@ -470,6 +470,72 @@ public sealed partial class AuthoredUnitParameter : ObservableObject
     {
         Value = value;
         Commit();
+        SeedInstruments();
+    }
+
+    // ── the instrument picker ───────────────────────────────────────────────────────────────────
+
+    /// <summary>How many rows the dropdown shows at once, matching every other picker in the app.</summary>
+    public const int MaxInstrumentsDisplayed = 500;
+
+    /// <summary>
+    /// The rows the picker is currently showing — the universe narrowed by
+    /// <see cref="InstrumentSearchText"/>, exactly as a chart or an order book narrows its own.
+    /// </summary>
+    public ObservableCollection<SignalInstrument> VisibleInstruments { get; } = [];
+
+    /// <summary>The row the user is on. Setting it writes that instrument's canonical id into
+    /// <see cref="Value"/>, so the apply path stays the single place a parameter is read from.</summary>
+    [ObservableProperty] private SignalInstrument? _selectedInstrument;
+
+    /// <summary>What the user has typed into the picker. The filtering is done here, as the other
+    /// windows do it, rather than by the control.</summary>
+    [ObservableProperty] private string _instrumentSearchText = string.Empty;
+
+    partial void OnInstrumentSearchTextChanged(string value) => FilterInstruments();
+
+    partial void OnSelectedInstrumentChanged(SignalInstrument? value)
+    {
+        if (value is null) return;
+
+        // Match on the row itself: the same SignalInstrument instance is what went into the list, and
+        // two brokers can carry the same symbol under different ids.
+        var picked = Instruments.FirstOrDefault(i => ReferenceEquals(i.Instrument, value))
+            ?? Instruments.FirstOrDefault(i => i.DisplayName == value.DisplayName);
+
+        if (picked is not null && !string.Equals(Value, picked.IdText, StringComparison.Ordinal))
+            Value = picked.IdText;
+    }
+
+    /// <summary>
+    /// Points the picker at the row the current <see cref="Value"/> names, and fills the list.
+    ///
+    /// <para>Called after seeding rather than in the initialiser because the value arrives with the
+    /// row and the selection has to follow it — a picker showing nothing while the unit runs on an
+    /// instrument reads as "it did not take".</para>
+    /// </summary>
+    public void SeedInstruments()
+    {
+        if (!IsInstrument) return;
+
+        var current = Instruments.FirstOrDefault(i => string.Equals(i.IdText, Value, StringComparison.Ordinal));
+        if (current is not null && !ReferenceEquals(SelectedInstrument, current.Instrument))
+            SelectedInstrument = current.Instrument;
+
+        FilterInstruments();
+    }
+
+    private void FilterInstruments()
+    {
+        if (!IsInstrument) return;
+
+        InstrumentPickerFilter.Apply(
+            VisibleInstruments,
+            InstrumentPickerFilter.Visible(
+                [.. Instruments.Select(i => i.Instrument)],
+                InstrumentSearchText,
+                SelectedInstrument,
+                MaxInstrumentsDisplayed));
     }
 
     /// <summary>
