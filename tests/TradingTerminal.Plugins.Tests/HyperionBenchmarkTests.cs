@@ -72,7 +72,17 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     /// halves -- which is why this must not be read in two places with two defaults.</para>
     /// </summary>
     internal static StrategyBuildEffort LiveEffort =>
-        StrategyBuildEfforts.Parse(Env("HYPERION_EFFORT") ?? "standard");
+        StrategyBuildEfforts.Parse(Env("HYPERION_EFFORT") ?? LiveMode.ToBuildEffort().Wire());
+
+    /// <summary>
+    /// The dial the product actually exposes, from <c>HYPERION_MODE</c> (standard / research).
+    ///
+    /// <para><c>HYPERION_EFFORT</c> still overrides it, and is kept for exactly one reason: the two
+    /// user-facing positions sit at the ends of a four-position range, and measuring what Quick and
+    /// Deep do is how anyone would know whether the ends were the right choice. A benchmark that can
+    /// only drive the shipped settings cannot answer that.</para>
+    /// </summary>
+    internal static CodegenMode LiveMode => CodegenModes.Parse(Env("HYPERION_MODE") ?? "standard");
 
     /// <summary>True when the provider is an installed agent CLI rather than an HTTP endpoint.</summary>
     internal static bool IsAgentCli =>
@@ -90,7 +100,16 @@ public sealed class HyperionBenchmarkTests(ITestOutputHelper output)
     /// </summary>
     private static IStrategyCodegenClient LiveClient(StrategyBuildEffort effort)
     {
-        var reasoning = StrategyBuildProfile.For(effort).Reasoning;
+        // Resolved the way the product resolves it, per MODEL, rather than read off the pipeline
+        // profile. That difference is not cosmetic: the profile's Max is CodegenEffort.Max, and on
+        // z-ai/glm-5.3-free that setting is accepted and then never answered under — so a harness
+        // taking its reasoning from the profile would benchmark a configuration the app can no longer
+        // produce, and would spend an hour doing it.
+        var reasoning = LiveMode == CodegenMode.Research
+            ? AiModelCatalog.ResearchEffort(LiveProvider, LiveModel)
+            : CodegenEffort.Default;
+
+        _ = effort;
 
         if (IsAgentCli)
         {

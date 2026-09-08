@@ -54,13 +54,12 @@ public sealed class AuthoringActionTests : IDisposable
         + "microstructure strip underneath. Confirm and I will write it.";
 
     [Theory]
-    [InlineData(StrategyBuildEffort.Standard)]
-    [InlineData(StrategyBuildEffort.Deep)]
-    public async Task An_interview_offers_a_way_out(StrategyBuildEffort effort)
+    [InlineData(CodegenMode.Standard)]
+    public async Task An_interview_offers_a_way_out(CodegenMode mode)
     {
         // Both efforts, because the two paths set their buttons in different methods and only one of
         // them was ever finished before.
-        var pane = await TurnAsync(effort, WithQuestions);
+        var pane = await TurnAsync(mode, WithQuestions);
 
         Assert.True(pane.AwaitingAnswer);
         Assert.Contains(pane.Actions, a => a.Label.Contains("Just build it", StringComparison.Ordinal));
@@ -72,26 +71,24 @@ public sealed class AuthoringActionTests : IDisposable
     }
 
     [Theory]
-    [InlineData(StrategyBuildEffort.Standard)]
-    [InlineData(StrategyBuildEffort.Deep)]
-    public async Task An_interview_is_not_offered_the_approval_buttons(StrategyBuildEffort effort)
+    [InlineData(CodegenMode.Standard)]
+    public async Task An_interview_is_not_offered_the_approval_buttons(CodegenMode mode)
     {
         // The defect this replaces: "Looks right — build it" beside "Which instrument?" sends "that
         // specification is right", which answers a question nobody asked.
-        var pane = await TurnAsync(effort, WithQuestions);
+        var pane = await TurnAsync(mode, WithQuestions);
 
         Assert.DoesNotContain(
             pane.Actions, a => a.Label.Contains("Looks right", StringComparison.Ordinal));
     }
 
     [Theory]
-    [InlineData(StrategyBuildEffort.Standard)]
-    [InlineData(StrategyBuildEffort.Deep)]
-    public async Task A_specification_still_gets_its_approval_buttons(StrategyBuildEffort effort)
+    [InlineData(CodegenMode.Standard)]
+    public async Task A_specification_still_gets_its_approval_buttons(CodegenMode mode)
     {
         // The other shape, which was already right and must stay so. A turn that stops with a plan and
         // no options has nothing to enumerate, and approval is exactly what it is waiting for.
-        var pane = await TurnAsync(effort, SpecificationOnly);
+        var pane = await TurnAsync(mode, SpecificationOnly);
 
         Assert.True(pane.AwaitingAnswer);
         Assert.Contains(pane.Actions, a => a.Label.Contains("Looks right", StringComparison.Ordinal));
@@ -105,7 +102,7 @@ public sealed class AuthoringActionTests : IDisposable
         // sentence to type into an empty box.
         foreach (var reply in new[] { WithQuestions, SpecificationOnly })
         {
-            var pane = await TurnAsync(StrategyBuildEffort.Standard, reply);
+            var pane = await TurnAsync(CodegenMode.Standard, reply);
             Assert.Contains(pane.Actions, a => string.IsNullOrEmpty(a.Reply));
         }
     }
@@ -116,7 +113,7 @@ public sealed class AuthoringActionTests : IDisposable
         // A button that renders and does nothing is the same defect one layer down.
         var builder = new ScriptedBuilder(WithQuestions);
         var pane = Pane(builder);
-        pane.BuildEffort = StrategyBuildEffort.Standard;
+        pane.Mode = CodegenMode.Standard;
         pane.Composer = "an order book window";
         await pane.SendCommand.ExecuteAsync(null);
 
@@ -130,10 +127,10 @@ public sealed class AuthoringActionTests : IDisposable
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────
 
     private static async Task<StrategyAuthoringViewModel> TurnAsync(
-        StrategyBuildEffort effort, string reply)
+        CodegenMode mode, string reply)
     {
         var pane = Pane(new ScriptedBuilder(reply));
-        pane.BuildEffort = effort;
+        pane.Mode = mode;
         pane.Composer = "an order book window";
 
         await pane.SendCommand.ExecuteAsync(null);

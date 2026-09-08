@@ -38,36 +38,34 @@ public sealed class EveryEffortStreamsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(StrategyBuildEffort.Quick)]
-    [InlineData(StrategyBuildEffort.Standard)]
-    [InlineData(StrategyBuildEffort.Deep)]
-    [InlineData(StrategyBuildEffort.Max)]
-    public async Task Every_effort_streams_and_the_reply_lands_in_the_transcript(StrategyBuildEffort effort)
+    [InlineData(CodegenMode.Standard)]
+    [InlineData(CodegenMode.Research)]
+    public async Task Every_effort_streams_and_the_reply_lands_in_the_transcript(CodegenMode mode)
     {
         // StreamAsync is the streaming seam; GenerateAsync is the blocking one the committee used.
         // Counting each tells us which path the effort actually took.
         var builder = new CountingBuilder("I need one thing before I write it.");
         var pane = Pane(builder);
 
-        pane.BuildEffort = effort;
+        pane.Mode = mode;
         pane.Composer = "build me a strategy";
         await pane.SendCommand.ExecuteAsync(null);
 
         Assert.True(builder.BlockingCalls == 0,
-            $"{effort} used the blocking GenerateAsync path ({builder.BlockingCalls} call(s)); every " +
+            $"{mode} used the blocking GenerateAsync path ({builder.BlockingCalls} call(s)); every " +
             "effort must stream, or the user watches a status line and nothing else.");
-        Assert.True(builder.StreamCalls > 0, $"{effort} never streamed");
+        Assert.True(builder.StreamCalls > 0, $"{mode} never streamed");
         Assert.Contains(pane.Messages, m => m.IsAssistant && m.Text.Contains("before I write it"));
     }
 
     [Theory]
-    [InlineData(StrategyBuildEffort.Standard)]
-    [InlineData(StrategyBuildEffort.Max)]
-    public async Task The_models_thinking_reaches_the_transcript(StrategyBuildEffort effort)
+    [InlineData(CodegenMode.Standard)]
+    [InlineData(CodegenMode.Research)]
+    public async Task The_models_thinking_reaches_the_transcript(CodegenMode mode)
     {
         var pane = Pane(new CountingBuilder("Here is the plan."));
 
-        pane.BuildEffort = effort;
+        pane.Mode = mode;
         pane.Composer = "build me a strategy";
         await pane.SendCommand.ExecuteAsync(null);
 
@@ -77,16 +75,16 @@ public sealed class EveryEffortStreamsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(StrategyBuildEffort.Standard)]
-    [InlineData(StrategyBuildEffort.Max)]
-    public async Task A_turn_that_dies_mid_flight_still_says_so(StrategyBuildEffort effort)
+    [InlineData(CodegenMode.Standard)]
+    [InlineData(CodegenMode.Research)]
+    public async Task A_turn_that_dies_mid_flight_still_says_so(CodegenMode mode)
     {
         // A dropped connection used to append NOTHING: the transcript kept the user's message and no
         // reply, and the status line explaining it is not saved — so reopening the session showed a
         // brief that had apparently never been answered. That is what the stalled sessions look like.
         var pane = Pane(new DroppingBuilder());
 
-        pane.BuildEffort = effort;
+        pane.Mode = mode;
         pane.Composer = "build me a strategy";
         await pane.SendCommand.ExecuteAsync(null);
 

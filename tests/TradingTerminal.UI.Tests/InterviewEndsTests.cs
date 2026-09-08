@@ -83,7 +83,7 @@ public sealed class InterviewEndsTests : IDisposable
             Kernel);
 
         var pane = Pane(builder);
-        pane.BuildEffort = StrategyBuildEffort.Max;
+        pane.Mode = CodegenMode.Research;
 
         pane.Composer = "three candles, two triangles, trade the bigger area";
         await pane.SendCommand.ExecuteAsync(null);
@@ -121,7 +121,7 @@ public sealed class InterviewEndsTests : IDisposable
             Kernel);
 
         var pane = Pane(builder);
-        pane.BuildEffort = StrategyBuildEffort.Max;
+        pane.Mode = CodegenMode.Research;
 
         pane.Composer = "three candles, two triangles, trade the bigger area";
         await pane.SendCommand.ExecuteAsync(null);
@@ -155,7 +155,7 @@ public sealed class InterviewEndsTests : IDisposable
         var builder = new ScriptedBuilder("But what about the stop loss?");
 
         var pane = Pane(builder);
-        pane.BuildEffort = StrategyBuildEffort.Max;
+        pane.Mode = CodegenMode.Research;
 
         pane.Composer = "three candles, two triangles";
         await pane.SendCommand.ExecuteAsync(null);

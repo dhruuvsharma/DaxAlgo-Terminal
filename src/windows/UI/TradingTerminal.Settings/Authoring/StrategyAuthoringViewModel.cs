@@ -148,7 +148,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         // Backing field, not the property — the change handler resets sessions and persists, neither of
         // which applies to seeding the ctor's own default from config.
-        _buildEffort = StrategyBuildEfforts.Parse(_options.BuildEffort);
+        _mode = CodegenModes.Parse(_options.BuildEffort);
 
         // The unified picker's rows — built BEFORE the provider selection below, so the initial
         // provider/model choice can sync into it.
@@ -486,9 +486,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     [ObservableProperty] private CodegenEffort _selectedEffort = CodegenEffort.Default;
 
-    /// <summary>False for a provider with no effort knob (Ollama, DeepSeek, the Codex CLI) — the picker
-    /// disables rather than sending a parameter the provider would reject.</summary>
-    public bool EffortSupported => SelectedAiProvider is { } choice && AiModelCatalog.SupportsEffort(choice.ProviderId);
+    /// <summary>
+    /// True when Research would send a reasoning setting rather than falling back to the model's own
+    /// default. Per MODEL, not per provider: on a gateway fronting several vendors the answer belongs
+    /// to what is behind it.
+    /// </summary>
+    public bool EffortSupported =>
+        SelectedAiProvider is { } choice && AiModelCatalog.ResearchAvailable(choice.ProviderId, SelectedModel);
 
     partial void OnSelectedAiProviderChanged(AiProviderChoice? value)
     {
@@ -504,13 +508,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         foreach (var model in _ai?.ModelsFor(value.ProviderId) ?? []) Models.Add(model);
         SelectedModel = Models.FirstOrDefault();
-        SelectedEffort = value.Client.Effort;
+
+        // Not value.Client.Effort: the mode owns the reasoning setting, and whether Research has one
+        // to send is a fact about the provider and model just selected.
+        ApplyMode();
         SyncModelChoice();
     }
 
     partial void OnSelectedModelChanged(string? value)
     {
         ResetSession("Switched model.");
+
+        // Research is resolved per MODEL, so switching one can take the setting away — or give it
+        // back. Leaving the old answer standing is how the dial starts lying about what it sends.
+        ApplyMode();
         Persist();
         SyncModelChoice();
         OnPropertyChanged(nameof(ModelPillText));
@@ -607,16 +618,29 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         OnPropertyChanged(nameof(ModelPillText));
     }
 
-    // ── Build effort (the pipeline dial — separate from the model's reasoning effort) ───────────────
+    // ── Mode (the one dial) ─────────────────────────────────────────────────────────────────────
 
-    /// <summary>The four pipeline efforts, for the picker.</summary>
-    public IReadOnlyList<StrategyBuildEffort> BuildEfforts { get; } =
-        [StrategyBuildEffort.Quick, StrategyBuildEffort.Standard, StrategyBuildEffort.Deep, StrategyBuildEffort.Max];
+    /// <summary>The two positions, for the picker.</summary>
+    public IReadOnlyList<CodegenMode> Modes { get; } = [CodegenMode.Standard, CodegenMode.Research];
 
-    /// <summary>How hard the BUILD works — skill budget, auto-fix retries, and whether the self-review /
-    /// backtest-smoke passes run (<see cref="StrategyBuildProfile.For"/>). Orthogonal to
-    /// <see cref="SelectedEffort"/>, which is how hard the model thinks inside one generation.</summary>
-    [ObservableProperty] private StrategyBuildEffort _buildEffort = StrategyBuildEffort.Standard;
+    /// <summary>
+    /// How much effort this build is worth: skill budget, auto-fix retries, the review pass, the agent
+    /// path — and how hard the model is asked to think.
+    ///
+    /// <para>It was four positions (quick / standard / deep / max) and the two in the middle were never
+    /// chosen for a reason anybody could state. Two positions, and the difference between them is "how
+    /// much" rather than "which": what runs is the build's decision, not the dial's.</para>
+    /// </summary>
+    [ObservableProperty] private CodegenMode _mode = CodegenMode.Standard;
+
+    /// <summary>The pipeline profile this mode buys, in the enum the build understands.</summary>
+    public StrategyBuildEffort BuildEffort => Mode.ToBuildEffort();
+
+    /// <summary>
+    /// Set when Research was chosen on a model with no reasoning setting that is known to return an
+    /// answer: what happened, and what is being run instead. Empty otherwise.
+    /// </summary>
+    [ObservableProperty] private string _researchNotice = string.Empty;
 
     partial void OnAuthoringKindChanged(AuthoringKind value)
     {
@@ -626,16 +650,43 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Persist();
     }
 
-    partial void OnBuildEffortChanged(StrategyBuildEffort value)
+    partial void OnModeChanged(CodegenMode value)
     {
-        // One dial. Reasoning used to be a second dropdown, which meant a user could ask for Max and be
-        // quietly given the cheap setting on the other control — so the build effort now carries it.
-        SelectedEffort = StrategyBuildProfile.For(value).Reasoning;
+        ApplyMode();
 
         // The profile is fixed at session creation (its skill budget shapes the cached system prompt),
-        // so a new effort needs a new session — the same rule as switching the model's own effort.
-        ResetSession("Switched build effort.");
+        // so a new mode needs a new session.
+        ResetSession($"Switched to {value.Label()} mode.");
         Persist();
+        OnPropertyChanged(nameof(BuildEffort));
+    }
+
+    /// <summary>
+    /// Resolves the reasoning setting this mode sends, for the model that is actually selected.
+    ///
+    /// <para>Standard sends nothing — the model's own default, and the only setting every model
+    /// accepts. Research sends the highest setting that model is known to still ANSWER at, which is
+    /// not the same as the highest it accepts: one model here takes the parameter and then reasons
+    /// until its budget is gone. Where there is no usable setting, this falls back to the default and
+    /// says so instead of failing, and the rest of Research still applies.</para>
+    ///
+    /// <para>Called on a mode change AND on a provider or model change, because the answer is a fact
+    /// about the model: picking Research and then switching to a model that cannot do it must not
+    /// leave the notice behind, or the dial starts lying.</para>
+    /// </summary>
+    private void ApplyMode()
+    {
+        var provider = SelectedAiProvider?.ProviderId ?? string.Empty;
+
+        if (Mode == CodegenMode.Standard)
+        {
+            SelectedEffort = CodegenEffort.Default;
+            ResearchNotice = string.Empty;
+            return;
+        }
+
+        SelectedEffort = AiModelCatalog.ResearchEffort(provider, SelectedModel);
+        ResearchNotice = AiModelCatalog.ResearchUnavailable(provider, SelectedModel) ?? string.Empty;
     }
 
     // ── Agent CLI hand-off ──────────────────────────────────────────────────────────────────────────
@@ -1868,9 +1919,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             StrategyId = session.StrategyId;
             DisplayName = session.DisplayName;
 
-            // Provider-independent: the pipeline effort comes back even when the provider doesn't.
-            // Absent on a pre-build-effort snapshot ⇒ Standard.
-            BuildEffort = StrategyBuildEfforts.Parse(session.BuildEffort);
+            // Provider-independent: the mode comes back even when the provider doesn't. Parse also
+            // reads the retired build-effort words, so a snapshot written before this dial existed
+            // opens on the position its owner would have picked rather than silently on Standard.
+            Mode = CodegenModes.Parse(session.BuildEffort);
 
             if (session.ProviderId is { Length: > 0 } providerId &&
                 AiProviders.FirstOrDefault(p => p.ProviderId == providerId) is { } provider)
@@ -1881,7 +1933,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     if (!Models.Contains(model)) Models.Insert(0, model);
                     SelectedModel = model;
                 }
-                SelectedEffort = CodegenEfforts.Parse(session.Effort);
+                // Not restored from the snapshot: the mode owns the reasoning setting now, and the
+                // answer depends on the model this session is being reopened against.
+                ApplyMode();
             }
 
             Messages.Clear();
@@ -2712,7 +2766,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         try
         {
-            AiCodegenUserFile.SaveSelection(providerId, model, effort, _options, BuildEffort.Wire());
+            AiCodegenUserFile.SaveSelection(providerId, model, effort, _options, Mode.Wire());
         }
         catch (Exception ex)
         {

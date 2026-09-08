@@ -47,13 +47,12 @@ public sealed class AgentSharedContextTests : IDisposable
     }
 
     [Theory]
-    [InlineData(StrategyBuildEffort.Deep)]
-    [InlineData(StrategyBuildEffort.Max)]
-    public async Task Every_effort_that_routes_through_agents_composes_its_prompt(StrategyBuildEffort effort)
+    [InlineData(CodegenMode.Research)]
+    public async Task Every_effort_that_routes_through_agents_composes_its_prompt(CodegenMode mode)
     {
-        Assert.True(StrategyBuildProfile.For(effort).UseAgents, "this test is about the agent path");
+        Assert.True(StrategyBuildProfile.For(mode.ToBuildEffort()).UseAgents, "this test is about the agent path");
 
-        var sent = await RunAsync(effort, AuthoringKind.Strategy, Brief);
+        var sent = await RunAsync(mode, AuthoringKind.Strategy, Brief);
 
         Assert.Contains("What you are writing right now: a STRATEGY", sent);
         Assert.Contains("questions", sent);
@@ -66,7 +65,7 @@ public sealed class AgentSharedContextTests : IDisposable
     {
         // The switch is not decoration at Deep: a user who picked visualizer must not silently get a
         // kernel, which is precisely what a raw pack produces.
-        var sent = await RunAsync(StrategyBuildEffort.Deep, AuthoringKind.Visualizer, Brief);
+        var sent = await RunAsync(CodegenMode.Research, AuthoringKind.Visualizer, Brief);
 
         Assert.Contains("What you are writing right now: a VISUALIZER", sent);
         Assert.DoesNotContain("What you are writing right now: a STRATEGY", sent);
@@ -78,10 +77,12 @@ public sealed class AgentSharedContextTests : IDisposable
         // Not merely "some skills loaded" — the ones this brief warrants. A ladder-and-heatmap brief
         // that arrives without the order-flow catalogue leaves the model hand-rolling widgets that
         // already exist, which is what the budget mechanism is for.
-        var sent = await RunAsync(StrategyBuildEffort.Deep, AuthoringKind.Strategy, Brief);
+        var sent = await RunAsync(CodegenMode.Research, AuthoringKind.Strategy, Brief);
 
         var expected = StrategySkillLibrary.Load().SelectFor(
-            Brief, StrategyBuildProfile.For(StrategyBuildEffort.Deep).MaxSkills, AuthoringKind.Strategy);
+            Brief,
+            StrategyBuildProfile.For(CodegenMode.Research, CodegenEffort.Default).MaxSkills,
+            AuthoringKind.Strategy);
 
         Assert.NotEmpty(expected);
         foreach (var skill in expected) Assert.Contains(skill.Body[..120], sent);
@@ -107,7 +108,7 @@ public sealed class AgentSharedContextTests : IDisposable
 
     /// <summary>Drives a real turn and returns the shared context the agent loop actually sent.</summary>
     private static async Task<string> RunAsync(
-        StrategyBuildEffort effort, AuthoringKind kind, string brief)
+        CodegenMode mode, AuthoringKind kind, string brief)
     {
         var builder = new RecordingBuilder();
         var pane = new StrategyAuthoringViewModel(
@@ -119,7 +120,7 @@ public sealed class AgentSharedContextTests : IDisposable
         pane.StrategyId = "agent-context";
         pane.DisplayName = "Agent context";
         pane.AuthoringKind = kind;
-        pane.BuildEffort = effort;
+        pane.Mode = mode;
         pane.Composer = brief;
 
         await pane.SendCommand.ExecuteAsync(null);

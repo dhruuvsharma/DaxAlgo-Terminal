@@ -556,9 +556,9 @@
                                     </TextBlock>
                                 </ToggleButton>
                                 <ToggleButton x:Name="BuildPill" Style="{StaticResource HYP.PillButton}" Margin="6,0,0,0"
-                                              ToolTip="The single effort dial: how many skills are loaded, how many auto-fix attempts are allowed, whether the agents and the verification ladder run — and how hard the model is asked to think. Quick sketches; Max builds and checks.">
+                                              ToolTip="How much effort this build is worth. Standard runs the model at its own default thinking setting with a modest skill budget and one conversation. Research runs it at the highest setting that model is known to still answer at, with the full skill budget, more fix attempts, a review pass and the agents. A model with no usable research setting falls back to its default and says so.">
                                     <TextBlock>
-                                        <Run Text="Build: " /><Run Text="{Binding BuildEffort, Mode=OneWay}" /><Run Text="  ▾" />
+                                        <Run Text="Mode: " /><Run Text="{Binding Mode, Mode=OneWay}" /><Run Text="  ▾" />
                                     </TextBlock>
                                 </ToggleButton>
                             </StackPanel>
@@ -613,10 +613,10 @@
                                StaysOpen="False" AllowsTransparency="True" VerticalOffset="-6">
                             <Border Style="{StaticResource HYP.FlyoutCard}" MinWidth="160">
                                 <StackPanel>
-                                    <TextBlock Text="BUILD EFFORT" Style="{StaticResource HYP.SectionLabel}"
+                                    <TextBlock Text="MODE" Style="{StaticResource HYP.SectionLabel}"
                                                Margin="4,0,0,5" />
-                                    <ListBox x:Name="BuildList" ItemsSource="{Binding BuildEfforts}"
-                                             SelectedItem="{Binding BuildEffort}"
+                                    <ListBox x:Name="BuildList" ItemsSource="{Binding Modes}"
+                                             SelectedItem="{Binding Mode}"
                                              BorderThickness="0" Background="Transparent"
                                              SelectionChanged="OnFlyoutSelectionChanged" />
                                 </StackPanel>
@@ -970,7 +970,17 @@
                                ToolTip="This provider — usually an agent CLI — does not report usage. You are still billed by it." />
 
                     <TextBlock Style="{StaticResource HYP.StatusText}" Margin="0,0,14,0"
-                               Text="{Binding BuildEffort, Mode=OneWay, StringFormat=build: {0}}" />
+                               Text="{Binding Mode, Mode=OneWay, StringFormat=mode: {0}}" />
+
+                    <!-- Research asked for on a model that has no reasoning setting known to return an
+                         answer. Said out loud rather than silently behaving like Standard: a dial that
+                         quietly does nothing is how a user stops trusting the rest of them. -->
+                    <TextBlock Style="{StaticResource HYP.StatusText}" Margin="0,0,14,0"
+                               Foreground="{DynamicResource Warning.Brush}"
+                               MaxWidth="420" TextTrimming="CharacterEllipsis"
+                               Text="{Binding ResearchNotice, Mode=OneWay}"
+                               ToolTip="{Binding ResearchNotice, Mode=OneWay}"
+                               Visibility="{Binding ResearchNotice, Converter={StaticResource HYP.S2V}}" />
 
                     <TextBlock Style="{StaticResource HYP.StatusText}"
                                Foreground="{DynamicResource Ai.Text.Brush}"

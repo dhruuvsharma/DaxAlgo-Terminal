@@ -107,6 +107,18 @@ public sealed record StrategyBuildProfile(
     int MaxAgentTurns = 0,
     CodegenEffort Reasoning = CodegenEffort.Default)
 {
+    /// <summary>
+    /// The profile a <see cref="CodegenMode"/> buys, with the model's reasoning setting supplied by the
+    /// caller.
+    ///
+    /// <para><b>Reasoning is passed in rather than derived here, and that is the point of the mode
+    /// dial.</b> "The highest setting this model still answers at" is a fact about the model, and Core
+    /// knows nothing about models — the catalogue does. Baking a reasoning level into a profile is what
+    /// produced a Max build that sent an effort one provider accepts and then never answers under.</para>
+    /// </summary>
+    public static StrategyBuildProfile For(CodegenMode mode, CodegenEffort reasoning) =>
+        For(mode.ToBuildEffort()) with { Reasoning = reasoning };
+
     /// <summary>The profile an effort level buys.</summary>
     public static StrategyBuildProfile For(StrategyBuildEffort effort) => effort switch
     {

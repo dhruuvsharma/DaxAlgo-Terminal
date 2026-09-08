@@ -80,4 +80,84 @@ public static class AiModelCatalog
         "opencode" or "nvidia" => false,
         _ => false,
     };
+
+    /// <summary>
+    /// What <see cref="CodegenMode.Research"/> actually sends for a given model: the highest reasoning
+    /// setting that model is known to <b>still answer at</b>, or <see cref="CodegenEffort.Default"/>
+    /// when there is none.
+    ///
+    /// <para><b>Answering is the test, not acceptance.</b> That distinction is the whole reason this
+    /// method exists rather than a boolean. <c>z-ai/glm-5.3-free</c> accepts <c>reasoning_effort=high</c>
+    /// without complaint and then reasons until its budget is gone: measured 2026-09-01 on a real brief
+    /// at 1,088 seconds and 95,763 output tokens for no code, against the same brief on the provider's
+    /// own default, which compiled in 374 seconds. A dial that offered Research there would offer a
+    /// setting that has never produced anything.</para>
+    ///
+    /// <para>Ceilings are conservative on purpose. Sending an effort a model does not take fails the
+    /// request, and a failed request reads to a user as a bad key — so an unmeasured model gets the
+    /// value its provider documents, not the highest this enum can express.</para>
+    /// </summary>
+    /// <param name="providerId">The provider the request goes to.</param>
+    /// <param name="model">The model id, which is what actually decides this on a gateway fronting
+    /// several vendors.</param>
+    public static CodegenEffort ResearchEffort(string providerId, string? model)
+    {
+        // Model first: a gateway's ceiling is a property of what is behind it, not of the gateway.
+        if (Measured(model) is { } measured) return measured;
+
+        return providerId.ToLowerInvariant() switch
+        {
+            // Extended thinking, and the CLI carries the user's own subscription rather than a budget
+            // this account has to afford.
+            "anthropic" or "claude-cli" => CodegenEffort.Max,
+
+            // Documented ceiling for the reasoning series. XHigh and Max are not measured here and a
+            // rejected parameter reads as a bad key, so this stops at the value the API documents.
+            "openai" or "xai" or "openrouter" => CodegenEffort.High,
+
+            // No usable research setting. tokenrouter is the measured case above; the rest either take
+            // no effort parameter at all or front several vendors behind one endpoint, where the answer
+            // depends on the model and none has been measured.
+            _ => CodegenEffort.Default,
+        };
+    }
+
+    /// <summary>True when Research would send something other than the model's own default.</summary>
+    public static bool ResearchAvailable(string providerId, string? model) =>
+        ResearchEffort(providerId, model) != CodegenEffort.Default;
+
+    /// <summary>
+    /// The sentence to show when Research is selected on a model that has none, or null when it has
+    /// one.
+    ///
+    /// <para>It says what happened and what is being done about it, because the alternative — a dial
+    /// that silently behaves like the position next to it — is how a user concludes the setting does
+    /// nothing and stops trusting the rest of them.</para>
+    /// </summary>
+    public static string? ResearchUnavailable(string providerId, string? model) =>
+        ResearchAvailable(providerId, model)
+            ? null
+            : $"Research mode is not available on {model ?? providerId} — it has no reasoning setting "
+              + "that is known to still return an answer. Running at the model's own default instead; "
+              + "the rest of Research (the full skill budget, the extra fix attempts, the review pass "
+              + "and the agents) still applies.";
+
+    /// <summary>
+    /// Per-model ceilings that have actually been measured, which override the provider's.
+    ///
+    /// <para>Matched on a substring because a model id travels with a vendor prefix on one gateway and
+    /// without it on another — <c>z-ai/glm-5.3-free</c> and <c>glm-5.3</c> are the same model and the
+    /// same measurement.</para>
+    /// </summary>
+    private static CodegenEffort? Measured(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return null;
+
+        var id = model.ToLowerInvariant();
+
+        // Accepted, then silent. See the remarks above.
+        if (id.Contains("glm-5.3", StringComparison.Ordinal)) return CodegenEffort.Default;
+
+        return null;
+    }
 }
