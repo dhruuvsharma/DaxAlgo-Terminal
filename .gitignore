@@ -100,3 +100,9 @@ ideas.md
 build/gen-ai-context.ps1
 scripts/setup-claude-code.bat
 researchpapers/
+
+# Benchmark reference captures are the vendors' screenshots, not ours, and this repository is
+# public. The briefs link to each vendor's own page; the captures stay on disk. See
+# docs/hyperion-benchmark/reference/README.md.
+docs/hyperion-benchmark/reference/*
+!docs/hyperion-benchmark/reference/README.md
