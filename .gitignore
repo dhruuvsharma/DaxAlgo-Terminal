@@ -106,3 +106,8 @@ researchpapers/
 # docs/hyperion-benchmark/reference/README.md.
 docs/hyperion-benchmark/reference/*
 !docs/hyperion-benchmark/reference/README.md
+
+# WPF compiles in two passes and writes a throwaway <Project>_<token>_wpftmp.csproj beside the real
+# one. A build that is interrupted leaves it there, and the context checker then tries to parse it as
+# a project and fails the gate. Generated, never committed.
+*_wpftmp.csproj
