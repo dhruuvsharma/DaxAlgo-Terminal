@@ -529,12 +529,44 @@
                                 Margin="26,0,26,16" Padding="12,10" Tag="{Binding IsGenerating}">
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />  <!-- attached pictures, when there are any -->
                             <RowDefinition Height="*" />     <!-- prompt -->
                             <RowDefinition Height="Auto" />  <!-- kind notice, when there is one -->
                             <RowDefinition Height="Auto" />  <!-- control strip -->
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0">
+                        <!-- ATTACHED PICTURES, above the prompt they belong to. Each is removable,
+                             because attaching the wrong screenshot is the most likely thing to go
+                             wrong here and a send is not the place to discover it. -->
+                        <ItemsControl Grid.Row="0" ItemsSource="{Binding Composed}" Margin="0,0,0,8"
+                                      Visibility="{Binding HasComposedImages, Converter={StaticResource HYP.B2V}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,6,0" Padding="4" CornerRadius="{StaticResource HYP.Radius.S}"
+                                            Background="{DynamicResource Background.Elevated}"
+                                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                                            ToolTip="{Binding Name}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Image Source="{Binding Path}" Height="40" MaxWidth="72"
+                                                   Stretch="Uniform" Margin="0,0,6,0" />
+                                            <Button Style="{StaticResource HYP.IconButton}" Content="✕"
+                                                    VerticalAlignment="Top"
+                                                    ToolTip="Take this off the message"
+                                                    Command="{Binding DataContext.RemoveComposedImageCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Grid Grid.Row="1">
                             <TextBox MinHeight="52" MaxHeight="220" AcceptsReturn="True"
                                      TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                                      Background="Transparent" BorderThickness="0" Padding="2"
@@ -562,14 +594,22 @@
                             </TextBlock>
                         </Grid>
 
-                        <TextBlock Grid.Row="1"
-                                   Text="{Binding AuthoringKindNotice}"
-                                   Visibility="{Binding AuthoringKindNotice, Converter={StaticResource HYP.S2V}}"
-                                   FontSize="10.5" TextWrapping="Wrap" Margin="2,7,0,0"
-                                   Foreground="{DynamicResource Text.Secondary}" />
+                        <!-- Both notices, stacked: they are independent and can be true at once —
+                             a visualizer brief on a model that cannot see the picture attached to it. -->
+                        <StackPanel Grid.Row="2">
+                            <TextBlock Text="{Binding AttachmentNotice}"
+                                       Visibility="{Binding AttachmentNotice, Converter={StaticResource HYP.S2V}}"
+                                       FontSize="10.5" TextWrapping="Wrap" Margin="2,7,0,0"
+                                       Foreground="{DynamicResource Warning.Brush}" />
+
+                            <TextBlock Text="{Binding AuthoringKindNotice}"
+                                       Visibility="{Binding AuthoringKindNotice, Converter={StaticResource HYP.S2V}}"
+                                       FontSize="10.5" TextWrapping="Wrap" Margin="2,7,0,0"
+                                       Foreground="{DynamicResource Text.Secondary}" />
+                        </StackPanel>
 
                         <!-- kind · model · effort ……… send -->
-                        <DockPanel Grid.Row="2" Margin="0,9,0,0">
+                        <DockPanel Grid.Row="3" Margin="0,9,0,0">
                             <Button DockPanel.Dock="Right" Style="{StaticResource HYP.SendButton}"
                                     Command="{Binding SendCommand}" Content="Send  ⌃⏎"
                                     Visibility="{Binding IsGenerating, Converter={StaticResource HYP.NotB2V}}" />
@@ -578,6 +618,14 @@
                                     Visibility="{Binding IsGenerating, Converter={StaticResource HYP.B2V}}" />
 
                             <StackPanel Orientation="Horizontal">
+                                <!-- Pictures go with the MESSAGE: what the model is being shown, as
+                                     opposed to the reference pill, which sets the standard the review
+                                     judges the result against. Two different claims about a picture. -->
+                                <Button Style="{StaticResource HYP.PillButton.Action}" Margin="0,0,10,0"
+                                        Command="{Binding AttachImageCommand}"
+                                        Visibility="{Binding CanAttachReference, Converter={StaticResource HYP.B2V}}"
+                                        ToolTip="Attach a picture to this message — a window you want copied, a screenshot of what went wrong. It is sent with what you type."
+                                        Content="📎" />
                                 <!-- First in the row because it is the biggest decision in it:
                                      model and effort are settings, this decides what comes out. -->
                                 <ToggleButton Style="{DynamicResource HYP.KindSegment}"

@@ -88,6 +88,99 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         var n => $"{n} references",
     };
 
+    // ── pictures attached to a message ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Pictures riding on the message the user is about to send.
+    ///
+    /// <para><b>Distinct from the reference bar, and deliberately.</b> A picture in the chat is part of
+    /// the conversation — "here is the window I mean", "this is what it looks like when it breaks" —
+    /// and it goes to the planner, which is the only participant that holds the thread. The reference
+    /// pill sets the STANDARD the critics judge against, which is a different claim about a different
+    /// picture. Folding them together would make every screenshot of a bug into a design target.</para>
+    /// </summary>
+    public ObservableCollection<AuthoringAttachment> Composed { get; } = [];
+
+    public bool HasComposedImages => Composed.Count > 0;
+
+    /// <summary>
+    /// Set when the selected model cannot be shown pictures and there are pictures to show it.
+    ///
+    /// <para>Said out loud for the same reason the research fallback is: silently dropping an
+    /// attachment is how a user concludes the model ignored what they sent.</para>
+    /// </summary>
+    [ObservableProperty] private string _attachmentNotice = string.Empty;
+
+    /// <summary>Attaches pictures to the next message.</summary>
+    [RelayCommand]
+    private async Task AttachImageAsync()
+    {
+        if (_referencePicker is null) return;
+
+        try
+        {
+            foreach (var path in await _referencePicker.PickImagesAsync())
+            {
+                if (Composed.Count >= MaximumReferences) break;
+                if (ReadPicture(path) is not { } picture) continue;
+
+                Composed.Add(new AuthoringAttachment(
+                    path, System.IO.Path.GetFileName(path), picture));
+            }
+
+            OnPropertyChanged(nameof(HasComposedImages));
+            RefreshAttachmentNotice();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Attaching a picture to the message failed.");
+            Status = "That file could not be read.";
+        }
+    }
+
+    /// <summary>Takes one back off the message before it is sent.</summary>
+    [RelayCommand]
+    private void RemoveComposedImage(AuthoringAttachment? attachment)
+    {
+        if (attachment is null) return;
+
+        Composed.Remove(attachment);
+        OnPropertyChanged(nameof(HasComposedImages));
+        RefreshAttachmentNotice();
+    }
+
+    /// <summary>
+    /// Reads and validates one picture, or explains why it was refused.
+    ///
+    /// <para>Refusals are reported rather than silent. A file that vanishes from the composer with no
+    /// word is indistinguishable from a broken button.</para>
+    /// </summary>
+    private CodegenImage? ReadPicture(string path)
+    {
+        var info = new System.IO.FileInfo(path);
+        if (!info.Exists) return null;
+
+        if (info.Length is 0 or > MaximumReferenceBytes)
+        {
+            Status = $"'{info.Name}' is {(info.Length == 0 ? "empty" : "too large")} to send.";
+            return null;
+        }
+
+        if (MediaTypeOf(path) is not { } media)
+        {
+            Status = $"'{info.Name}' is not a picture the providers accept (PNG, JPEG or WebP).";
+            return null;
+        }
+
+        return new CodegenImage(media, System.IO.File.ReadAllBytes(path), info.Name);
+    }
+
+    /// <summary>Whether the model about to be asked can actually see what is attached.</summary>
+    private void RefreshAttachmentNotice() =>
+        AttachmentNotice = Composed.Count == 0 || SelectedAiProvider is not { } choice
+            ? string.Empty
+            : AiModelCatalog.VisionUnavailable(choice.ProviderId, SelectedModel) ?? string.Empty;
+
     /// <summary>The largest reference picture accepted, in bytes. These are base64-encoded into a
     /// model request, so an unbounded attachment becomes an unbounded prompt on the user's key.</summary>
     public const int MaximumReferenceBytes = 4_000_000;
@@ -1397,7 +1490,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (Messages.Count == 0) DeriveIdentityFrom(prompt);
 
         Composer = string.Empty;
-        Append(new AuthoringMessage(CodegenRole.User, prompt));
+
+        // Detached from the composer BEFORE the turn: a send that fails must not leave the pictures
+        // half-sent, and a second click must not attach them twice.
+        var attached = Composed.Count == 0
+            ? null
+            : Composed.Select(a => a.Image).ToArray();
+        var attachedNames = Composed.Select(a => a.Name).ToArray();
+        Composed.Clear();
+        OnPropertyChanged(nameof(HasComposedImages));
+        AttachmentNotice = string.Empty;
+
+        Append(new AuthoringMessage(CodegenRole.User, prompt) { Attachments = attachedNames });
         Activity.Clear();
         Diagnostics.Clear();
         CompiledOk = false;
@@ -1509,6 +1613,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     rasterizer: _rasterizer),
                 SwarmBudget.For(profile, AiModelCatalog.IsAgentCli(choice.ProviderId)),
                 bar,
+
+                // Taken before the turn and cleared after it, so a picture is sent once rather than
+                // re-billed on every later message in the thread.
+                attached,
 
                 // The user pressing "Just build it" ends the interview, whatever the model would have
                 // done next. Otherwise the escape is only a suggestion, and a model that keeps asking
@@ -2910,6 +3018,15 @@ public sealed partial class AuthoringMessage : ObservableObject
     public const string KindPlan = "Plan";
     public const string KindPlanText = "PlanText";
     public const string KindFiles = "Files";
+
+    /// <summary>Names of pictures sent with this message, for the transcript. Empty for the vast
+    /// majority of turns, which are text.</summary>
+    public IReadOnlyList<string> Attachments { get; init; } = [];
+
+    /// <summary>The caption the bubble shows under a message that carried pictures.</summary>
+    public string AttachmentSummary => Attachments.Count == 0
+        ? string.Empty
+        : "📎 " + string.Join(", ", Attachments);
 
     public AuthoringMessage(CodegenRole role, string text)
     {

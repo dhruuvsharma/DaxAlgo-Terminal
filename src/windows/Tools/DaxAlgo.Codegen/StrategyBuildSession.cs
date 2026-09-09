@@ -363,6 +363,14 @@ public sealed class StrategyBuildSession
     /// <param name="runner">The swarm, already bound to this session's provider and a gate.</param>
     /// <param name="budget">The limits this turn runs under.</param>
     /// <param name="bar">The standard the critics judge against, or null for the planner's own rubric.</param>
+    /// <param name="images">
+    /// Pictures the user attached to this message.
+    ///
+    /// <para>They ride the USER'S TURN into the thread, which means the planner sees them and every
+    /// later turn still does — a screenshot explaining what to build is worth exactly as much on turn
+    /// four as on turn one. Builders stay text-only: each gets its task and its dependencies, and a
+    /// picture of the whole window is not what a single-file builder is being asked about.</para>
+    /// </param>
     /// <param name="mayAsk">False once the user has said to build it, so the escape is an instruction
     /// rather than a suggestion a model can keep declining.</param>
     /// <param name="activity">The status bar's live line.</param>
@@ -374,6 +382,7 @@ public sealed class StrategyBuildSession
         SwarmRunner runner,
         SwarmBudget budget,
         Gauntlet.ReferenceBar? bar = null,
+        IReadOnlyList<CodegenImage>? images = null,
         bool mayAsk = true,
         IProgress<string>? activity = null,
         IProgress<SwarmEvent>? swarm = null,
@@ -389,7 +398,7 @@ public sealed class StrategyBuildSession
         if (_messages.Count == 0 && ResolveSkills(userMessage) is { Count: > 0 } loaded)
             activity?.Report($"Loaded reference: {string.Join(", ", loaded.Select(s => s.Name))}.");
 
-        _messages.Add(new CodegenMessage(CodegenRole.User, userMessage));
+        _messages.Add(new CodegenMessage(CodegenRole.User, userMessage, images));
         activity?.Report($"Planning with {Provider.DisplayName}…");
 
         var run = await runner.RunAsync(
