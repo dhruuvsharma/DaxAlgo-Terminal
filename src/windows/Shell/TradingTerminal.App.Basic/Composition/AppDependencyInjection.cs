@@ -129,7 +129,12 @@ public static class AppDependencyInjection
         // Turns a compiled authored strategy into a catalog entry and persistent plugin so it is
         // available immediately and survives restart.
         services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredStrategyInstaller>();
-        services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
+        // TRANSIENT, NOT SINGLETON, and the difference is a feature the builder did not have.
+        // One instance per application meant one conversation, one session, one Stop button — so a
+        // second Hyperion window would have shared the first one's chat, and two strategies in flight
+        // was impossible. It also made the window host's dispose-on-close a latent fault: closing the
+        // builder disposed the application-wide view-model, and re-opening it got the disposed one.
+        services.AddTransient<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
         // Off-screen rendering for the Gauntlet's picture critics: the unit as the user would see it,
         // drawn through the same control the real window uses. Singleton because it owns one STA render
         // thread -- one per pane would leak a thread per authoring session.

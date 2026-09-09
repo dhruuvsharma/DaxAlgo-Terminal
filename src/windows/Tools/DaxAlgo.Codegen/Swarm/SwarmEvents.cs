@@ -25,9 +25,24 @@ public abstract record SwarmEvent
     /// <summary>One task has been handed to a builder.</summary>
     public sealed record TaskStarted(BuildTask Task, bool IsRepair) : SwarmEvent;
 
-    /// <summary>One task is done. <paramref name="Wrote"/> is false when the builder returned no usable
-    /// file, which is a turn the user paid for and must be able to see.</summary>
-    public sealed record TaskFinished(BuildTask Task, bool Wrote, CodegenUsage Usage, string? Note) : SwarmEvent;
+    /// <summary>
+    /// One task is done. <paramref name="Wrote"/> is false when the builder returned no usable file,
+    /// which is a turn the user paid for and must be able to see.
+    /// </summary>
+    /// <param name="Files">
+    /// What it produced, so the editor can show it NOW rather than at the end of the run.
+    ///
+    /// <para>Carried on the event rather than collected at the end because a fan-out takes minutes and
+    /// a Code tab that stays empty throughout is indistinguishable from one that is never going to
+    /// fill. The files are the most convincing evidence a run is working, and they were arriving only
+    /// once there was nothing left to reassure anybody about.</para>
+    /// </param>
+    public sealed record TaskFinished(
+        BuildTask Task,
+        bool Wrote,
+        CodegenUsage Usage,
+        string? Note,
+        IReadOnlyList<StrategyFile> Files) : SwarmEvent;
 
     /// <summary>The whole unit has been compiled and run up the ladder.</summary>
     public sealed record Gated(VerificationReport Report, int Round) : SwarmEvent;

@@ -996,6 +996,41 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         RefreshWorkStatus();
     }
 
+    /// <summary>
+    /// Replaces the seeded checklist with the plan's OWN tasks.
+    ///
+    /// <para><b>The checklist was describing a pipeline that no longer runs.</b> It was seeded with
+    /// Understand brief → Load skills → Generate → Compile → Auto-fix and advanced by prefix-matching
+    /// the activity strings the single conversation used to emit ("Asking…", "Compiling…"). The swarm
+    /// emits nothing of the kind, so not one of those prefixes ever matched: the strip sat on step 1
+    /// of 6 for the whole run, and a build that was working looked identical to one that had hung.</para>
+    ///
+    /// <para>So the plan supplies the rows. The step counter then counts something real, and the verb
+    /// is the task's own title rather than a guess at which stage of a dead pipeline we are in.</para>
+    /// </summary>
+    private void AdoptPlanTasks(IReadOnlyList<Infrastructure.Strategies.Authoring.Swarm.BuildTask> tasks)
+    {
+        Tasks.Clear();
+        _planTasks.Clear();
+        _taskBrief = _taskSkills = _taskGenerate = _taskCompile = _taskAutoFix = _taskReview = _taskSmoke = null;
+
+        foreach (var task in tasks)
+        {
+            var row = new BuildTask(task.Title);
+            _planTasks[task.Id] = row;
+            Tasks.Add(row);
+        }
+
+        // The gate and the review are work too, and they are the part a user is most likely to be
+        // waiting on when the builders have all finished and nothing appears to be happening.
+        Tasks.Add(_taskCompile = new BuildTask("Verification"));
+
+        RefreshWorkStatus();
+    }
+
+    /// <summary>Plan task id → its row on the strip.</summary>
+    private readonly Dictionary<string, BuildTask> _planTasks = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Maps the session's activity strings onto the checklist. Prefix matching against the
     /// strings <see cref="StrategyBuildSession"/> reports — cosmetic by design: an unrecognized step
     /// just doesn't advance the strip, it never breaks a turn.</summary>
@@ -2655,6 +2690,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 OnPropertyChanged(nameof(HasBoard));
                 break;
 
+            case SwarmEvent.MilestoneStarted:
+                break;
+
             case SwarmEvent.Planned planned:
                 Append(AuthoringMessage.Tool(
                     planned.Origin == PlanOrigin.Planned ? "Ok" : "Info",
@@ -2668,6 +2706,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 Board.Clear();
                 foreach (var task in planned.Plan.Tasks) Board.Add(new SwarmTaskRow(task));
                 OnPropertyChanged(nameof(HasBoard));
+
+                // The status strip counts the plan's own work from here, rather than a pipeline that
+                // no longer runs.
+                AdoptPlanTasks(planned.Plan.Tasks);
                 break;
 
             // Reported BEFORE the call, which is the end a live indicator belongs at. The committee
@@ -2676,6 +2718,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             case SwarmEvent.TaskStarted started:
                 if (Row(started.Task.Id) is { } starting)
                     starting.State = started.IsRepair ? SwarmTaskState.Repairing : SwarmTaskState.Running;
+
+                if (_planTasks.TryGetValue(started.Task.Id, out var strip))
+                {
+                    Run(strip);
+                    RefreshWorkStatus();
+                }
+
                 break;
 
             case SwarmEvent.TaskFinished finished:
@@ -2684,6 +2733,23 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     row.State = finished.Wrote ? SwarmTaskState.Done : SwarmTaskState.Empty;
                     row.Tokens += finished.Usage.TotalTokens;
                     row.Note = finished.Note ?? string.Empty;
+                }
+
+                if (_planTasks.TryGetValue(finished.Task.Id, out var finishedStrip))
+                {
+                    Done(finishedStrip);
+                    RefreshWorkStatus();
+                }
+
+                // THE CODE APPEARS AS IT IS WRITTEN. It used to arrive only when the whole turn
+                // returned, so through a multi-minute fan-out the Code tab stayed empty — and an empty
+                // editor is indistinguishable from one that is never going to fill. The files are the
+                // most convincing evidence a run is working, and they were being withheld until there
+                // was nothing left to reassure anybody about.
+                if (finished.Wrote && finished.Files.Count > 0)
+                {
+                    SetFiles(finished.Files);
+                    _filesEditedByUser = false;
                 }
 
                 Append(AuthoringMessage.Tool(
@@ -2706,7 +2772,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                             + string.Concat(v.Findings.Select(f => Environment.NewLine + "  - " + f))))));
                 break;
 
+            case SwarmEvent.Gated gated when gated.Report.Passed:
+                Done(_taskCompile);
+                RefreshWorkStatus();
+                break;
+
             case SwarmEvent.Gated gated when !gated.Report.Passed:
+                Run(_taskCompile);
+                RefreshWorkStatus();
+
                 Append(AuthoringMessage.Tool(
                     "Fail",
                     $"Verification round {gated.Round}",
@@ -2725,13 +2799,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // do not compile, and those are exactly the ones the user needs to see.
         if (files.Count > 0) OpenWorkbench();
 
+        // WHAT THE USER WAS LOOKING AT, kept. The swarm calls this once per task now, so resetting the
+        // selection to the first file would yank the editor out from under anybody reading a file while
+        // the rest of the fan-out lands — several times a minute, on the exact file they chose.
+        var wasReading = SelectedFile?.Name;
+
         foreach (var existing in Files) existing.PropertyChanged -= OnFileEdited;
         Files.Clear();
 
         foreach (var file in files)
             Files.Add(Track(new AuthoredFile(file.Name, file.Content)));
 
-        SelectedFile = Files.FirstOrDefault();
+        SelectedFile =
+            Files.FirstOrDefault(f => string.Equals(f.Name, wasReading, StringComparison.OrdinalIgnoreCase))
+            ?? Files.FirstOrDefault();
         _session?.SyncEditedFiles(files);
     }
 

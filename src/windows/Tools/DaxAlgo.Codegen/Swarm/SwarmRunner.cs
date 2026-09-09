@@ -173,7 +173,8 @@ public sealed class SwarmRunner(
                     var wrote = context.Accept(task, result.Files);
                     progress?.Report(new SwarmEvent.TaskFinished(
                         task, wrote, result.Usage,
-                        wrote ? null : "returned no file — the turn was spent without producing one"));
+                        wrote ? null : "returned no file — the turn was spent without producing one",
+                        context.Files));
                 }
             }
         }
@@ -285,7 +286,7 @@ public sealed class SwarmRunner(
 
                 var wrote = context.Accept(task, result.Files);
                 progress?.Report(new SwarmEvent.TaskFinished(
-                    task, wrote, result.Usage, wrote ? null : "returned no file"));
+                    task, wrote, result.Usage, wrote ? null : "returned no file", context.Files));
             }
         }
 

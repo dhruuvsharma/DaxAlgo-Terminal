@@ -62,6 +62,29 @@ internal sealed class ShellWindowHost : IShellWindowHost
         }));
     }
 
+    /// <summary>
+    /// Opens ANOTHER instance of a tool, however many are already open.
+    ///
+    /// <para>For the tools where a second window is a second piece of work rather than a duplicate of
+    /// the first. Hyperion is the case that forced it: the builder was a single window on a fixed id,
+    /// so opening it twice re-focused the one you already had, and its view-model was a singleton, so
+    /// even a second window would have shared one conversation, one session and one Stop button. There
+    /// was no way to have two strategies in flight — which is the normal way anybody works.</para>
+    ///
+    /// <para>Each gets a numbered id so the host can still track and close it, and its own view-model
+    /// instance, which is what actually separates the two.</para>
+    /// </summary>
+    public void OpenAnotherHostedTool<TVm, TView>(string windowId, string title, string detail,
+        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
+        where TVm : class
+        where TView : FrameworkElement
+    {
+        var n = 1;
+        while (_openWindows.ContainsKey($"{windowId}#{n}")) n++;
+
+        OpenHostedTool<TVm, TView>($"{windowId}#{n}", n == 1 ? title : $"{title} {n}", detail, width, height);
+    }
+
     public void OpenHostedTool<TVm, TView>(string windowId, string title, string detail,
         double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
         where TVm : class

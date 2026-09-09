@@ -33,6 +33,14 @@ public interface IShellWindowHost
 
     /// <summary>Opens (or focuses) a single-instance surface whose view is a <see cref="FrameworkElement"/>
     /// (a UserControl), wrapped in a themed <see cref="ToolHostWindow"/>. VM disposed on close.</summary>
+    /// <summary>Opens ANOTHER instance of a tool, for the ones where a second window is a second piece
+    /// of work rather than a duplicate — Hyperion, where two strategies in flight is the normal way to
+    /// work and a single shared window made it impossible.</summary>
+    void OpenAnotherHostedTool<TVm, TView>(string windowId, string title, string detail,
+        double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
+        where TVm : class
+        where TView : FrameworkElement;
+
     void OpenHostedTool<TVm, TView>(string windowId, string title, string detail,
         double width = ToolHostWindow.DefaultWidth, double height = ToolHostWindow.DefaultHeight)
         where TVm : class

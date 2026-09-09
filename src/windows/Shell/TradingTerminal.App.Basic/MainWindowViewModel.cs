@@ -969,7 +969,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
 
     [RelayCommand]
     public void OpenStrategyAuthoring() =>
-        _host.OpenHostedTool<TradingTerminal.App.Authoring.StrategyAuthoringViewModel, TradingTerminal.App.Authoring.StrategyAuthoringView>(
+        _host.OpenAnotherHostedTool<TradingTerminal.App.Authoring.StrategyAuthoringViewModel, TradingTerminal.App.Authoring.StrategyAuthoringView>(
             StrategyAuthoringWindowId, "Hyperion", "Loading Hyperion…");
 
     /// <summary>The agent CLIs the "Launch CLI" menu offers — installed ones enabled, the rest shown
