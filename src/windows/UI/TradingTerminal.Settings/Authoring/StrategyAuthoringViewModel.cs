@@ -268,6 +268,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly AuthoredStrategyInstaller? _installer;
     private readonly ICliWorkspaceLauncher? _cliLauncher;
 
+    /// <summary>
+    /// Which conversation the pane is on. Bumped whenever it becomes a different one.
+    ///
+    /// <para><b>Cancellation is cooperative, so it is not enough on its own.</b> A turn can be inside an
+    /// await when the user starts a new session, and its results arrive afterwards regardless — the
+    /// reply, the files, the compile verdict, the status line. They then land in the conversation that
+    /// replaced it. Reported exactly that way: "I start a new session and the box still shows updates
+    /// from the previous chat."</para>
+    ///
+    /// <para>So every write-back from a turn checks it is still the turn's own conversation first. This
+    /// is the standard stale-response guard, and the alternative — trusting a cancellation token to
+    /// have taken effect by now — is the bug.</para>
+    /// </summary>
+    private int _conversation;
+
+    /// <summary>True while the pane is still on the conversation this turn began in.</summary>
+    private bool IsCurrent(int conversation) => conversation == _conversation;
+
     private CancellationTokenSource? _generateCts;
     private StrategyBuildSession? _session;
     private bool _filesEditedByUser;
@@ -1576,6 +1594,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // window the user has to close.
         var ticking = Task.CompletedTask;
 
+        // The conversation this turn belongs to. Everything it reports back is dropped if the pane has
+        // moved on since — a new session, or a restored one.
+        var conversation = _conversation;
+
+        // THIS turn's token source, held separately from the field. By the time the finally runs the
+        // field may point at a different turn's, and cancelling that would kill a run the user just
+        // started — the same class of bug as writing this turn's results into their new session.
+        CancellationTokenSource? mine = null;
+
         try
         {
             // The pipeline's dial for this turn. SeedTasks still runs: the checklist drives the working
@@ -1593,9 +1620,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             _generateCts?.Cancel();
             _generateCts?.Dispose();
-            _generateCts = new CancellationTokenSource();
+            _generateCts = mine = new CancellationTokenSource();
 
-            ticking = TickElapsedAsync(_generateCts.Token);
+            ticking = TickElapsedAsync(mine.Token);
 
             // THE SWARM, AT EVERY MODE. A planner decomposes the brief against a contract, builders
             // fan out one file each, and the gate decides what needs repairing — and every one of
@@ -1658,10 +1685,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 // keeps winning — which is the shape of the bug that produced six briefs, six
                 // interviews and no code in a user's own saved session.
                 mayAsk: !AuthoringAction.EndsTheInterview(prompt),
-                new Progress<string>(step => PushActivity(step)),
-                new Progress<SwarmEvent>(OnSwarmEvent),
-                new Progress<CodegenEvent>(evt => OnStreamed(evt, tokensBefore)),
+                new Progress<string>(step => { if (IsCurrent(conversation)) PushActivity(step); }),
+                new Progress<SwarmEvent>(evt => { if (IsCurrent(conversation)) OnSwarmEvent(evt); }),
+                new Progress<CodegenEvent>(evt => { if (IsCurrent(conversation)) OnStreamed(evt, tokensBefore); }),
                 _generateCts.Token);
+
+            // ABANDONED. The user started a different conversation while this turn was in flight, so
+            // its reply, its files and its verdict belong to nothing that is on screen. Dropping them
+            // here is what stops a finished turn writing itself into the session that replaced it.
+            if (!IsCurrent(conversation)) return;
 
             // The session's running total is authoritative WHEN THERE IS ONE. A provider that reports
             // no usage at all — NVIDIA NIM does not, and agent CLIs do not — leaves the total at zero,
@@ -1771,6 +1803,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // died on its own — a dropped connection, a gateway hanging up — which is not something the
             // user did, and telling them they stopped it sends them looking for a button they never
             // pressed.
+            if (!IsCurrent(conversation)) return;
+
             var byUser = _generateCts?.IsCancellationRequested ?? false;
             AiStatus = byUser ? "Stopped." : "The provider closed the connection before answering.";
             PushActivity(AiStatus);
@@ -1785,27 +1819,44 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         catch (Exception ex)
         {
             _logger.LogError(ex, "AI builder turn threw for {Id}", StrategyId);
+            if (!IsCurrent(conversation)) return;
+
             AiStatus = $"Generation error: {ex.Message}";
             Append(AuthoringMessage.System(AiStatus));
             FailRunningTasks();
         }
         finally
         {
-            // Unconditional, and the reason the try starts where it does. Whatever happened, the
-            // composer goes back to accepting a prompt.
-            IsGenerating = false;
-            _streamingReply = null;
-            _thinking = null;
-            _generateCts?.Cancel();   // stops the elapsed ticker
+            // The ticker is this turn's whatever happens, and stopping it is safe from any
+            // conversation.
+            var stale = !IsCurrent(conversation);
+
+            // Whatever happened, the composer goes back to accepting a prompt — unless the pane has
+            // moved on, in which case IsGenerating belongs to whatever is running NOW and lowering it
+            // here would enable Send in the middle of somebody else's turn.
+            if (!stale)
+            {
+                IsGenerating = false;
+                _streamingReply = null;
+                _thinking = null;
+            }
+
+            mine?.Cancel();   // stops THIS turn's elapsed ticker, never a later turn's
 
             // Awaited inside its own guard: the ticker is a courtesy, and a fault in it must not be
             // the thing that stops IsGenerating being lowered.
             try { await ticking; } catch (OperationCanceledException) { }
 
-            ElapsedText = null;
-            ElapsedCompact = null;
-            LongThinkNotice = null;
-            Save();   // a turn is expensive — never lose one to a crash or a restart
+            // A finally cannot return, and should not want to: everything left belongs to the pane
+            // as it is NOW, and an abandoned turn owns none of it. Saving here would be the worst of
+            // them — it writes the session file, and the session on screen is not this turn's.
+            if (!stale)
+            {
+                ElapsedText = null;
+                ElapsedCompact = null;
+                LongThinkNotice = null;
+                Save();   // a turn is expensive — never lose one to a crash or a restart
+            }
         }
     }
 
@@ -1960,6 +2011,24 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         AiStatus = "Stopped.";
     }
 
+    /// <summary>
+    /// Ends whatever turn is in flight and marks the pane as being on a different conversation.
+    ///
+    /// <para>Both halves matter. The cancel asks the provider to stop and lowers the composer's Stop
+    /// button; the bump is what makes the turn's own results — which may already be on their way back —
+    /// land nowhere instead of in the conversation that replaced it.</para>
+    /// </summary>
+    private void AbandonTurn()
+    {
+        _conversation++;
+
+        if (!IsGenerating) return;
+
+        _generateCts?.Cancel();
+        IsGenerating = false;
+        AiStatus = null;
+    }
+
     /// <summary>Start over: a fresh thread with the model, the starter template back in the editor. The
     /// previous chat is NOT deleted — it stays in the picker under its own strategy id, so "new chat" can
     /// never cost the user a conversation. Give the new one a new id before sending, or it will overwrite
@@ -1968,6 +2037,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private void NewChat()
     {
         Save();   // bank the outgoing conversation before abandoning it
+
+        // END THE TURN THAT IS STILL RUNNING, and say the pane has moved on.
+        //
+        // Neither of these was here, and both symptoms followed directly. The composer kept showing
+        // Stop, because IsGenerating belonged to a turn nothing had ended — and pressing it cancelled
+        // the ABANDONED conversation's token, which is the only one there was. Meanwhile that turn kept
+        // going and wrote its reply, its files and its status into the session that had replaced it.
+        //
+        // Reported exactly: "the new session still shows the stop button, and pressing it stops the
+        // previous chat" and "the box still shows updates from the previous chat".
+        AbandonTurn();
 
         _restoring = true;
         try
@@ -1978,6 +2058,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             Messages.Clear();
             Activity.Clear();
             Tasks.Clear();
+            Board.Clear();
+            OnPropertyChanged(nameof(HasBoard));
+            _planTasks.Clear();
+            Composed.Clear();
+            OnPropertyChanged(nameof(HasComposedImages));
+            AttachmentNotice = string.Empty;
             Diagnostics.Clear();
             InputTokens = OutputTokens = 0;
             CompiledOk = false;
@@ -2173,6 +2259,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// token total, AND the model's own thread, so a follow-up like "now tighten the stop" still works.</summary>
     private void Restore(AuthoringSessionSnapshot session)
     {
+        // Opening a saved chat is switching conversations too, so the running turn has to end and its
+        // results must land nowhere — the same rule as New session, for the same reason.
+        AbandonTurn();
+
         _restoring = true;
         try
         {
