@@ -283,8 +283,16 @@
                              WPF then does with the leftover space, it does to all three. Centring one
                              and stretching another is how a column ends up half a margin out of true
                              at some window widths and correct at others. -->
+                        <!-- THE CONVERSATION SITS ON THE COMPOSER, not at the top of a void.
+                             A short exchange used to float against the ceiling with several hundred
+                             pixels of nothing between the last reply and the box you answer it in —
+                             the two things you are actually reading, pushed as far apart as the window
+                             allows. Every chat anybody uses bottom-aligns, and this is how: a host at
+                             least as tall as the viewport, with the content aligned to its bottom.
+                             Past a viewport's worth the host grows and it scrolls normally. -->
+                        <Grid MinHeight="{Binding ViewportHeight, ElementName=ChatScroll}">
                         <StackPanel MaxWidth="{StaticResource HYP.Measure}" HorizontalAlignment="Stretch"
-                                    Margin="26,0,26,0">
+                                    VerticalAlignment="Bottom" Margin="26,0,26,0">
 
                             <ItemsControl ItemsSource="{Binding Messages}">
                                 <ItemsControl.ItemTemplate>
@@ -467,6 +475,7 @@
                                        Text="{Binding AiStatus}"
                                        Visibility="{Binding AiStatus, Converter={StaticResource HYP.S2V}}" />
                         </StackPanel>
+                        </Grid>
                     </ScrollViewer>
 
                     <!-- Hero: first run, and every new session. -->
