@@ -126,4 +126,39 @@ public sealed class AiCodegenOptions
     /// <summary>Per-provider endpoint/model config, keyed by provider id.</summary>
     public IDictionary<string, AiCodegenProvider> Providers { get; set; } =
         new Dictionary<string, AiCodegenProvider>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Finding a reference to judge a generated picture against.</summary>
+    public ReferenceSearchOptions Search { get; set; } = new();
+}
+
+/// <summary>
+/// Where the critics' reference bar comes from when the user supplied none.
+///
+/// <para>The bar is the part of a review that does the work. A critic told to judge quality invents a
+/// standard and then grades against its own invention, which is how a loop stops at "pretty good for
+/// AI". A critic given a real picture to lose against keeps finding gaps, and the gaps are real — so
+/// when a brief names no reference, one is looked for.</para>
+/// </summary>
+public sealed class ReferenceSearchOptions
+{
+    /// <summary>Brave Search API key. Empty disables the search, and the user is asked for a reference
+    /// rather than the harness pretending it has one.</summary>
+    public string BraveApiKey { get; set; } = string.Empty;
+
+    /// <summary>How many results to take.</summary>
+    public int Results { get; set; } = 10;
+
+    /// <summary>
+    /// The largest reference image accepted, in bytes.
+    ///
+    /// <para>A bound rather than a preference: these bytes are base64-encoded into a model request, so
+    /// an unbounded download becomes an unbounded prompt on somebody's metered key.</para>
+    /// </summary>
+    public int MaximumImageBytes { get; set; } = 2_000_000;
+
+    /// <summary>How long the whole harvest may take. A search that hangs must not hold up a build.</summary>
+    public int TimeoutSeconds { get; set; } = 20;
+
+    /// <summary>True when a key has been configured.</summary>
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(BraveApiKey);
 }

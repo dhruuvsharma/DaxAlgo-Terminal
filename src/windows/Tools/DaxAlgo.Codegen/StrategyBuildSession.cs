@@ -362,6 +362,7 @@ public sealed class StrategyBuildSession
     /// <param name="userMessage">What the user typed.</param>
     /// <param name="runner">The swarm, already bound to this session's provider and a gate.</param>
     /// <param name="budget">The limits this turn runs under.</param>
+    /// <param name="bar">The standard the critics judge against, or null for the planner's own rubric.</param>
     /// <param name="mayAsk">False once the user has said to build it, so the escape is an instruction
     /// rather than a suggestion a model can keep declining.</param>
     /// <param name="activity">The status bar's live line.</param>
@@ -372,6 +373,7 @@ public sealed class StrategyBuildSession
         string userMessage,
         SwarmRunner runner,
         SwarmBudget budget,
+        Gauntlet.ReferenceBar? bar = null,
         bool mayAsk = true,
         IProgress<string>? activity = null,
         IProgress<SwarmEvent>? swarm = null,
@@ -394,6 +396,7 @@ public sealed class StrategyBuildSession
             new SwarmRequest(
                 userMessage, SystemContext, Kind, budget, Files,
                 MayAsk: mayAsk,
+                Bar: bar,
 
                 // The planner gets the whole thread, because an answer arrives as "approved, now start
                 // building" and means nothing without the brief it approves. Builders get their task

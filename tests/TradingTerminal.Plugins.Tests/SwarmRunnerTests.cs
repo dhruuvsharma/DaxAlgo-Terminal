@@ -3,6 +3,7 @@ using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 using Xunit;
@@ -525,17 +526,8 @@ public sealed class SwarmRunnerTests
         using TradingTerminal.Core.Strategies.Parameters;
         """;
 
-    [Fact]
-    public async Task ASwarmDeliversARealCompiledVerifiedUnitFromTwoBuilders()
-    {
-        // The capstone: a plan, two builders writing two files against one contract, the real Roslyn
-        // compiler as the merge check, and all eight rungs over what came out.
-        var client = new Scripted((role, _) =>
-        {
-            if (Planner(role)) return Json(TwoTaskPlan);
-
-            return role.Contains("YOUR FILE: Smoother.cs", StringComparison.Ordinal)
-                ? File("Smoother.cs", Ambient + """
+    /// <summary>The helper the contract declares, as a builder would return it.</summary>
+    private const string SmootherSource = """
 
                     public sealed class Smoother
                     {
@@ -549,8 +541,10 @@ public sealed class SwarmRunnerTests
                             return _value;
                         }
                     }
-                    """)
-                : File("Unit.cs", Ambient + """
+                    """;
+
+    /// <summary>A kernel that compiles, drives, draws and clears every rung.</summary>
+    private const string KernelSource = """
 
                     public sealed class BookUnit : IStrategyKernel
                     {
@@ -595,7 +589,20 @@ public sealed class SwarmRunnerTests
                             for (var i = 0; i < _line.Count; i++) surface.Push(i, _line[i]);
                         }
                     }
-                    """);
+                    """;
+
+    [Fact]
+    public async Task ASwarmDeliversARealCompiledVerifiedUnitFromTwoBuilders()
+    {
+        // The capstone: a plan, two builders writing two files against one contract, the real Roslyn
+        // compiler as the merge check, and all eight rungs over what came out.
+        var client = new Scripted((role, _) =>
+        {
+            if (Planner(role)) return Json(TwoTaskPlan);
+
+            return role.Contains("YOUR FILE: Smoother.cs", StringComparison.Ordinal)
+                ? File("Smoother.cs", Ambient + SmootherSource)
+                : File("Unit.cs", Ambient + KernelSource);
         });
 
         var run = await Runner(client).RunAsync(Request());
@@ -605,6 +612,98 @@ public sealed class SwarmRunnerTests
         run.Files.Select(f => f.Name).Should().BeEquivalentTo(["Smoother.cs", "Unit.cs"]);
         run.Compile!.Unit!.Type.Name.Should().Be("BookUnit");
         run.Usage.TotalTokens.Should().BeGreaterThan(0, "three calls were billed");
+    }
+
+    // ── the gauntlet, behind the ladder ─────────────────────────────────────────────────────────
+
+    /// <summary>A critic that says whatever the test needs, without a provider.</summary>
+    private sealed class ScriptedCritic : IUnitCritic
+    {
+        public required string Id { get; init; }
+        public CriticPanel Panel { get; init; } = CriticPanel.Picture;
+        public bool NeedsPicture => false;
+        public IReadOnlyList<VerificationFinding> Says { get; init; } = [];
+        public int Calls { get; private set; }
+
+        public Task<CriticVerdict> JudgeAsync(
+            GauntletSubject subject, ReferenceBar bar, CancellationToken ct = default)
+        {
+            Calls++;
+            return Task.FromResult(new CriticVerdict(Id, Panel, Says, "said so"));
+        }
+    }
+
+    [Fact]
+    public async Task ACriticNeverSeesAUnitThatDidNotCompile()
+    {
+        // The ladder is deterministic and free; a critic costs a model call. Showing one a unit that
+        // does not build spends the user's money to be told it does not build.
+        var critic = new ScriptedCritic { Id = "picture" };
+        var client = new Scripted((role, _) => Planner(role) ? Json(TwoTaskPlan) : File("x.cs", "public sealed class X { }"));
+
+        var runner = new SwarmRunner(
+            client, new UnitGate(new StubCompiler(_ => Broken("Unit.cs")), "t", "T"),
+            gauntlet: new GauntletLoop([critic]));
+
+        await runner.RunAsync(Request(new SwarmBudget(MaxParallel: 2, MaxRounds: 0, MaxTasks: 8)));
+
+        critic.Calls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ACriticsFindingsSendTheRunBackForAnotherRound()
+    {
+        // The whole point: a unit that compiles, runs and draws can still be wrong, and the critics
+        // are the only thing that can say so.
+        var critic = new ScriptedCritic
+        {
+            Id = "picture",
+            Says = [new VerificationFinding("picture.no-axis", "no y-axis", "call AxisY", "Smoother.cs")],
+        };
+
+        var client = new Scripted((role, _) =>
+        {
+            if (Planner(role)) return Json(TwoTaskPlan);
+            return role.Contains("YOUR FILE: Smoother.cs", StringComparison.Ordinal)
+                ? File("Smoother.cs", Ambient + SmootherSource)
+                : File("Unit.cs", Ambient + KernelSource);
+        });
+
+        var runner = new SwarmRunner(
+            client, new UnitGate(new RoslynStrategyCompiler(), "test.unit", "Test unit"),
+            gauntlet: new GauntletLoop([critic]));
+
+        var run = await runner.RunAsync(Request(new SwarmBudget(MaxParallel: 2, MaxRounds: 1, MaxTasks: 8)));
+
+        critic.Calls.Should().BeGreaterThan(0, "the unit compiled, so it was reviewed");
+        client.Calls.Where(c => Fixer(c.Role)).Should().ContainSingle()
+            .Which.Role.Should().Contain("YOUR FILE: Smoother.cs",
+                "a critic finding routes to whoever owns the file it names");
+        run.Outcome.Should().Be(SwarmOutcome.Delivered, "an unresolved review note is not a build failure");
+        run.Summary.Should().Contain("review note");
+    }
+
+    [Fact]
+    public async Task AUnitTheCriticsAreHappyWithIsDeliveredWithoutARepairRound()
+    {
+        var critic = new ScriptedCritic { Id = "picture" };
+        var client = new Scripted((role, _) =>
+        {
+            if (Planner(role)) return Json(TwoTaskPlan);
+            return role.Contains("YOUR FILE: Smoother.cs", StringComparison.Ordinal)
+                ? File("Smoother.cs", Ambient + SmootherSource)
+                : File("Unit.cs", Ambient + KernelSource);
+        });
+
+        var runner = new SwarmRunner(
+            client, new UnitGate(new RoslynStrategyCompiler(), "test.unit", "Test unit"),
+            gauntlet: new GauntletLoop([critic]));
+
+        var run = await runner.RunAsync(Request());
+
+        run.Outcome.Should().Be(SwarmOutcome.Delivered);
+        client.Calls.Should().NotContain(c => Fixer(c.Role));
+        critic.Calls.Should().Be(1);
     }
 
     // ── the plan reader on its own ──────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
@@ -32,6 +33,26 @@ public static class StrategyCodegenServiceCollectionExtensions
         // once per conversation from the brief, so the system prompt stays cacheable.
         services.AddSingleton(_ => StrategySkillLibrary.Load());
         services.AddSingleton<StrategyCodegenOrchestrator>();
+
+        // The critics' reference bar. Registered whether or not a key is configured: an unconfigured
+        // install gets a search that finds nothing and says so, and the review falls back to the
+        // rubric the planner wrote — weaker, but real, and nothing about the build depends on a key
+        // the user has not obtained.
+        services.AddSingleton<Reference.IReferenceSearch>(sp =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiCodegenOptions>>().Value;
+            if (!options.Search.IsConfigured) return Reference.NullReferenceSearch.Instance;
+
+            var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+            return new Reference.BraveReferenceSearch(
+                httpFactory.CreateClient("reference-search"),
+                options.Search,
+                sp.GetService<ILoggerFactory>()?.CreateLogger<Reference.BraveReferenceSearch>());
+        });
+
+        services.AddSingleton<Reference.ReferenceBarBuilder>(sp => new Reference.ReferenceBarBuilder(
+            sp.GetRequiredService<Reference.IReferenceSearch>(),
+            sp.GetService<ILoggerFactory>()?.CreateLogger<Reference.ReferenceBarBuilder>()));
 
         // ONE browser sign-in wrapper for the whole app. The provider factory asks it whether signing in
         // is possible, and so does the settings pane's Sign in button; two independently constructed

@@ -149,8 +149,8 @@ public static class AiModelCatalog
             ? null
             : $"Research mode is not available on {model ?? providerId} — it has no reasoning setting "
               + "that is known to still return an answer. Running at the model's own default instead; "
-              + "the rest of Research (the full skill budget, the extra fix attempts, the review pass "
-              + "and the agents) still applies.";
+              + "the rest of Research (the full skill budget, the parallel builders, the extra repair "
+              + "rounds and the critics) still applies.";
 
     // ── seeing pictures ─────────────────────────────────────────────────────────────────────────
 

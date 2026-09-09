@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
@@ -36,7 +37,13 @@ public sealed record SwarmRequest(
     IReadOnlyList<StrategyFile>? Existing = null,
     BuildPlan? Plan = null,
     bool MayAsk = true,
-    IReadOnlyList<CodegenMessage>? Thread = null);
+    IReadOnlyList<CodegenMessage>? Thread = null,
+    ReferenceBar? Bar = null)
+{
+    /// <summary>The standard the critics judge against. Defaults to the plan's own rubric, which the
+    /// planner wrote from the brief before there was anything to be defensive about.</summary>
+    public ReferenceBar Bar { get; init; } = Bar ?? ReferenceBar.None;
+}
 
 /// <summary>Everything a run produced.</summary>
 /// <param name="PlannerNote">What the planner said when it did not return a plan — its own words, kept
@@ -71,10 +78,20 @@ public sealed class SwarmRunner(
     IStrategyCodegenClient client,
     UnitGate gate,
     TrajectoryLog? trajectory = null,
-    ILogger? logger = null)
+    ILogger? logger = null,
+    GauntletLoop? gauntlet = null,
+    IUnitRasterizer? rasterizer = null)
 {
     private readonly IStrategyCodegenClient _client = client ?? throw new ArgumentNullException(nameof(client));
     private readonly UnitGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+
+    /// <summary>The critics, or null to deliver on the ladder alone — which is what a host with no
+    /// second provider, and every test that is about orchestration, does.</summary>
+    private readonly GauntletLoop? _gauntlet = gauntlet;
+
+    /// <summary>Turns the unit into a picture for the critics. Null on a headless host; the critics
+    /// then judge the drawing commands and say so.</summary>
+    private readonly IUnitRasterizer? _rasterizer = rasterizer;
 
     /// <summary>Runs a brief to a verified unit, or to an honest account of why not.</summary>
     /// <param name="request">What to build.</param>
@@ -165,6 +182,7 @@ public sealed class SwarmRunner(
         var best = int.MinValue;
         var stalled = 0;
         GateResult? verdict = null;
+        GauntletResult? lastReview = null;
 
         for (var round = 0; round <= request.Budget.MaxRounds; round++)
         {
@@ -178,12 +196,53 @@ public sealed class SwarmRunner(
             progress?.Report(new SwarmEvent.Gated(verdict.Report, round));
             Record("Gate", null, CodegenUsage.None, verdict.Report);
 
-            if (verdict.Passed)
-                return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note:  note, summary:
-                    $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) cleared.");
+            // THE LADDER FIRST, ALWAYS. It is deterministic and free; a critic costs a model call. A
+            // unit that does not compile is never shown to one.
+            var findings = verdict.Report.Findings;
+            GauntletResult? review = null;
 
-            // Ground gained, counted as rungs cleared and then as findings removed at the same height.
-            var height = LadderScore.HeightOf(verdict.Report);
+            if (verdict.Passed)
+            {
+                if (_gauntlet is null || verdict.Unit is null)
+                    return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
+                        $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) cleared.");
+
+                var subject = await GauntletSubjects.BuildAsync(
+                    AuthoredUnitPreview.Create(verdict.Unit), context.Files, verdict.Report, _rasterizer, ct)
+                    .ConfigureAwait(false);
+
+                // The bar the planner wrote, unless the caller supplied a stronger one. A rubric
+                // written from the brief at plan time beats one invented after the fact by whoever is
+                // now defending what got built.
+                var bar = request.Bar.Rubric.Count > 0 || request.Bar.HasImages
+                    ? request.Bar
+                    : ReferenceBar.FromRubric(plan.Rubric);
+
+                review = await _gauntlet.RunAsync(
+                    subject, bar, request.Budget.MaxParallel, progress: null, ct).ConfigureAwait(false);
+
+                // A SKIPPED REVIEW IS NOT AN APPROVAL. The pass was skipped because the artifact has
+                // not changed since the last one — so the last one's findings are still true, and
+                // reading "no findings this time" as "the critics are happy" would let a repair that
+                // changed nothing arrive as a success. Carrying them forward instead lets the stall
+                // detector do its job: nothing moved, so the run ends and says so.
+                if (review.Skipped && lastReview is { } standing) review = standing;
+                else if (!review.Skipped) lastReview = review;
+
+                progress?.Report(new SwarmEvent.Reviewed(review, round));
+                Record("Gauntlet", null, CodegenUsage.None, verdict.Report);
+
+                if (review.Findings.Count == 0)
+                    return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
+                        $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) "
+                        + $"cleared, {review.Summary}.");
+
+                findings = review.Findings;
+            }
+
+            // Ground gained: rungs cleared, then findings removed at the same height — and a critic's
+            // findings count, or a run could clear the ladder and then circle a picture forever.
+            var height = LadderScore.HeightOf(verdict.Report) - (review?.Findings.Count ?? 0);
             if (height > best) { best = height; stalled = 0; } else { stalled++; }
 
             if (stalled >= request.Budget.StallLimit)
@@ -192,14 +251,26 @@ public sealed class SwarmRunner(
                     + "further ground. Read the diagnostics and say what to change — repeating the same "
                     + "round will not.");
 
-            if (round == request.Budget.MaxRounds) break;
+            // Out of rounds with a unit that builds and was only criticised: that is delivered with
+            // notes, not a failure. Saying otherwise would send a user to the diagnostics list to look
+            // for an error that is not there.
+            if (round == request.Budget.MaxRounds)
+            {
+                if (verdict.Passed)
+                    return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
+                        $"Delivered with {findings.Count} open review note(s) — the repair budget ran out "
+                        + "before they were addressed. " + (review?.Summary ?? string.Empty));
 
-            var targets = RepairTargets(verdict.Report, plan);
+                break;
+            }
+
+            var targets = RepairTargets(
+                verdict.Passed ? new VerificationReport([]) : verdict.Report, plan, findings);
+
             if (targets.Count == 0)
                 return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
                     "The unit failed verification and no file could be identified as the cause.");
 
-            var findings = verdict.Report.Findings;
             var repairs = await FanOutAsync(
                 targets,
                 task => BuildOneAsync(task, plan, context, request, isRepair: true, findings, events, progress, ct),
@@ -387,12 +458,15 @@ public sealed class SwarmRunner(
     /// behaviour is: the panels for a picture, the signal for anything else. Sending every finding to
     /// whoever wrote the hostable class is what makes one builder repair files it never saw.</para>
     /// </summary>
-    private static IReadOnlyList<BuildTask> RepairTargets(VerificationReport report, BuildPlan plan)
+    private static IReadOnlyList<BuildTask> RepairTargets(
+        VerificationReport report, BuildPlan plan, IReadOnlyList<VerificationFinding>? extra = null)
     {
         var tasks = plan.Tasks;
         if (tasks.Count == 0) return [];
 
-        var named = report.Findings
+        IReadOnlyList<VerificationFinding> all = extra is { Count: > 0 } ? extra : report.Findings;
+
+        var named = all
             .Select(f => f.File)
             .Where(f => f is { Length: > 0 })
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -404,7 +478,13 @@ public sealed class SwarmRunner(
 
         if (named.Length > 0) return named;
 
-        var drawing = report.Findings.Any(f => f.Code.StartsWith("draw.", StringComparison.Ordinal));
+        // A picture failure names no file — it is about behaviour, not a line — so it belongs to
+        // whoever paints. Critic codes are prefixed by critic id, so the picture panel's two are
+        // recognised the same way the draw probe's are.
+        var drawing = all.Any(f =>
+            f.Code.StartsWith("draw.", StringComparison.Ordinal)
+            || f.Code.StartsWith(Critics.Picture + ".", StringComparison.Ordinal)
+            || f.Code.StartsWith(Critics.ChartCraft + ".", StringComparison.Ordinal));
         if (drawing && tasks.Any(t => t.Kind == TaskKind.Panel))
             return [.. tasks.Where(t => t.Kind == TaskKind.Panel)];
 

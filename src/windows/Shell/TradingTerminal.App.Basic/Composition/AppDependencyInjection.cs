@@ -130,6 +130,14 @@ public static class AppDependencyInjection
         // available immediately and survives restart.
         services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredStrategyInstaller>();
         services.AddSingleton<TradingTerminal.App.Authoring.StrategyAuthoringViewModel>();
+        // Off-screen rendering for the Gauntlet's picture critics: the unit as the user would see it,
+        // drawn through the same control the real window uses. Singleton because it owns one STA render
+        // thread -- one per pane would leak a thread per authoring session.
+        services.AddSingleton<
+            TradingTerminal.Infrastructure.Strategies.Authoring.Verification.IUnitRasterizer,
+            TradingTerminal.Authoring.Rasterizer.WpfUnitRasterizer>();
+        services.AddSingleton<TradingTerminal.App.Authoring.IReferencePicker,
+                              TradingTerminal.App.Authoring.ReferencePicker>();
         // Provider setup, opened from the composer's provider footer. Transient view-model behind a
         // factory: the window reads the key store and PATH when it opens, and a singleton would show
         // whatever was true the first time it was asked.

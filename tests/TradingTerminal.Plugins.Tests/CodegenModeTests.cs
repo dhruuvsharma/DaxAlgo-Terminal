@@ -1,5 +1,6 @@
 using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
 
@@ -101,10 +102,29 @@ public sealed class CodegenModeTests
     }
 
     [Fact]
-    public void Standard_is_one_conversation_and_Research_is_the_agent_path()
+    public void Standard_is_a_swarm_of_one_and_Research_fans_out()
     {
-        StrategyBuildProfile.For(CodegenMode.Standard, CodegenEffort.Default).UseAgents.Should().BeFalse();
-        StrategyBuildProfile.For(CodegenMode.Research, CodegenEffort.Max).UseAgents.Should().BeTrue();
+        // BOTH modes now plan, build and review; the dial sets how far each may go. Standard used to
+        // mean "one conversation" and Research "the agents" — two code paths, which is exactly how the
+        // committee and the single conversation drifted into two builders with different bugs.
+        var standard = SwarmBudget.For(StrategyBuildProfile.For(CodegenMode.Standard, CodegenEffort.Default));
+        var research = SwarmBudget.For(StrategyBuildProfile.For(CodegenMode.Research, CodegenEffort.Max));
+
+        standard.MaxParallel.Should().Be(1, "a swarm of one is still the same code path");
+        standard.MaxTasks.Should().Be(1);
+
+        research.MaxParallel.Should().BeGreaterThan(1);
+        research.MaxTasks.Should().BeGreaterThan(standard.MaxTasks);
+        research.MaxRounds.Should().BeGreaterThan(standard.MaxRounds, "correctness over cost buys repairs");
+    }
+
+    [Fact]
+    public void An_agent_CLI_never_fans_out_however_the_dial_is_set()
+    {
+        // An HTTP provider answers four concurrent calls with four responses; an agent CLI answers
+        // them by starting four processes, each staging its own copy of the workspace.
+        SwarmBudget.For(StrategyBuildProfile.For(CodegenMode.Research, CodegenEffort.Max), isAgentCli: true)
+            .MaxParallel.Should().Be(1);
     }
 
     // ── persistence, including from before the dial existed ─────────────────────────────────────

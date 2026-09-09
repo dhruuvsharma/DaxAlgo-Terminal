@@ -8,27 +8,33 @@ namespace TradingTerminal.Core.Strategies.Authoring;
 /// how hard the model thinks. Four positions asked the user to have an opinion about a trade they have
 /// no way to price, and the two middle ones were never chosen for a reason anybody could state.</para>
 ///
-/// <para><b>Two positions, and the difference between them is "how much", never "which".</b> Which
-/// agents run and which skills load is the orchestrator's decision, made from the task; this dial only
-/// says how far it may go. That separation is what stops the dial from turning into a second, worse
-/// router.</para>
+/// <para><b>Two positions, and the difference between them is "how much", never "which".</b> Both plan
+/// the work, build it and review it; the dial sets how hard the model thinks, how many builders may run
+/// at once, and how many repair rounds are bought. WHICH tasks exist and which critics apply is the
+/// plan's decision, made from the brief — and keeping that out of the dial is what stops it turning
+/// into a second, worse router.</para>
 /// </summary>
 public enum CodegenMode
 {
     /// <summary>
     /// Get it built. The model runs at <b>its own default</b> reasoning setting — no effort parameter
-    /// is sent at all — with a modest skill budget, two fix attempts and one conversation.
+    /// is sent at all — with a modest skill budget and two repair rounds.
     ///
     /// <para>Sending nothing is deliberate rather than lazy: it is the only setting every model
     /// accepts, including the ones that predate the parameter and the ones that accept it and then
     /// stop answering.</para>
+    ///
+    /// <para><b>It is a swarm of one</b>: a plan, one builder, the verification ladder and the critics.
+    /// The same code path Research takes, with the fan-out set to one — which is what stops the two
+    /// modes drifting into two builders with different bugs, the way the committee and the single
+    /// conversation did.</para>
     /// </summary>
     Standard,
 
     /// <summary>
     /// Correctness over cost. The model runs at <b>the highest reasoning setting it is known to still
-    /// answer at</b>, with the full skill budget, six fix attempts, a self-review pass and the agent
-    /// path.
+    /// answer at</b>, with the full skill budget, six repair rounds, and builders fanned out in
+    /// parallel — one file each, against a contract the planner fixes before any of them start.
     ///
     /// <para>"Known to still answer at" is the whole subtlety and it is not the same as "accepted".
     /// A model that takes the parameter and then reasons until its budget is gone has produced
@@ -54,8 +60,8 @@ public static class CodegenModes
     /// config file written before this dial existed opens on the position its owner would have picked
     /// rather than silently on the default.
     ///
-    /// <para>Quick and Standard were the single-conversation settings; Deep and Max were the ones that
-    /// spent extra generations and turned the agents on. The split falls there.</para>
+    /// <para>Quick and Standard were the cheap settings; Deep and Max were the ones that spent extra
+    /// generations and fanned out. The split falls there.</para>
     /// </summary>
     public static CodegenMode Parse(string? value) => value?.Trim().ToLowerInvariant() switch
     {

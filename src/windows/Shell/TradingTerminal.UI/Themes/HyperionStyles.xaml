@@ -875,6 +875,39 @@
         </Setter>
     </Style>
 
+    <!-- The same pill, for a control that ACTS rather than opens a flyout.
+         A separate style because HYP.PillButton targets ToggleButton, and WPF refuses a style whose
+         TargetType does not match the element - a mismatch that parses fine in the designer and
+         throws at construction. -->
+    <Style x:Key="HYP.PillButton.Action" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="{StaticResource HYP.Radius.S}" Padding="8,3"
+                            Background="Transparent"
+                            BorderBrush="{DynamicResource Border.Brush}" BorderThickness="1"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{DynamicResource Surface.Hover}" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Border.Strong}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- The model picker: the composer's most consequential control, so it carries the accent
          even when closed. -->
     <Style x:Key="HYP.PillButton.Ai" TargetType="ToggleButton" BasedOn="{StaticResource HYP.PillButton}">

@@ -295,6 +295,40 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
+                            <!-- THE TASK BOARD. A fan-out takes minutes, and without a row per task
+                                 it reports nothing a user can read — which is precisely how the
+                                 six-agent committee came to look broken while it was working. Each row
+                                 turns as its task STARTS, not when it finishes. -->
+                            <ItemsControl ItemsSource="{Binding Board}" Margin="0,10,0,0"
+                                          Visibility="{Binding HasBoard, Converter={StaticResource HYP.B2V}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="18" />
+                                                <ColumnDefinition Width="66" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Glyph}"
+                                                       Style="{StaticResource HYP.StatusText}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Kind}"
+                                                       Style="{StaticResource HYP.GhostText}" />
+                                            <TextBlock Grid.Column="2" TextTrimming="CharacterEllipsis"
+                                                       Style="{StaticResource HYP.StatusText}"
+                                                       ToolTip="{Binding File}">
+                                                <Run Text="{Binding Title, Mode=OneWay}" />
+                                                <Run Text=" · " /><Run Text="{Binding File, Mode=OneWay}" />
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="3" Style="{StaticResource HYP.GhostText}"
+                                                       Margin="8,0,0,0"
+                                                       Text="{Binding Tokens, Mode=OneWay, StringFormat={}{0} tok}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
                             <!-- What it is doing right now, at the bottom of the thread where the
                                  next message will appear — not pinned to a strip above the composer. -->
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
@@ -556,11 +590,24 @@
                                     </TextBlock>
                                 </ToggleButton>
                                 <ToggleButton x:Name="BuildPill" Style="{StaticResource HYP.PillButton}" Margin="6,0,0,0"
-                                              ToolTip="How much effort this build is worth. Standard runs the model at its own default thinking setting with a modest skill budget and one conversation. Research runs it at the highest setting that model is known to still answer at, with the full skill budget, more fix attempts, a review pass and the agents. A model with no usable research setting falls back to its default and says so.">
+                                              ToolTip="How much effort this build is worth. Both modes plan the work, build it and review it; Standard is a swarm of one — a plan, a builder and the checks — at the model&apos;s own default thinking setting. Research runs the model at the highest setting it is known to still answer at, fans the builders out in parallel, and buys the full skill budget and more repair rounds. A model with no usable research setting falls back to its default and says so.">
                                     <TextBlock>
                                         <Run Text="Mode: " /><Run Text="{Binding Mode, Mode=OneWay}" /><Run Text="  ▾" />
                                     </TextBlock>
                                 </ToggleButton>
+                                <Button x:Name="ReferencePill" Style="{StaticResource HYP.PillButton.Action}" Margin="6,0,0,0"
+                                        Command="{Binding AttachReferenceCommand}"
+                                        Visibility="{Binding CanAttachReference, Converter={StaticResource HYP.B2V}}"
+                                        ToolTip="Attach a picture of what this should look like. It becomes the standard the review compares against — the strongest bar there is, because it is what you actually want rather than what was found online. Right-click to clear.">
+                                    <Button.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Clear references" Command="{Binding ClearReferencesCommand}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <TextBlock>
+                                        <Run Text="⧉ " /><Run Text="{Binding ReferenceSummary, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Button>
                             </StackPanel>
                         </DockPanel>
 

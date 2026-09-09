@@ -14,6 +14,8 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Reference;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 using TradingTerminal.UI;
@@ -60,6 +62,113 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         "DaxAlgo Terminal",
         "swarm-runs.jsonl"));
 
+    /// <summary>Renders the unit off-screen for the picture critics, when this host can.</summary>
+    private readonly IUnitRasterizer? _rasterizer;
+
+    /// <summary>Assembles the standard the critics judge against.</summary>
+    private readonly ReferenceBarBuilder? _references;
+
+    /// <summary>Asks the user for a picture. Null in a host with no file dialog.</summary>
+    private readonly IReferencePicker? _referencePicker;
+
+    /// <summary>
+    /// References the user attached for THIS unit: screenshots of what they want it to look like.
+    ///
+    /// <para>Kept on the pane rather than the session because it survives a session reset — a user who
+    /// attaches a picture of the window they want has said something about the whole piece of work,
+    /// not about one turn of it.</para>
+    /// </summary>
+    private readonly List<CodegenImage> _attached = [];
+
+    /// <summary>What the reference chip reads.</summary>
+    public string ReferenceSummary => _attached.Count switch
+    {
+        0 => "Add a reference",
+        1 => "1 reference",
+        var n => $"{n} references",
+    };
+
+    /// <summary>The largest reference picture accepted, in bytes. These are base64-encoded into a
+    /// model request, so an unbounded attachment becomes an unbounded prompt on the user's key.</summary>
+    public const int MaximumReferenceBytes = 4_000_000;
+
+    /// <summary>The most references one unit may carry.</summary>
+    public const int MaximumReferences = 6;
+
+    /// <summary>True when this host can offer the attach button at all.</summary>
+    public bool CanAttachReference => _referencePicker is not null;
+
+    /// <summary>
+    /// Attaches pictures of what the unit should look like.
+    ///
+    /// <para><b>This is the strongest bar there is</b>, and it is why it beats a search. A screenshot is
+    /// the user saying what they want in the only unambiguous way available; ten results found online
+    /// are a guess at the same thing.</para>
+    /// </summary>
+    [RelayCommand]
+    private async Task AttachReferenceAsync()
+    {
+        if (_referencePicker is null) return;
+
+        try
+        {
+            foreach (var path in await _referencePicker.PickImagesAsync())
+            {
+                if (_attached.Count >= MaximumReferences) break;
+
+                var info = new System.IO.FileInfo(path);
+                if (!info.Exists) continue;
+                if (info.Length is 0 or > MaximumReferenceBytes)
+                {
+                    Status = $"'{info.Name}' is {(info.Length == 0 ? "empty" : "too large")} to use as a reference.";
+                    continue;
+                }
+
+                if (MediaTypeOf(path) is not { } media)
+                {
+                    Status = $"'{info.Name}' is not a picture the providers accept (PNG, JPEG or WebP).";
+                    continue;
+                }
+
+                _attached.Add(new CodegenImage(
+                    media, await System.IO.File.ReadAllBytesAsync(path), $"REFERENCE: {info.Name}"));
+            }
+
+            OnPropertyChanged(nameof(ReferenceSummary));
+            Status = $"{ReferenceSummary} attached — the review will compare against them.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Attaching a reference failed.");
+            Status = "That file could not be read.";
+        }
+    }
+
+    /// <summary>Forgets the attached references, so the next build falls back to the rubric or a search.</summary>
+    [RelayCommand]
+    private void ClearReferences()
+    {
+        _attached.Clear();
+        OnPropertyChanged(nameof(ReferenceSummary));
+        Status = "References cleared.";
+    }
+
+    /// <summary>
+    /// The media type for a file, from its EXTENSION.
+    ///
+    /// <para>Weak on purpose and bounded by it: the extension decides only which of three types is
+    /// declared, and anything else is refused outright. A provider rejects bytes that do not match the
+    /// type it was given, which is the check that actually matters and is not ours to make.</para>
+    /// </summary>
+    private static string? MediaTypeOf(string path) =>
+        System.IO.Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            _ => null,
+        };
+
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
@@ -97,7 +206,10 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ICliWorkspaceLauncher? cliLauncher = null,
         IAuthoredUnitSink? sink = null,
         IAiProviderSettingsLauncher? providerSettings = null,
-        IAuthoredUnitStore? units = null)
+        IAuthoredUnitStore? units = null,
+        IUnitRasterizer? rasterizer = null,
+        ReferenceBarBuilder? references = null,
+        IReferencePicker? referencePicker = null)
     {
         _compiler = compiler;
         _registry = registry;
@@ -108,6 +220,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _cliLauncher = cliLauncher;
         // Optional: an edition that registers none simply has no Manage button in the provider footer.
         _providerSettings = providerSettings;
+
+        // Optional: a host with no UI (the CLI) registers none, the critics judge the drawing commands
+        // instead, and they say so rather than quietly reviewing less.
+        _rasterizer = rasterizer;
+        _references = references;
+        _referencePicker = referencePicker;
         // Optional: an edition whose units arrive as sealed server-compiled artifacts keeps no local
         // unit folder, and the composer says the unit will not survive a restart rather than pretending.
         _units = units;
@@ -1364,13 +1482,33 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             session.SyncEditedFiles([.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
             _filesEditedByUser = false;
 
+            // The standard the critics judge against, assembled before the build so the planner's
+            // rubric and the user's own references arrive together. What the user attached always
+            // wins: an attached screenshot is not one opinion among ten search results, it is the
+            // thing they actually want, stated the only unambiguous way there is.
+            var bar = _references is null
+                ? ReferenceBar.None
+                : await _references.BuildAsync(
+                    prompt, rubric: null, supplied: _attached, wantImages: true, _generateCts.Token);
+
             var turn = await session.SendToSwarmAsync(
                 prompt,
                 new SwarmRunner(
                     session.Provider,
                     new UnitGate(_compiler, StrategyId!, DisplayName ?? StrategyId!),
-                    _trajectory),
+                    _trajectory,
+                    logger: null,
+
+                    // The critics. The BUILD stays on the model the user picked; only the picture
+                    // critic is routed to a vision-capable provider, and only when the build model
+                    // cannot see. A critic call is one image and a rubric, so borrowing a second
+                    // provider for it costs little — and with none configured the picture is judged
+                    // from the drawing commands, said out loud rather than silently skipped.
+                    gauntlet: GauntletLoop.For(
+                        session.Provider, VisionProvider(choice), session.SystemContext, AuthoringKind),
+                    rasterizer: _rasterizer),
                 SwarmBudget.For(profile, AiModelCatalog.IsAgentCli(choice.ProviderId)),
+                bar,
 
                 // The user pressing "Just build it" ends the interview, whatever the model would have
                 // done next. Otherwise the escape is only a suggestion, and a model that keeps asking
@@ -2348,6 +2486,27 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>The selected provider bound to the selected model + effort (the factory rebuilds the
     /// client — a client is immutable in both).</summary>
+    /// <summary>
+    /// A configured provider whose model can be shown a picture, or null.
+    ///
+    /// <para>Chosen from what the user already set up rather than added as another thing to configure:
+    /// most people with a TokenRouter key also have an Anthropic or OpenAI one, and the picture critic
+    /// is the one job worth spending it on.</para>
+    /// </summary>
+    private IStrategyCodegenClient? VisionProvider(AiProviderChoice current)
+    {
+        if (AiModelCatalog.SupportsVision(current.ProviderId, SelectedModel)) return null;
+
+        foreach (var candidate in AiProviders)
+        {
+            if (!candidate.IsAvailable || candidate.ProviderId == current.ProviderId) continue;
+            if (AiModelCatalog.SupportsVision(candidate.ProviderId, candidate.Client.Model))
+                return candidate.Client;
+        }
+
+        return null;
+    }
+
     private IStrategyCodegenClient? ResolveClient(AiProviderChoice choice) =>
         _ai?.WithSettings(choice.ProviderId, SelectedModel, SelectedEffort);
 
@@ -2358,6 +2517,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (note is not null && Messages.Count > 0)
             Append(AuthoringMessage.System($"{note} The model won't remember what was said above."));
     }
+
+    /// <summary>
+    /// The task board: one row per planned task, updated as each starts and finishes.
+    ///
+    /// <para>A fan-out takes minutes and, without this, reports nothing a user can read. That is not a
+    /// hypothetical: five saved sessions on a user's machine show somebody watching a status line
+    /// through a run that produced no code, and concluding the builder did not work.</para>
+    /// </summary>
+    public ObservableCollection<SwarmTaskRow> Board { get; } = [];
+
+    /// <summary>True while there is a board worth showing.</summary>
+    public bool HasBoard => Board.Count > 0;
 
     /// <summary>
     /// One swarm event, as the transcript shows it.
@@ -2371,6 +2542,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         switch (evt)
         {
+            case SwarmEvent.Planning:
+                Board.Clear();
+                OnPropertyChanged(nameof(HasBoard));
+                break;
+
             case SwarmEvent.Planned planned:
                 Append(AuthoringMessage.Tool(
                     planned.Origin == PlanOrigin.Planned ? "Ok" : "Info",
@@ -2380,15 +2556,46 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     string.Join(
                         Environment.NewLine,
                         planned.Plan.Tasks.Select(t => $"{t.Kind}: {t.Title} → {t.OwnedFile}"))));
+
+                Board.Clear();
+                foreach (var task in planned.Plan.Tasks) Board.Add(new SwarmTaskRow(task));
+                OnPropertyChanged(nameof(HasBoard));
+                break;
+
+            // Reported BEFORE the call, which is the end a live indicator belongs at. The committee
+            // reported when a turn FINISHED — telling the user what had already happened and nothing
+            // about the silence they were sitting in.
+            case SwarmEvent.TaskStarted started:
+                if (Row(started.Task.Id) is { } starting)
+                    starting.State = started.IsRepair ? SwarmTaskState.Repairing : SwarmTaskState.Running;
                 break;
 
             case SwarmEvent.TaskFinished finished:
+                if (Row(finished.Task.Id) is { } row)
+                {
+                    row.State = finished.Wrote ? SwarmTaskState.Done : SwarmTaskState.Empty;
+                    row.Tokens += finished.Usage.TotalTokens;
+                    row.Note = finished.Note ?? string.Empty;
+                }
+
                 Append(AuthoringMessage.Tool(
                     finished.Wrote ? "Ok" : "Info",
                     finished.Task.Title,
                     finished.Wrote
                         ? $"{finished.Task.OwnedFile} · {finished.Usage.TotalTokens} tokens"
                         : finished.Note ?? "no file"));
+                break;
+
+            case SwarmEvent.Reviewed reviewed:
+                Append(AuthoringMessage.Tool(
+                    reviewed.Result.Findings.Count == 0 ? "Ok" : "Info",
+                    "Review",
+                    reviewed.Result.Summary,
+                    string.Join(
+                        Environment.NewLine,
+                        reviewed.Result.Verdicts.Select(v =>
+                            $"{v.CriticId}: {v.Verdict}"
+                            + string.Concat(v.Findings.Select(f => Environment.NewLine + "  - " + f))))));
                 break;
 
             case SwarmEvent.Gated gated when !gated.Report.Passed:
@@ -2400,6 +2607,9 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 break;
         }
     }
+
+    private SwarmTaskRow? Row(string id) =>
+        Board.FirstOrDefault(r => string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase));
 
     private void SetFiles(IReadOnlyList<StrategyFile> files)
     {

@@ -32,6 +32,9 @@ public abstract record SwarmEvent
     /// <summary>The whole unit has been compiled and run up the ladder.</summary>
     public sealed record Gated(VerificationReport Report, int Round) : SwarmEvent;
 
+    /// <summary>The critics have judged a unit that cleared the ladder.</summary>
+    public sealed record Reviewed(Gauntlet.GauntletResult Result, int Round) : SwarmEvent;
+
     /// <summary>The run is over.</summary>
     public sealed record Finished(SwarmOutcome Outcome, string Summary) : SwarmEvent;
 }
