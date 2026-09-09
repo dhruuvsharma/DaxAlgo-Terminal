@@ -329,9 +329,16 @@
                                                 <Run Text="{Binding Title, Mode=OneWay}" />
                                                 <Run Text=" · " /><Run Text="{Binding File, Mode=OneWay}" />
                                             </TextBlock>
+                                            <!-- THE LIVELIEST NUMBER THIS ROW HAS. Many providers
+                                                 report usage only when a call finishes, so a running
+                                                 row can read "0 tok" for minutes while the model is
+                                                 thinking — which is exactly what a stalled provider
+                                                 looks like too. Elapsed and reasoning characters move
+                                                 from the first delta, so a row with nothing here is
+                                                 genuinely stuck rather than merely slow. -->
                                             <TextBlock Grid.Column="3" Style="{StaticResource HYP.GhostText}"
                                                        Margin="8,0,0,0"
-                                                       Text="{Binding Tokens, Mode=OneWay, StringFormat={}{0} tok}" />
+                                                       Text="{Binding Vitals, Mode=OneWay}" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

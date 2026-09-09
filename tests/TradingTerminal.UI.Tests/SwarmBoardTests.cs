@@ -53,6 +53,66 @@ public sealed class SwarmTaskRowTests
     }
 
     [Fact]
+    public void ARunningRowShowsSomethingThatMovesBeforeAnyTokensAreReported()
+    {
+        // THE BUG A REAL RUN SHOWED: six tasks, every one reading "0 tok", nothing moving, and no way
+        // to tell a model thinking hard from a provider that had stopped answering. Many providers
+        // report usage only when a call finishes, so tokens are the WRONG thing to wait on.
+        var row = new SwarmTaskRow(Task()) { State = SwarmTaskState.Running };
+
+        row.Tick(DateTime.UtcNow.AddSeconds(12));
+
+        Assert.Contains("12s", row.Vitals);
+    }
+
+    [Fact]
+    public void ReasoningCharactersCountAsProofOfLife()
+    {
+        var row = new SwarmTaskRow(Task()) { State = SwarmTaskState.Running, Thinking = 4_210 };
+
+        row.Tick(DateTime.UtcNow.AddSeconds(5));
+
+        Assert.Contains("4,210 thinking", row.Vitals);
+        Assert.False(row.Silent, "it has said plenty");
+    }
+
+    [Fact]
+    public void A_row_that_has_received_nothing_at_all_says_so()
+    {
+        // Not a diagnosis — a reasoning model can legitimately spend minutes before its first byte, and
+        // 278 seconds has been measured on one. It is the difference between a row that is quiet and a
+        // row that has never spoken, which is the user's call to make rather than ours.
+        var row = new SwarmTaskRow(Task()) { State = SwarmTaskState.Running };
+
+        row.Tick(DateTime.UtcNow.Add(SwarmTaskRow.SilenceBeforeDoubt).AddSeconds(5));
+
+        Assert.True(row.Silent);
+        Assert.Contains("nothing received yet", row.Vitals);
+    }
+
+    [Fact]
+    public void A_row_that_is_merely_slow_is_not_called_silent()
+    {
+        var row = new SwarmTaskRow(Task()) { State = SwarmTaskState.Running, Written = 12 };
+
+        row.Tick(DateTime.UtcNow.Add(SwarmTaskRow.SilenceBeforeDoubt).AddMinutes(5));
+
+        Assert.False(row.Silent);
+        Assert.DoesNotContain("nothing received", row.Vitals);
+    }
+
+    [Fact]
+    public void AWaitingRowShowsNothingAtAll()
+    {
+        // Five queued rows each showing a clock would read as five things running.
+        var row = new SwarmTaskRow(Task());
+
+        row.Tick(DateTime.UtcNow.AddMinutes(3));
+
+        Assert.Equal(string.Empty, row.Vitals);
+    }
+
+    [Fact]
     public void ATaskThatProducedNothingIsNotAFinishedRow()
     {
         // It is a turn the user paid for. A board that showed it as done would hide the one thing

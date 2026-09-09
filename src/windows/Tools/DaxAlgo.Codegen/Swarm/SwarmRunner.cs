@@ -323,7 +323,7 @@ public sealed class SwarmRunner(
                     request.SharedContext,
                     messages,
                     SwarmPrompts.Planner(request.Kind, request.Budget.MaxTasks)),
-                events,
+                ThinkingOnly(events),
                 ct).ConfigureAwait(false);
 
             usage = usage.Add(reported);
@@ -423,15 +423,49 @@ public sealed class SwarmRunner(
             ? context.ComposeRepair(task, findings)
             : context.ComposeBuild(task, plan);
 
-        // Sequential ⇒ the pane can show what the model is writing, exactly as one conversation does.
-        // Parallel ⇒ only the numbers, because four builders' deltas in one bubble are noise.
+        // THE HEARTBEAT. Counted per task and reported as numbers, so a fan-out has something moving
+        // in every row — without which a builder thinking for five minutes looks exactly like a
+        // provider that has stopped answering, which is what a user actually saw.
+        var thinking = 0;
+        var written = 0;
+        var billed = CodegenUsage.None;
+
+        var beat = new Progress<CodegenEvent>(evt =>
+        {
+            switch (evt)
+            {
+                case CodegenEvent.ReasoningDelta reasoning:
+                    thinking += reasoning.Text.Length;
+                    break;
+
+                case CodegenEvent.TextDelta text:
+                    written += text.Text.Length;
+                    break;
+
+                case CodegenEvent.UsageUpdate update:
+                    billed = update.Usage;
+                    break;
+
+                default:
+                    return;
+            }
+
+            progress?.Report(new SwarmEvent.TaskProgress(task, thinking, written, billed));
+
+            // Sequential ⇒ the pane also shows what the model is writing, exactly as one conversation
+            // does. Parallel ⇒ the counts above are the whole signal, because four builders' deltas in
+            // one bubble are noise.
+            if (request.Budget.MaxParallel <= 1) events?.Report(evt);
+            else if (evt is CodegenEvent.UsageUpdate) events?.Report(evt);
+        });
+
         var (response, reported) = await CodegenStream.DrainAsync(
             _client,
             new StrategyCodegenRequest(
                 request.SharedContext,
                 [new CodegenMessage(CodegenRole.User, message)],
                 instruction),
-            request.Budget.MaxParallel <= 1 ? events : UsageOnly(events),
+            beat,
             ct).ConfigureAwait(false);
 
         if (!response.Success)
@@ -561,6 +595,23 @@ public sealed class SwarmRunner(
 
         return await Task.WhenAll(running).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// A sink that passes the planner's THINKING and its token movement, and drops its text.
+    ///
+    /// <para>The planner's text is a JSON object. Streamed into the transcript it renders as a fenced
+    /// block, which the pane summarises as "code written to the workbench" — a sentence that is not
+    /// true and stays on screen for the whole build. Seen exactly that way in a real run.</para>
+    ///
+    /// <para>The thinking still flows, because on a reasoning model that IS the interesting part of
+    /// planning and it is what tells a user the turn is alive. What the planner decided is already said
+    /// properly by the plan card underneath.</para>
+    /// </summary>
+    private static IProgress<CodegenEvent>? ThinkingOnly(IProgress<CodegenEvent>? inner) =>
+        inner is null ? null : new Progress<CodegenEvent>(evt =>
+        {
+            if (evt is not CodegenEvent.TextDelta) inner.Report(evt);
+        });
 
     /// <summary>
     /// An event sink that passes token movement and drops everything else.

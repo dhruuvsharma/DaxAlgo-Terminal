@@ -44,6 +44,20 @@ public abstract record SwarmEvent
         string? Note,
         IReadOnlyList<StrategyFile> Files) : SwarmEvent;
 
+    /// <summary>
+    /// A running task is still alive: how much it has thought and written so far.
+    ///
+    /// <para><b>COUNTS, not text, and that is what makes it safe in a fan-out.</b> Four builders'
+    /// words interleaved in one transcript are unreadable, so the text is dropped — but four numbers
+    /// climbing in four rows are exactly what a user needs to see. Without them a parallel run reports
+    /// nothing at all between starting a task and finishing it, and a model thinking hard for five
+    /// minutes is indistinguishable from a provider that has stopped answering.</para>
+    ///
+    /// <para>Reported from real use: six tasks, all reading "0 tok", nothing moving, no way to tell
+    /// whether it was working.</para>
+    /// </summary>
+    public sealed record TaskProgress(BuildTask Task, int Thinking, int Written, CodegenUsage Usage) : SwarmEvent;
+
     /// <summary>The whole unit has been compiled and run up the ladder.</summary>
     public sealed record Gated(VerificationReport Report, int Round) : SwarmEvent;
 

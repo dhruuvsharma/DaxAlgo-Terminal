@@ -1983,6 +1983,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     ? $"{elapsed.TotalSeconds:0}s elapsed…"
                     : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds:00}s elapsed — a detailed brief at a high effort takes minutes.";
                 LongThinkNotice = LongThinkNoticeFor(elapsed);
+
+                // Every running task's own clock, on the same tick. It is the LAST resort of proof:
+                // it moves whatever the provider does or does not report, so a row showing nothing
+                // else at least shows how long it has been showing nothing.
+                TickBoard();
             }
         }
         catch (OperationCanceledException)
@@ -2817,6 +2822,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
                 break;
 
+            case SwarmEvent.TaskProgress beat:
+                if (Row(beat.Task.Id) is { } alive)
+                {
+                    alive.Thinking = beat.Thinking;
+                    alive.Written = beat.Written;
+                    if (beat.Usage.TotalTokens > 0) alive.Tokens = beat.Usage.TotalTokens;
+                }
+
+                break;
+
             case SwarmEvent.TaskFinished finished:
                 if (Row(finished.Task.Id) is { } row)
                 {
@@ -2878,6 +2893,19 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     string.Join(Environment.NewLine, gated.Report.Findings.Take(8).Select(f => f.ToString()))));
                 break;
         }
+    }
+
+    /// <summary>
+    /// Advances every running row's clock.
+    ///
+    /// <para>One timer for the whole board rather than one per row: the board is rebuilt on every plan,
+    /// and a timer per row is a timer leaked per task. It is driven by the same elapsed ticker the turn
+    /// already runs, so it starts and stops with the turn and cannot outlive it.</para>
+    /// </summary>
+    private void TickBoard()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var row in Board) row.Tick(now);
     }
 
     private SwarmTaskRow? Row(string id) =>
