@@ -361,7 +361,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         if (request.RoleInstruction is { Length: > 0 } role)
             messages.Add(new WireMessage("system", role));
         foreach (var m in request.Messages)
-            messages.Add(new(m.Role == CodegenRole.Assistant ? "assistant" : "user", m.Content));
+            messages.Add(WireMessage.From(m));
 
         var body = new ChatRequest(
             _model, messages, Temperature: 0.2, ReasoningEffort: ReasoningEffort(),
@@ -552,8 +552,48 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     }
 
     // ── wire shapes ───────────────────────────────────────────────────────────────────────────────
-    private sealed record WireMessage([property: JsonPropertyName("role")] string Role,
-                                      [property: JsonPropertyName("content")] string Content);
+    /// <summary>
+    /// One message. <c>content</c> is a bare string for text and an ARRAY OF PARTS when there are
+    /// pictures, which is the shape OpenAI-compatible endpoints expect.
+    ///
+    /// <para>The string form is kept for text rather than always sending the array, and that is not
+    /// tidiness: several endpoints calling themselves OpenAI-compatible implement only the string form,
+    /// and sending them a one-element array for an ordinary turn would break every text conversation to
+    /// buy a feature that turn is not using.</para>
+    /// </summary>
+    private sealed record WireMessage(
+        [property: JsonPropertyName("role")] string Role,
+        [property: JsonPropertyName("content")] object Content)
+    {
+        public static WireMessage From(CodegenMessage message)
+        {
+            var role = message.Role == CodegenRole.Assistant ? "assistant" : "user";
+            if (!message.HasImages) return new WireMessage(role, message.Content);
+
+            var parts = new List<object>(message.Images!.Count + 1);
+            foreach (var image in message.Images)
+            {
+                if (image.Caption is { Length: > 0 } caption) parts.Add(new WireTextPart(caption));
+                parts.Add(new WireImagePart(new WireImageUrl(
+                    $"data:{image.MediaType};base64,{Convert.ToBase64String(image.Data.Span)}")));
+            }
+
+            parts.Add(new WireTextPart(message.Content));
+            return new WireMessage(role, parts);
+        }
+    }
+
+    private sealed record WireTextPart([property: JsonPropertyName("text")] string Text)
+    {
+        [JsonPropertyName("type")] public string Type => "text";
+    }
+
+    private sealed record WireImagePart([property: JsonPropertyName("image_url")] WireImageUrl ImageUrl)
+    {
+        [JsonPropertyName("type")] public string Type => "image_url";
+    }
+
+    private sealed record WireImageUrl([property: JsonPropertyName("url")] string Url);
     private sealed record ChatRequest(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
@@ -565,7 +605,16 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     private sealed record ChatResponse(
         [property: JsonPropertyName("choices")] IReadOnlyList<Choice>? Choices,
         [property: JsonPropertyName("usage")] WireUsage? Usage);
-    private sealed record Choice([property: JsonPropertyName("message")] WireMessage? Message);
+    private sealed record Choice([property: JsonPropertyName("message")] ReplyMessage? Message);
+
+    /// <summary>
+    /// A message coming BACK, whose content is always a plain string.
+    ///
+    /// <para>Separate from the request shape, whose content became polymorphic when messages gained
+    /// pictures. Reusing one record for both directions is what tied the reply parser to a change that
+    /// had nothing to do with it — the model does not send us images.</para>
+    /// </summary>
+    private sealed record ReplyMessage([property: JsonPropertyName("content")] string? Content);
     private sealed record WireUsage(
         [property: JsonPropertyName("prompt_tokens")] int PromptTokens,
         [property: JsonPropertyName("completion_tokens")] int CompletionTokens);

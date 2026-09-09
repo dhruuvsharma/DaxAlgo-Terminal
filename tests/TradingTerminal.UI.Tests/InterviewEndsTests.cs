@@ -4,7 +4,6 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
-using TradingTerminal.Infrastructure.Strategies.Authoring.Agents;
 using Xunit;
 
 namespace TradingTerminal.UI.Tests;
@@ -117,7 +116,7 @@ public sealed class InterviewEndsTests : IDisposable
     {
         var builder = new ScriptedBuilder(
             "Which timeframe?",
-            "Specification settled. " + AgentPrompts.Handover,
+            "Specification settled. SPECIFICATION COMPLETE",
             Kernel);
 
         var pane = Pane(builder);

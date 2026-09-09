@@ -55,8 +55,37 @@ public static class CodegenEfforts
     };
 }
 
-/// <summary>One turn of the codegen conversation.</summary>
-public sealed record CodegenMessage(CodegenRole Role, string Content);
+/// <summary>
+/// A picture attached to a message — a rendered unit, or a reference the critics judge it against.
+/// </summary>
+/// <param name="MediaType">The IANA type, e.g. <c>image/png</c>. It goes on the wire, so it must be
+/// what the bytes actually are rather than what the file was called.</param>
+/// <param name="Data">The bytes. Base64 happens at the wire edge, once, in whichever shape that
+/// provider wants — a record holding an already-encoded string would be encoding for a provider it has
+/// not met yet.</param>
+/// <param name="Caption">What this picture IS, for the model: "the unit as it renders", "reference 3 of
+/// 10". Without it a critic handed two images cannot tell which one it is judging.</param>
+public sealed record CodegenImage(string MediaType, ReadOnlyMemory<byte> Data, string Caption = "");
+
+/// <summary>
+/// One turn of the codegen conversation.
+/// </summary>
+/// <param name="Role">Who is speaking.</param>
+/// <param name="Content">What they said.</param>
+/// <param name="Images">
+/// Pictures belonging to this message, or null for the overwhelming majority of turns, which are text.
+///
+/// <para>Optional so every existing construction still compiles and still means what it did. A
+/// provider that cannot see images drops them and says so through
+/// <c>AiModelCatalog.VisionUnavailable</c>: sending them anyway fails the request, and a failed
+/// request reads to a user as a bad key.</para>
+/// </param>
+public sealed record CodegenMessage(
+    CodegenRole Role, string Content, IReadOnlyList<CodegenImage>? Images = null)
+{
+    /// <summary>True when this turn carries pictures a provider has to encode.</summary>
+    public bool HasImages => Images is { Count: > 0 };
+}
 
 /// <summary>
 /// Tokens billed for one generation, as reported by the provider (both the OpenAI and Anthropic wire

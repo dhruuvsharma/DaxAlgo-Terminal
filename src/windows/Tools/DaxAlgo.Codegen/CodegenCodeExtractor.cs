@@ -60,6 +60,21 @@ public static partial class CodegenCodeExtractor
     }
 
     /// <summary>
+    /// Every fenced block's body, whatever language it claims — in the order the model wrote them.
+    ///
+    /// <para>Fence parsing lives here rather than being re-implemented by each caller, because a fence
+    /// is harder than it looks (an info string, an optional language, a body that may itself contain
+    /// backticks) and a second implementation would disagree with this one on exactly the replies worth
+    /// getting right. The planner reads JSON out of a fence through this.</para>
+    /// </summary>
+    public static IReadOnlyList<string> FencedBlocks(string? reply)
+    {
+        if (string.IsNullOrWhiteSpace(reply)) return [];
+
+        return [.. FencedBlock().Matches(reply).Select(m => m.Groups["body"].Value)];
+    }
+
+    /// <summary>
     /// Every C# file in the reply, in order. Empty when the model wrote no code — which is a legitimate
     /// turn (it asked a question), not a failure.
     /// </summary>

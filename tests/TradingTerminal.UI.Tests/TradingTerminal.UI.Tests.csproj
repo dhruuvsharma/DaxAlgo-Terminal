@@ -14,6 +14,8 @@
     <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\src\windows\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
     <ProjectReference Include="..\..\src\windows\Charts\TradingTerminal.Workspace\TradingTerminal.Workspace.csproj" />
+    <!-- Off-screen rendering: the picture a vision critic is actually shown. -->
+    <ProjectReference Include="..\..\src\windows\Tools\TradingTerminal.Authoring.Rasterizer\TradingTerminal.Authoring.Rasterizer.csproj" />
     <!-- The shipped samples, so registration is proven against units known to be correct rather
          than against stand-ins written to pass. -->
     <ProjectReference Include="..\..\samples\DaxAlgo.Sandbox.Samples\DaxAlgo.Sandbox.Samples.csproj" />

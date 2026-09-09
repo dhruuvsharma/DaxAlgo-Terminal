@@ -60,6 +60,7 @@
   <Folder Name="/src/windows/Tools/">
     <Project Path="src/windows/Tools/DaxAlgo.Codegen/DaxAlgo.Codegen.csproj" />
     <Project Path="src/windows/Tools/DaxAlgo.StrategyTool/DaxAlgo.StrategyTool.csproj" />
+    <Project Path="src/windows/Tools/TradingTerminal.Authoring.Rasterizer/TradingTerminal.Authoring.Rasterizer.csproj" />
   </Folder>
   <Folder Name="/src/windows/Sandbox/">
     <Project Path="src/windows/Sandbox/TradingTerminal.Sandbox.Portfolio/TradingTerminal.Sandbox.Portfolio.csproj" />

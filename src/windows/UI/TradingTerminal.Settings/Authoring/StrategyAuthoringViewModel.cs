@@ -14,7 +14,7 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
-using TradingTerminal.Infrastructure.Strategies.Authoring.Agents;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 using TradingTerminal.UI;
 using TradingTerminal.UI.Strategies;
@@ -47,21 +47,19 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private readonly IStrategyRegistry _registry;
     private readonly IAuthoredUnitSink? _sink;
 
-    /// <summary>Kept across runs so the estimate accumulates — an agent's record is only worth having if
-    /// it survives the session that produced it.</summary>
-    /// <summary>What the router learned in previous sessions. Loaded rather than constructed fresh: an
-    /// estimator that resets before it can warm up is a constant with extra steps, and reward-biased
-    /// routing is only worth having if the weights come from evidence.</summary>
-    private readonly AgentReliability _reliability = AgentMemory.Load();
-
-    /// <summary>Per-turn cost and outcome, so the six-agent split can be argued about with numbers.
-    /// Records identifiers and figures, never the brief, the reply or the code.</summary>
-    private readonly TrajectoryLog _trajectory = new(TrajectoryPath);
-
-    private static string TrajectoryPath { get; } = System.IO.Path.Combine(
+    /// <summary>
+    /// Per-task cost and outcome, so a swarm can be argued about with numbers rather than impressions.
+    /// Records identifiers and figures, never the brief, the reply or the code.
+    ///
+    /// <para>It is the evidence for the only question that matters about this rewrite: whether a
+    /// planned swarm beats one conversation. A version of it that cannot be measured is a version
+    /// nobody can defend keeping.</para>
+    /// </summary>
+    private readonly TrajectoryLog _trajectory = new(System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgo Terminal",
-        "agent-runs.jsonl");
+        "swarm-runs.jsonl"));
+
     private readonly ILogger<StrategyAuthoringViewModel> _logger;
     private readonly IAiStrategyBuilder? _ai;
     private readonly AiCodegenOptions _options;
@@ -71,21 +69,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     private CancellationTokenSource? _generateCts;
     private StrategyBuildSession? _session;
     private bool _filesEditedByUser;
-
-    /// <summary>
-    /// Where the multi-agent run stands, across user turns.
-    ///
-    /// <para>Both of these used to be built fresh inside every call, so an interview could never end:
-    /// each turn re-entered with <c>new RoutingState()</c> (HasSpec false, so the prior returned
-    /// Only(Interviewer)) and <c>new AgentContext(latest message)</c> (so the Interviewer was handed
-    /// "approved, now start building" with nothing it referred to). The user's saved session shows the
-    /// result exactly: six briefs, six interviews, no code, ever.</para>
-    ///
-    /// <para>Kept beside <see cref="_session"/> because they are the agent path's equivalent of it, and
-    /// cleared everywhere it is.</para>
-    /// </summary>
-    private RoutingState _agentState = new();
-    private AgentContext? _agentContext;
 
     /// <summary>The model thread restored from disk, handed to the next session so a resumed conversation
     /// still remembers what it wrote. Cleared once used.</summary>
@@ -1081,9 +1064,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// every model that has no reasoning channel at all).</summary>
     private AuthoringMessage? _thinking;
 
-    /// <summary>Agent turns started in the current run — the status bar's "turn 3 of 12".</summary>
-    private int _agentTurnsSeen;
-
     [ObservableProperty] private int _inputTokens;
     [ObservableProperty] private int _outputTokens;
     [ObservableProperty] private int _cachedTokens;
@@ -1360,27 +1340,20 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             ticking = TickElapsedAsync(_generateCts.Token);
 
-            // ONE STREAMING CONVERSATION, AT EVERY EFFORT. Deep and Max used to route to the six-agent
-            // committee, and that is where the builder went to die.
+            // THE SWARM, AT EVERY MODE. A planner decomposes the brief against a contract, builders
+            // fan out one file each, and the gate decides what needs repairing — and every one of
+            // those calls STREAMS.
             //
-            // The committee calls GenerateAsync, which posts with stream:false. One blocking HTTP
-            // request per agent turn, no streaming, and (by deliberate design) NO TIMEOUT — the Stop
-            // button is the control. On a reasoning model over a slow route that is an unbounded silent
-            // wait: no text, no thinking, no token movement, nothing but a status line reading
-            // "Working out what to build - turn 1 of 10" for as long as the user is willing to stare at
-            // it. Measured from a user's own state: five saved TokenRouter/GLM sessions, every single
-            // completed agent turn logged as "Interviewer - answered without code", 0/0 tokens on four
-            // of them, and not one line of generated code across any of them.
+            // That last clause is the whole difference from the committee this replaces, which called
+            // the blocking entry point once per agent: one silent HTTP request per turn, no text, no
+            // thinking, no token movement, nothing but a status line for as long as the user was
+            // willing to stare at it. Measured from a user's own saved state — five TokenRouter/GLM
+            // sessions, every completed agent turn logged as "answered without code", 0/0 tokens on
+            // four of them, not one line of generated code across any of them.
             //
-            // The single conversation is what the other coding tools do and what the user asked for by
-            // name: it STREAMS, so the reply and the model's thinking arrive as they are written; prose
-            // without code is simply a question, which the user answers and the next turn acts on; and
-            // there is no router, no reward ladder and no handover gate between a brief and its code.
-            //
-            // Deep and Max keep everything else they buy — more skill packs, more auto-fix attempts,
-            // the self-review pass, the verification ladder. What they no longer buy is a committee
-            // that could not deliver a file. UseAgents stays on the profile for the CLI and the
-            // benchmark; the interactive builder is done with it.
+            // Standard is a swarm of one: a plan, a builder, the gate. It is the same code path as
+            // Research rather than a second product, which is what stopped the committee and the
+            // conversation drifting into two builders with different bugs.
             var session = EnsureSession(choice, profile);
             var tokensBefore = session.TotalUsage;
             _streamingReply = null;
@@ -1391,11 +1364,23 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             session.SyncEditedFiles([.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
             _filesEditedByUser = false;
 
-            var turn = await session.SendAsync(
+            var turn = await session.SendToSwarmAsync(
                 prompt,
+                new SwarmRunner(
+                    session.Provider,
+                    new UnitGate(_compiler, StrategyId!, DisplayName ?? StrategyId!),
+                    _trajectory),
+                SwarmBudget.For(profile, AiModelCatalog.IsAgentCli(choice.ProviderId)),
+
+                // The user pressing "Just build it" ends the interview, whatever the model would have
+                // done next. Otherwise the escape is only a suggestion, and a model that keeps asking
+                // keeps winning — which is the shape of the bug that produced six briefs, six
+                // interviews and no code in a user's own saved session.
+                mayAsk: !AuthoringAction.EndsTheInterview(prompt),
                 new Progress<string>(step => PushActivity(step)),
-                _generateCts.Token,
-                new Progress<CodegenEvent>(evt => OnStreamed(evt, tokensBefore)));
+                new Progress<SwarmEvent>(OnSwarmEvent),
+                new Progress<CodegenEvent>(evt => OnStreamed(evt, tokensBefore)),
+                _generateCts.Token);
 
             // The session's running total is authoritative WHEN THERE IS ONE. A provider that reports
             // no usage at all — NVIDIA NIM does not, and agent CLIs do not — leaves the total at zero,
@@ -1911,8 +1896,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         try
         {
             _session = null;
-            _agentState = new RoutingState();
-            _agentContext = null;
             _restoredThread = session.Thread;
             _restoredUsage = new CodegenUsage(session.InputTokens, session.OutputTokens);
 
@@ -2242,197 +2225,6 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     }
 
     /// <summary>
-    /// The multi-agent path: route a turn, show who took it, judge what came back, repeat.
-    ///
-    /// <para>Every turn is surfaced as it happens rather than at the end. A ten-turn run takes minutes,
-    /// and a pane that shows nothing meanwhile reads as a hang — the agents being visible is what makes
-    /// the wait legible, and what justifies its cost to the person paying for it.</para>
-    /// </summary>
-    private async Task RunAgentsAsync(
-        AiProviderChoice choice,
-        string brief,
-        StrategyBuildProfile profile,
-        CancellationToken ct)
-    {
-        if (_compiler is null)
-        {
-            AiStatus = "This edition has no compiler, so the agents have nothing to verify against.";
-            return;
-        }
-
-        // The user pressing "Just build it" ends the interview, whatever the model would have done next.
-        // Otherwise the escape is only a suggestion, and a model that keeps asking keeps winning.
-        if (AuthoringAction.EndsTheInterview(brief))
-            _agentState = _agentState with { HasSpec = true };
-
-        var judge = new AuthoringJudge(
-            _compiler,
-            StrategyId ?? "authored",
-            string.IsNullOrWhiteSpace(DisplayName) ? StrategyId ?? "Authored" : DisplayName!,
-            _agentState);
-
-        // The session composes this run's system prompt AND owns the provider bound to the picked model
-        // and reasoning effort. Both used to be taken raw here: the shared context was the uncomposed
-        // pack, and the client was `choice.Client` rather than the one `ResolveClient` rebinds — so the
-        // model and the effort the user chose were dropped on exactly the two settings that mean
-        // "correctness over cost".
-        var session = EnsureSession(choice, profile);
-
-        var loop = new AgentLoop(session.Provider, judge.Judge, _reliability, _trajectory);
-
-        var report = new Progress<AgentTurn>(turn =>
-        {
-            // The role is the headline. A user watching six agents should be able to see which one is
-            // spending their money and on what.
-            Append(AuthoringMessage.Tool(
-                turn.Reward > 0.5d ? "Ok" : "Info",
-                turn.Role.ToString(),
-                turn.Files.Count > 0
-                    ? $"{turn.Files.Count} file(s) · scored {turn.Reward:0.00}"
-                    : "answered without code",
-
-                // Stripped, exactly as on the non-agent path. Without this the agent transcript shows
-                // the raw JSON the model used to offer its options, which is the plumbing rather than
-                // the answer.
-                AuthoringQuestions.StripBlock(turn.Reply) is { Length: > 0 } prose
-                    ? prose
-                    : turn.Reply));
-
-            // The reply itself, as a message. The chip above says WHO spoke and what it cost; this is
-            // what it actually said. Without it an agent run rendered as a column of grey
-            // "Interviewer - answered without code" chips with the prose folded away inside each one,
-            // so the user could not read the question they were being asked and answered blind. The
-            // single-conversation path has always appended the reply; this path never did.
-            if (AuthoringQuestions.StripBlock(turn.Reply) is { Length: > 0 } spoken)
-                Append(new AuthoringMessage(CodegenRole.Assistant, spoken));
-
-            PushActivity($"{turn.Role}: {(turn.Files.Count > 0 ? "wrote code" : "replied")}");
-
-            // Preview on every compile, half-finished included: the picture arriving is informative, and
-            // the preview says so itself when there is nothing yet to show.
-            if (judge.Latest?.Unit is { } unit) ShowPreview(unit);
-        });
-
-        // The SAME composition the single-conversation path uses, from the same object.
-        //
-        // This used to be `StrategyContextPack.Load().SystemPrompt` — the generated surface and the
-        // conventions, raw. Deep and Max are the two efforts that route here, so the two efforts that
-        // buy the largest skill budget (5 packs and 8) were loading none; the model was never told
-        // whether it was writing a strategy or a visualizer, making that switch decoration again at
-        // the top two settings; it never saw a worked exemplar; and it was never taught the
-        // `questions` block that the very next lines of this method parse and render as buttons.
-        // The reader had been wired onto this path and the writer had not.
-        // WHAT IT IS DOING RIGHT NOW, on the path that had no answer to that question.
-        //
-        // The checklist the status bar reads is seeded from StrategyBuildSession's activity strings,
-        // and this path emits none of them — so a Deep or Max run sat on "Understand brief" from the
-        // first second to the last however many agents it went through. The live signal is the ROLE,
-        // and only the loop knows it, so the loop reports it as each turn starts.
-        var starting = new Progress<AgentRole>(role =>
-        {
-            WorkingVerb = role switch
-            {
-                AgentRole.Interviewer => "Working out what to build",
-                AgentRole.Quant => "Working out the maths",
-                AgentRole.Coder => "Writing the code",
-                AgentRole.Painter => "Drawing the panel",
-                AgentRole.Fixer => "Fixing the build",
-                AgentRole.Reviewer => "Reviewing it",
-                _ => role.ToString(),
-            };
-            StepText = $"turn {_agentTurnsSeen + 1} of {profile.MaxAgentTurns}";
-            _agentTurnsSeen++;
-        });
-
-        _agentTurnsSeen = 0;
-
-        var run = await loop.RunAsync(
-            brief,
-            session.PrepareFor(brief),
-            _agentState,
-            profile.MaxAgentTurns,
-            report,
-            ct,
-            resume: _agentContext,
-            starting: starting);
-
-        // What this turn established, so the next one continues it rather than starting over. The spec
-        // an Interviewer wrote is the expensive half of a run; discarding it made every answer the user
-        // typed the opening line of a fresh interview.
-        _agentState = run.FinalState;
-        _agentContext = run.Context ?? _agentContext;
-
-        // The code the run produced, into the editor.
-        //
-        // The agent path never did this. A Coder could write a unit, the judge could compile it, the
-        // ladder could pass it and the preview could render it — and the Code tab still showed the
-        // empty scaffold, because SetFiles was only ever called on the single-conversation branch. So
-        // at Deep and Max there was no way to READ what had been built, let alone edit it, and
-        // CurrentScript() would have registered the scaffold instead of the strategy.
-        //
-        // Taken from the run rather than reported from the progress callback: Progress<T> posts, so a
-        // turn that lands after the await would apply out of order or not at all.
-        if (run.Turns.LastOrDefault(turn => turn.Files.Count > 0) is { } wrote)
-        {
-            var prior = Files.ToDictionary(f => f.Name, f => f.Content, StringComparer.OrdinalIgnoreCase);
-            SetFiles(wrote.Files);
-            _filesEditedByUser = false;
-            AppendFileChanges(prior, wrote.Files);
-        }
-
-        foreach (var diagnostic in judge.Latest?.Diagnostics ?? [])
-            Diagnostics.Add(diagnostic);
-
-        // Keep what this run taught the router. Saved after every run rather than at shutdown, because a
-        // terminal is closed by closing it and a crash is exactly the session worth having learned from.
-        AgentMemory.Save(_reliability);
-
-        AiStatus = run.Outcome switch
-        {
-            AgentRunOutcome.Delivered => $"Delivered after {run.Turns.Count} turn(s). Review the preview, then Compile & Register.",
-            AgentRunOutcome.AwaitingUser => "The agent is waiting — pick an option above, or write your own reply.",
-            AgentRunOutcome.ProviderFailed => $"Provider failed: {run.Error}",
-
-            // Named rather than folded into the budget message, because the two mean opposite things to
-            // whoever is paying: the budget running out says "it needed more room", and this says "more
-            // room would have bought nothing". Reporting a wall as a budget invites another spend.
-            AgentRunOutcome.Stalled =>
-                $"Stopped after {run.Turns.Count} turn(s): the last {AgentLoop.StallLimit} repairs got no "
-                + $"further up the ladder. Furthest it got: "
-                + $"{(judge.State.Compiles ? "it compiles" : "it does not compile")}. "
-                + "Read the diagnostics, then tell it what to change — repeating the same turn will not.",
-
-            // Honest rather than encouraging. A brief that could not be satisfied should say what was
-            // built and what did not work, not invite another spend on the same wall.
-            _ => $"Stopped at the {profile.MaxAgentTurns}-turn budget. "
-               + $"Furthest it got: {(judge.State.Compiles ? "it compiles" : "it does not compile yet")}.",
-        };
-
-        CompiledOk = judge.Latest is { Success: true };
-        AwaitingAnswer = run.Outcome == AgentRunOutcome.AwaitingUser;
-
-        // The agent loop is a SECOND path to "waiting on the user", and it had none of this. Everything
-        // built for questions — parsing the options, stripping the block, offering the buttons — lived
-        // on the simple-session branch only, so at any effort that routes through agents (Deep and Max
-        // both do) a model that emitted a perfect questions block still rendered as raw text with an
-        // empty composer underneath. Two paths to one state, and only one of them was finished.
-        if (AwaitingAnswer)
-        {
-            var lastReply = run.Turns.Count > 0 ? run.Turns[^1].Reply : string.Empty;
-            var asked = AuthoringQuestions.Parse(lastReply);
-            SetQuestions(asked);
-            SetActions(AuthoringAction.For(asked.Count > 0));
-        }
-        else
-        {
-            SetQuestions([]);
-            SetActions([]);
-        }
-
-        if (CompiledOk) _pendingCompile = judge.Latest;
-    }
-
-    /// <summary>
     /// Compiles and shows the picture, and registers nothing.
     ///
     /// <para>Separate from Compile &amp; Register on purpose. Registration puts a card in the catalog and
@@ -2561,15 +2353,52 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private void ResetSession(string? note)
     {
-        // The agent run is reset even when there is no _session yet: the two are separate halves of the
-        // same conversation, and leaving a stale spec behind is how a new brief inherits an old one.
-        _agentState = new RoutingState();
-        _agentContext = null;
-
         if (_session is null) return;
         _session = null;
         if (note is not null && Messages.Count > 0)
             Append(AuthoringMessage.System($"{note} The model won't remember what was said above."));
+    }
+
+    /// <summary>
+    /// One swarm event, as the transcript shows it.
+    ///
+    /// <para>Reported as each task STARTS as well as when it finishes, which is the opposite end from
+    /// where the committee reported and the reason it read as a hang. A run of eight tasks takes
+    /// minutes; a pane that shows nothing until a task completes tells the user what has already
+    /// happened and nothing about the silence they are sitting in.</para>
+    /// </summary>
+    private void OnSwarmEvent(SwarmEvent evt)
+    {
+        switch (evt)
+        {
+            case SwarmEvent.Planned planned:
+                Append(AuthoringMessage.Tool(
+                    planned.Origin == PlanOrigin.Planned ? "Ok" : "Info",
+                    "Plan",
+                    $"{planned.Plan.Tasks.Count} task(s) across {planned.Plan.Milestones.Count} milestone(s)"
+                    + (planned.Origin == PlanOrigin.Planned ? string.Empty : " · single-file fallback"),
+                    string.Join(
+                        Environment.NewLine,
+                        planned.Plan.Tasks.Select(t => $"{t.Kind}: {t.Title} → {t.OwnedFile}"))));
+                break;
+
+            case SwarmEvent.TaskFinished finished:
+                Append(AuthoringMessage.Tool(
+                    finished.Wrote ? "Ok" : "Info",
+                    finished.Task.Title,
+                    finished.Wrote
+                        ? $"{finished.Task.OwnedFile} · {finished.Usage.TotalTokens} tokens"
+                        : finished.Note ?? "no file"));
+                break;
+
+            case SwarmEvent.Gated gated when !gated.Report.Passed:
+                Append(AuthoringMessage.Tool(
+                    "Fail",
+                    $"Verification round {gated.Round}",
+                    $"{gated.Report.Findings.Count} problem(s) at {gated.Report.FailedAt}",
+                    string.Join(Environment.NewLine, gated.Report.Findings.Take(8).Select(f => f.ToString()))));
+                break;
+        }
     }
 
     private void SetFiles(IReadOnlyList<StrategyFile> files)

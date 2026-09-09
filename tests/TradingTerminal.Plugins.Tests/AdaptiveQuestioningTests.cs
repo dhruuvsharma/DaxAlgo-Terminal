@@ -2,7 +2,6 @@ using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
-using TradingTerminal.Infrastructure.Strategies.Authoring.Agents;
 using Xunit;
 
 namespace TradingTerminal.Plugins.Tests;
@@ -19,19 +18,23 @@ namespace TradingTerminal.Plugins.Tests;
 /// two halves are pinned together here: the model is told to keep asking while the answers still
 /// change what gets written, AND told that the user can end the interview at any point and that it
 /// must honour that immediately. <c>AuthoringActionTests</c> pins the button that sends it.</para>
+///
+/// <para><b>One place, not two.</b> This used to assert the same properties against the Interviewer
+/// agent's role prompt as well. That prompt went with the committee, and asserting against a prompt
+/// nothing composes is how a test starts guarding a file instead of a behaviour. The conventions pack
+/// is what the shipped path actually sends, so it is what is checked — and the last case drives the
+/// real composition to prove the guidance survives the trip.</para>
 /// </summary>
 public sealed class AdaptiveQuestioningTests
 {
     private static string Pack => StrategyContextPack.Load().Conventions;
 
-    private static string Interviewer => AgentPrompts.For(AgentRole.Interviewer);
-
     [Fact]
-    public void Neither_place_still_says_ask_once()
+    public void The_pack_no_longer_says_ask_once()
     {
         // The exact wording that made this a defect. Left anywhere, it contradicts the guidance beside
         // it, and a model handed two contradictory instructions follows the more specific one.
-        foreach (var (where, text) in new[] { ("the conventions pack", Pack), ("the interviewer", Interviewer) })
+        foreach (var (where, text) in new[] { ("the conventions pack", Pack) })
         {
             text.Should().NotContain("two to four", $"{where} must no longer cap the interview");
             text.Should().NotContain("do not ask twice", $"{where} must no longer forbid a second round");
@@ -40,11 +43,11 @@ public sealed class AdaptiveQuestioningTests
     }
 
     [Fact]
-    public void Both_places_give_the_same_stop_condition()
+    public void The_pack_gives_a_stop_condition()
     {
         // "As many as it needs" without a stop condition is an invitation to interview forever. The
         // condition is the useful part: ask while the answer would change what gets written.
-        foreach (var (where, text) in new[] { ("the conventions pack", Pack), ("the interviewer", Interviewer) })
+        foreach (var (where, text) in new[] { ("the conventions pack", Pack) })
         {
             text.Should().Contain(
                 "changes what", $"{where} must say what makes a question worth asking");
@@ -54,17 +57,15 @@ public sealed class AdaptiveQuestioningTests
     }
 
     [Fact]
-    public void Both_places_say_the_user_can_end_it()
+    public void The_pack_says_the_user_can_end_it()
     {
         // The other half of adaptive. A model that keeps asking after being told to build is worse
         // than one that never asked, because the user has now paid for both.
         Pack.Should().Contain("build it");
-        Interviewer.Should().Contain("build it");
 
         // And that the assumptions come back with it — "just build it" that settles the open questions
         // invisibly leaves the user holding a unit they cannot correct.
         Pack.Should().Contain("assumed");
-        Interviewer.Should().Contain("assumed");
     }
 
     [Fact]
@@ -74,7 +75,6 @@ public sealed class AdaptiveQuestioningTests
         // that ends with "here is what I will build, confirm it" is waiting on the user exactly as
         // "which instrument?" is, and gets the same block.
         Pack.Should().Contain("awaiting approval");
-        Interviewer.Should().Contain("approval");
     }
 
     [Fact]

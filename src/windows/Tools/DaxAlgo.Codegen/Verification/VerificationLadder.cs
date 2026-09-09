@@ -50,7 +50,14 @@ public enum VerificationOutcome
 /// <param name="Message">What is wrong, in the terms the author used.</param>
 /// <param name="Remedy">What to change. A diagnostic that only describes the symptom sends a model
 /// looking for the problem instead of fixing it.</param>
-public sealed record VerificationFinding(string Code, string Message, string? Remedy = null)
+/// <param name="File">Which file it is in, when that is known — the compiler knows, a draw probe
+/// usually does not.
+///
+/// <para>Carried because a swarm gives each file an owner, and a repair has to reach the builder who
+/// wrote the broken one. Without it every finding routes to whoever wrote the hostable class, who then
+/// repairs a file they did not write and cannot see.</para></param>
+public sealed record VerificationFinding(
+    string Code, string Message, string? Remedy = null, string? File = null)
 {
     public override string ToString() =>
         Remedy is null ? $"{Code}: {Message}" : $"{Code}: {Message} — {Remedy}";

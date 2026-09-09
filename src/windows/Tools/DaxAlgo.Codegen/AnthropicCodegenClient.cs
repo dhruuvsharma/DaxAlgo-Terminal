@@ -261,17 +261,22 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         var messages = request.Messages
             .Select(m => new WireMessage(
                 m.Role == CodegenRole.Assistant ? "assistant" : "user",
-                [new WireText(m.Content)]))
+                Blocks(m)))
             .ToList();
 
         if (messages.Count > 0)
         {
-            // Each message is one text block (built just above), so the breakpoint goes on that block.
+            // The breakpoint goes on the last TEXT block, which is no longer always the only block: a
+            // message can now carry pictures, and a cache_control on an image block caches the image.
             var last = messages[^1];
-            messages[^1] = last with
+            var blocks = last.Content.ToArray();
+            var textAt = Array.FindLastIndex(blocks, b => b is WireText);
+
+            if (textAt >= 0)
             {
-                Content = [last.Content[0] with { CacheControl = WireCacheControl.Ephemeral }],
-            };
+                blocks[textAt] = ((WireText)blocks[textAt]) with { CacheControl = WireCacheControl.Ephemeral };
+                messages[^1] = last with { Content = blocks };
+            }
         }
 
         // Effort + adaptive thinking are sent ONLY when the user asked for an effort level. They are
@@ -330,9 +335,44 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
 
+    /// <summary>
+    /// One message's content blocks: its pictures, then its text.
+    ///
+    /// <para>Pictures first because that is the order Anthropic's own guidance asks for, and because
+    /// the text is what refers to them ("the render above, against the three references before it") —
+    /// a caption that arrives before its picture describes nothing.</para>
+    /// </summary>
+    private static IReadOnlyList<object> Blocks(CodegenMessage message)
+    {
+        if (!message.HasImages) return [new WireText(message.Content)];
+
+        var blocks = new List<object>(message.Images!.Count + 1);
+        foreach (var image in message.Images)
+        {
+            if (image.Caption is { Length: > 0 } caption) blocks.Add(new WireText(caption));
+            blocks.Add(new WireImage(new WireImageSource(image.MediaType, Convert.ToBase64String(image.Data.Span))));
+        }
+
+        blocks.Add(new WireText(message.Content));
+        return blocks;
+    }
+
     private sealed record WireMessage(
         [property: JsonPropertyName("role")] string Role,
-        [property: JsonPropertyName("content")] IReadOnlyList<WireText> Content);
+        [property: JsonPropertyName("content")] IReadOnlyList<object> Content);
+
+    /// <summary>An image content block.</summary>
+    private sealed record WireImage([property: JsonPropertyName("source")] WireImageSource Source)
+    {
+        [JsonPropertyName("type")] public string Type => "image";
+    }
+
+    private sealed record WireImageSource(
+        [property: JsonPropertyName("media_type")] string MediaType,
+        [property: JsonPropertyName("data")] string Data)
+    {
+        [JsonPropertyName("type")] public string Type => "base64";
+    }
 
     /// <summary>A text content block, optionally a cache breakpoint.</summary>
     private sealed record WireText([property: JsonPropertyName("text")] string Text)

@@ -49,6 +49,16 @@ public static class AiModelCatalog
     }
 
     /// <summary>
+    /// Whether this provider is an installed agent CLI rather than an HTTP endpoint.
+    ///
+    /// <para>It changes what a fan-out costs. An HTTP provider answers four concurrent calls with four
+    /// responses; an agent CLI answers them by starting four processes, each staging its own copy of
+    /// the workspace. So a swarm running against one is capped at a single builder in flight.</para>
+    /// </summary>
+    public static bool IsAgentCli(string providerId) =>
+        providerId.ToLowerInvariant() is "claude-cli" or "codex-cli";
+
+    /// <summary>
     /// Whether the provider takes a reasoning-effort setting at all. Agent CLIs and the Anthropic /
     /// OpenAI-compatible APIs do; a provider that doesn't simply ignores the picker (we never send a
     /// parameter it would reject).
@@ -141,6 +151,61 @@ public static class AiModelCatalog
               + "that is known to still return an answer. Running at the model's own default instead; "
               + "the rest of Research (the full skill budget, the extra fix attempts, the review pass "
               + "and the agents) still applies.";
+
+    // ── seeing pictures ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Whether this model can be shown an image.
+    ///
+    /// <para>Per MODEL for the same reason <see cref="ResearchEffort"/> is: on a gateway fronting
+    /// several vendors the answer belongs to what is behind the endpoint, not to the endpoint. Sending
+    /// an image part to a text-only model does not degrade — the request is rejected outright, and a
+    /// rejected request reads to a user as a bad key.</para>
+    ///
+    /// <para>Conservative where nothing is known, which costs a critic that could have run rather than
+    /// a build that fails.</para>
+    /// </summary>
+    public static bool SupportsVision(string providerId, string? model)
+    {
+        var id = (model ?? string.Empty).ToLowerInvariant();
+
+        // Text-only families, whichever gateway they arrive through. Named before the provider check
+        // because a vision-capable provider can still be pointed at one of these.
+        if (id.Contains("deepseek", StringComparison.Ordinal)
+            || id.Contains("glm-5.3", StringComparison.Ordinal)
+            || id.Contains("qwen2.5-coder", StringComparison.Ordinal)
+            || id.Contains("codestral", StringComparison.Ordinal))
+            return false;
+
+        return providerId.ToLowerInvariant() switch
+        {
+            // Every current model in these families reads images.
+            "anthropic" or "claude-cli" or "openai" or "xai" => true,
+
+            // A gateway. Vision depends entirely on the model chosen, and the shortlist above has
+            // removed the ones known not to — so the remainder is a judgement call, made in the
+            // direction that fails a critic rather than a build.
+            "openrouter" => id.Length > 0,
+
+            // Local and multi-vendor endpoints: no. Ollama serves whatever was pulled, NVIDIA NIM and
+            // OpenCode Zen front several vendors, and the Codex CLI has no image channel we drive.
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// The sentence to show when a picture cannot be shown to the model that is selected, or null when
+    /// it can.
+    ///
+    /// <para>Said out loud for the same reason the research fallback is: a critic that silently stops
+    /// looking at the picture is a critic the user believes is looking at the picture.</para>
+    /// </summary>
+    public static string? VisionUnavailable(string providerId, string? model) =>
+        SupportsVision(providerId, model)
+            ? null
+            : $"{model ?? providerId} cannot be shown images, so the picture is judged from the "
+              + "drawing commands the unit emitted rather than from the render itself. Everything else "
+              + "about the review still applies.";
 
     /// <summary>
     /// Per-model ceilings that have actually been measured, which override the provider's.

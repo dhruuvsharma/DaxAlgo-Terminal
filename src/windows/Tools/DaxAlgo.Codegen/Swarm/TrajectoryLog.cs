@@ -4,15 +4,17 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 
-namespace TradingTerminal.Infrastructure.Strategies.Authoring.Agents;
+namespace TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 
 /// <summary>
 /// One turn, as recorded. Numbers and identifiers only.
 /// </summary>
 /// <param name="At">When, in UTC.</param>
-/// <param name="Role">Who took the turn.</param>
-/// <param name="Weights">The posterior the router used, keyed by role name.</param>
+/// <param name="Role">Who took the turn — a planner, a builder's task kind, or a critic's id.</param>
+/// <param name="TaskId">Which task of the plan it belonged to, or null for a turn that belongs to the
+/// run rather than to a task (the plan itself, a critic pass over the whole unit).</param>
 /// <param name="Reward">What the ladder gave it.</param>
 /// <param name="RungsCleared">How many rungs actually passed — the denominator behind the reward.</param>
 /// <param name="FailedAt">The rung that stopped it, or null.</param>
@@ -24,7 +26,7 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring.Agents;
 public sealed record TrajectoryEntry(
     DateTime At,
     string Role,
-    IReadOnlyDictionary<string, double> Weights,
+    string? TaskId,
     double Reward,
     int RungsCleared,
     string? FailedAt,
@@ -35,13 +37,11 @@ public sealed record TrajectoryEntry(
     int Files);
 
 /// <summary>
-/// A JSONL record of what the agents did and what it cost.
+/// A JSONL record of what the swarm did and what it cost.
 ///
-/// <para>Two jobs, and the second is the one that pays for it today. It is the trajectory store the
-/// paper's skill distillation would eventually need — designed now so that stays possible, built now
-/// because <b>you cannot minimise what you do not measure</b>. Per-turn token counts are the only way to
-/// find out whether the six-agent split is cheaper than one long conversation, or which agent is
-/// quietly burning the budget.</para>
+/// <para><b>You cannot minimise what you do not measure.</b> Per-turn token counts are the only way to
+/// find out whether a planned swarm is cheaper or better than one long conversation, or which task is
+/// quietly burning the budget — and that question is the whole justification for the swarm existing.</para>
 ///
 /// <para><b>It records numbers and codes, never text.</b> Not the brief, not the reply, not the code.
 /// Two reasons, and either alone would be enough: a user's strategy is their intellectual property and
@@ -68,27 +68,37 @@ public sealed class TrajectoryLog(string path, int maxEntries = 2000)
         : path;
 
     /// <summary>Appends one turn, trimming the oldest when the file is full.</summary>
+    /// <param name="role">Who took it. A free string rather than an enum: the roles the swarm runs are
+    /// named by its plan, and a log that could only record the roles this build knows about would stop
+    /// recording the moment a new critic was added.</param>
+    /// <param name="taskId">The plan task this turn belonged to, or null.</param>
+    /// <param name="report">The verdict the turn earned.</param>
+    /// <param name="files">How many files it produced.</param>
+    /// <param name="usage">What the provider billed, or null when it reports none.</param>
+    /// <param name="at">Overrides the clock, for tests.</param>
     public void Append(
-        AgentTurn turn,
-        Verification.VerificationReport report,
+        string role,
+        string? taskId,
+        VerificationReport report,
         CodegenUsage? usage,
+        int files = 0,
         DateTime? at = null)
     {
-        ArgumentNullException.ThrowIfNull(turn);
+        ArgumentException.ThrowIfNullOrWhiteSpace(role);
         ArgumentNullException.ThrowIfNull(report);
 
         var entry = new TrajectoryEntry(
             at ?? DateTime.UtcNow,
-            turn.Role.ToString(),
-            turn.Weights.ToDictionary(pair => pair.Key.ToString(), pair => Math.Round(pair.Value, 4)),
-            Math.Round(turn.Reward, 4),
+            role,
+            taskId,
+            Math.Round(LadderScore.RewardFor(report), 4),
             report.RungsCleared,
             report.FailedAt?.ToString(),
             [.. report.Findings.Select(f => f.Code)],
             usage?.InputTokens ?? 0,
             usage?.CachedInputTokens ?? 0,
             usage?.OutputTokens ?? 0,
-            turn.Files.Count);
+            files);
 
         lock (_gate)
         {

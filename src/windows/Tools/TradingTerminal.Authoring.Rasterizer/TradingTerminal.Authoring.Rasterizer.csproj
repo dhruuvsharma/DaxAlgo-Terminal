@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Turns a compiled unit into a picture, off-screen, so a critic can look at what the user would
+       see rather than at the code that would have produced it.
+
+       A PROJECT OF ITS OWN, and the reason is a boundary rather than tidiness. Rasterising needs WPF;
+       DaxAlgo.Codegen is deliberately WPF-free so the `daxalgo strategy` CLI can reuse the codegen
+       without dragging a UI framework into a global tool. Putting the implementation in
+       TradingTerminal.UI instead would work, but UI is consumed by Login, Charts, OrderBook and
+       ExecutionUi, and none of them should acquire the codegen HTTP stack to get a control library. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Description>Off-screen rendering of authored units, for the verification critics.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The seam being implemented. -->
+    <ProjectReference Include="..\DaxAlgo.Codegen\DaxAlgo.Codegen.csproj" />
+    <!-- AuthoredUnitLayoutHost: the SAME control the pane's preview and the real window use, so what a
+         critic judges and what the user sees cannot disagree. A second renderer built for verification
+         would eventually pass units the host draws differently. -->
+    <ProjectReference Include="..\..\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TradingTerminal.UI.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 
@@ -341,50 +342,169 @@ public sealed class StrategyBuildSession
     /// that is actually in the editor rather than the version it last wrote.</summary>
     public void SyncEditedFiles(IReadOnlyList<StrategyFile> files) => Files = files;
 
+    /// <summary>
+    /// One user turn, built by the <b>swarm</b> instead of by one conversation: a planner decomposes the
+    /// brief against a contract, builders fan out one file each, and the gate decides what needs
+    /// repairing.
+    ///
+    /// <para>It returns the same <see cref="StrategyBuildTurn"/> the conversation returns, which is
+    /// deliberate and is most of why this method is here rather than in the view-model. Everything a
+    /// pane does with a turn — the diff, the diagnostics, the compile card, the preview, the usage
+    /// counter — is written once, against one shape. The committee this replaces had its own parallel
+    /// version of all of it in the view-model, and every one of them was subtly behind: it never called
+    /// SetFiles, so the Code tab stayed empty while the ladder passed; it never parsed the questions
+    /// block it had asked for; it never emitted the activity strings the status bar reads.</para>
+    ///
+    /// <para>The session still owns the thread, the composed pack and the running usage total, so a
+    /// swarm turn and a conversation turn leave the session in the same state and a saved chat reopens
+    /// either way.</para>
+    /// </summary>
+    /// <param name="userMessage">What the user typed.</param>
+    /// <param name="runner">The swarm, already bound to this session's provider and a gate.</param>
+    /// <param name="budget">The limits this turn runs under.</param>
+    /// <param name="mayAsk">False once the user has said to build it, so the escape is an instruction
+    /// rather than a suggestion a model can keep declining.</param>
+    /// <param name="activity">The status bar's live line.</param>
+    /// <param name="swarm">Per-task progress, for the task board.</param>
+    /// <param name="events">The model's own output — text, thinking and token movement — so a swarm
+    /// turn streams into the transcript exactly as a conversation turn does.</param>
+    public async Task<StrategyBuildTurn> SendToSwarmAsync(
+        string userMessage,
+        SwarmRunner runner,
+        SwarmBudget budget,
+        bool mayAsk = true,
+        IProgress<string>? activity = null,
+        IProgress<SwarmEvent>? swarm = null,
+        IProgress<CodegenEvent>? events = null,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userMessage);
+        ArgumentNullException.ThrowIfNull(runner);
+        ArgumentNullException.ThrowIfNull(budget);
+
+        // First turn: pick the domain packs this brief needs. Once only — the system prompt is the
+        // cached prefix of every call the swarm makes, and re-picking would invalidate it each time.
+        if (_messages.Count == 0 && ResolveSkills(userMessage) is { Count: > 0 } loaded)
+            activity?.Report($"Loaded reference: {string.Join(", ", loaded.Select(s => s.Name))}.");
+
+        _messages.Add(new CodegenMessage(CodegenRole.User, userMessage));
+        activity?.Report($"Planning with {Provider.DisplayName}…");
+
+        var run = await runner.RunAsync(
+            new SwarmRequest(
+                userMessage, SystemContext, Kind, budget, Files,
+                MayAsk: mayAsk,
+
+                // The planner gets the whole thread, because an answer arrives as "approved, now start
+                // building" and means nothing without the brief it approves. Builders get their task
+                // and their dependencies, and never the history.
+                Thread: WireMessages()),
+            new Progress<SwarmEvent>(evt =>
+            {
+                activity?.Report(Describe(evt));
+                swarm?.Report(evt);
+            }),
+            events,
+            ct).ConfigureAwait(false);
+
+        TotalUsage = TotalUsage.Add(run.Usage);
+        if (run.Files.Count > 0) Files = run.Files;
+
+        // A question is shown in the model's own words. Wrapping it in a plan summary would bury the
+        // thing the user has to answer under a description of work that has not happened.
+        var text = run.Outcome == SwarmOutcome.AwaitingUser ? run.Summary : Narrate(run);
+
+        _messages.Add(new CodegenMessage(CodegenRole.Assistant, text));
+
+        var kind = run.Outcome switch
+        {
+            SwarmOutcome.ProviderFailed => BuildTurnKind.ProviderError,
+
+            // The model asked. Its own words are the turn, and the pane's question handling — the
+            // option chips, the escape button, the composer — is reached by exactly the same path a
+            // conversation reaches it by.
+            SwarmOutcome.AwaitingUser => BuildTurnKind.Question,
+
+            // By what was actually produced rather than by how the run ended. A unit that compiles but
+            // draws nothing is not a compile failure, and calling it one sends the user to the
+            // diagnostics list to look for an error that is not there.
+            _ => run.Compile?.Success == true ? BuildTurnKind.Compiled : BuildTurnKind.CompileFailed,
+        };
+
+        return new StrategyBuildTurn(
+            kind, text, run.Files, run.Compile, run.Error, run.Plan.Tasks.Count + 1, run.Usage);
+    }
+
+    /// <summary>The status bar's line for one swarm event — the live signal that a multi-minute run is
+    /// working rather than hung.</summary>
+    private static string Describe(SwarmEvent evt) => evt switch
+    {
+        SwarmEvent.Planning => "Working out what to build…",
+        SwarmEvent.Planned planned => $"Plan: {planned.Plan.Tasks.Count} task(s).",
+        SwarmEvent.MilestoneStarted started => started.Milestone.Title,
+        SwarmEvent.TaskStarted started => started.Task.Title,
+        SwarmEvent.TaskFinished finished => $"{finished.Task.Title} — {(finished.Wrote ? "written" : "nothing")}",
+        SwarmEvent.Gated gated => gated.Report.Passed
+            ? "Verified."
+            : $"Fixing {gated.Report.Findings.Count} problem(s)…",
+        SwarmEvent.Finished finished => finished.Summary,
+        _ => "Working…",
+    };
+
+    /// <summary>
+    /// What the transcript shows for a swarm turn.
+    ///
+    /// <para>Prose, not the planner's JSON. The JSON is plumbing — a user reading their own chat should
+    /// see what is being built and what was assumed, and the assumptions are the part that matters:
+    /// the planner is told to decide rather than to interrogate, so the only way a wrong assumption
+    /// gets corrected is if the user is told it was made.</para>
+    /// </summary>
+    private static string Narrate(SwarmRun run)
+    {
+        var text = new System.Text.StringBuilder();
+
+        // WHATEVER THE PLANNER SAID, THE USER GETS TO READ IT. When a plan came back this is JSON and
+        // is plumbing, so it is not shown; when one did not, this is the only thing the model actually
+        // said this turn, and replacing it with a description of work it never agreed to is how a
+        // builder starts looking like it ignores you.
+        if (run.PlannerNote is { Length: > 0 } said)
+            text.AppendLine(said.Trim()).AppendLine();
+
+        if (run.Origin == PlanOrigin.Unparsed)
+            text.AppendLine("Building this as a single file — the plan did not come back in a usable shape.")
+                .AppendLine();
+
+        foreach (var milestone in run.Plan.Milestones)
+        {
+            text.AppendLine($"**{milestone.Title}**");
+            foreach (var task in milestone.Tasks)
+                text.AppendLine($"- {task.Title} — `{task.OwnedFile}`");
+            text.AppendLine();
+        }
+
+        if (run.Plan.OpenQuestions.Count > 0)
+        {
+            text.AppendLine("**I assumed, rather than asking:**");
+            foreach (var question in run.Plan.OpenQuestions) text.AppendLine($"- {question}");
+            text.AppendLine();
+            text.AppendLine("Say so if any of those are wrong and I will rebuild around it.");
+            text.AppendLine();
+        }
+
+        text.AppendLine(run.Summary);
+        return text.ToString().TrimEnd();
+    }
+
     /// <summary>One generation against the current thread: streams deltas/usage to
     /// <paramref name="events"/>, banks the reported tokens into <see cref="TotalUsage"/>, and returns
     /// the assembled response — shared by the main loop and the self-review pass.</summary>
     private async Task<(StrategyCodegenResponse Response, CodegenUsage Reported)> GenerateOnceAsync(
         IProgress<CodegenEvent>? events, CancellationToken ct)
     {
-        StrategyCodegenResponse? response = null;
-        var generationUsage = CodegenUsage.None;
+        var (response, reported) = await CodegenStream
+            .DrainAsync(Provider, new StrategyCodegenRequest(SystemContext, WireMessages()), events, ct)
+            .ConfigureAwait(false);
 
-        await foreach (var evt in Provider
-            .StreamAsync(new StrategyCodegenRequest(SystemContext, WireMessages()), ct)
-            .ConfigureAwait(false))
-        {
-            switch (evt)
-            {
-                case CodegenEvent.TextDelta:
-                    events?.Report(evt);
-                    break;
-
-                // Forwarded — and this switch is precisely why that has to be written down. It
-                // enumerates the event types it passes on, so a NEW one is dropped in silence rather
-                // than failing anywhere a compiler or a test would notice. That is what happened to the
-                // model's thinking: the client emitted it, the workspace had a panel waiting for it,
-                // and this case did not exist, so a reasoning model still showed the user nothing at
-                // all for minutes at a time.
-                case CodegenEvent.ReasoningDelta:
-                    events?.Report(evt);
-                    break;
-
-                case CodegenEvent.UsageUpdate update:
-                    // Absolute for THIS generation — replace it, then re-derive the running totals, so
-                    // an auto-fix retry doesn't double-count the generations before it.
-                    generationUsage = update.Usage;
-                    events?.Report(evt);
-                    break;
-
-                case CodegenEvent.Completed completed:
-                    response = completed.Response;
-                    break;
-            }
-        }
-
-        response ??= StrategyCodegenResponse.Fail($"{Provider.DisplayName} returned nothing.");
-        var reported = response.Usage ?? generationUsage;
         TotalUsage = TotalUsage.Add(reported);
         return (response, reported);
     }

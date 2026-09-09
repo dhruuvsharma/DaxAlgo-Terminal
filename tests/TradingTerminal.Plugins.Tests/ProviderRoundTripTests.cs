@@ -144,6 +144,88 @@ public sealed class ProviderRoundTripTests
         server.LastAuthorization.Should().Be("Bearer sk-loopback");
     }
 
+    // ── pictures on the wire ────────────────────────────────────────────────────────────────────
+
+    /// <summary>A one-pixel PNG. Small enough to read in a failure message, real enough to base64.</summary>
+    private static CodegenImage Pixel(string caption = "the unit as it renders") => new(
+        "image/png",
+        Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="),
+        caption);
+
+    [Fact]
+    public async Task An_image_reaches_an_OpenAI_compatible_provider_as_a_content_part()
+    {
+        // The shape these endpoints actually take: content becomes an ARRAY, and the picture rides in
+        // it as a data: URI. Asserted on the body the server received, which is the only place the
+        // claim is true or false.
+        using var server = FakeProvider.Start(streaming: false);
+
+        var client = new OpenAiCompatibleCodegenClient(
+            new HttpClient(), "loopback", "Loopback", server.BaseUrl, "test-model", "sk-loopback");
+
+        await client.GenerateAsync(new StrategyCodegenRequest(
+            "PACK", [new(CodegenRole.User, "judge this", [Pixel()])]));
+
+        var body = server.LastBody!;
+        body.Should().Contain("image_url").And.Contain("data:image/png;base64,");
+        body.Should().Contain("the unit as it renders", "a critic given two images must know which is which");
+        body.Should().Contain("judge this");
+    }
+
+    [Fact]
+    public async Task A_text_turn_still_sends_content_as_a_plain_string()
+    {
+        // NOT tidiness. Several endpoints calling themselves OpenAI-compatible implement only the
+        // string form, so always sending the array would break every text conversation to buy a
+        // feature that turn is not using.
+        using var server = FakeProvider.Start(streaming: false);
+
+        var client = new OpenAiCompatibleCodegenClient(
+            new HttpClient(), "loopback", "Loopback", server.BaseUrl, "test-model", "sk-loopback");
+
+        await client.GenerateAsync(new StrategyCodegenRequest("PACK", [new(CodegenRole.User, "hello")]));
+
+        server.LastBody.Should().Contain("\"content\":\"hello\"").And.NotContain("image_url");
+    }
+
+    [Fact]
+    public async Task An_image_reaches_Anthropic_as_a_base64_source_block()
+    {
+        using var server = FakeProvider.Start(streaming: false);
+
+        var client = new AnthropicCodegenClient(
+            new HttpClient(), server.BaseUrl, "test-model", "sk-ant-loopback");
+
+        await client.GenerateAsync(new StrategyCodegenRequest(
+            "PACK", [new(CodegenRole.User, "judge this", [Pixel()])]));
+
+        var body = server.LastBody!;
+        body.Should().Contain("\"type\":\"image\"").And.Contain("\"media_type\":\"image/png\"");
+        body.Should().Contain("\"type\":\"base64\"");
+    }
+
+    [Fact]
+    public async Task The_cache_breakpoint_still_lands_on_text_when_a_message_carries_pictures()
+    {
+        // A cache_control on an image block caches the IMAGE. The breakpoint exists to cache the
+        // prompt prefix, and a run whose cached share quietly falls to zero costs money and shows up
+        // nowhere else.
+        using var server = FakeProvider.Start(streaming: false);
+
+        var client = new AnthropicCodegenClient(
+            new HttpClient(), server.BaseUrl, "test-model", "sk-ant-loopback");
+
+        await client.GenerateAsync(new StrategyCodegenRequest(
+            "PACK", [new(CodegenRole.User, "judge this", [Pixel()])]));
+
+        var body = server.LastBody!;
+        var cacheAt = body.LastIndexOf("cache_control", StringComparison.Ordinal);
+        var imageAt = body.LastIndexOf("\"type\":\"image\"", StringComparison.Ordinal);
+
+        cacheAt.Should().BeGreaterThan(imageAt, "the breakpoint belongs on the text block after the picture");
+    }
+
     [Fact]
     public async Task A_provider_error_is_reported_rather_than_thrown()
     {
