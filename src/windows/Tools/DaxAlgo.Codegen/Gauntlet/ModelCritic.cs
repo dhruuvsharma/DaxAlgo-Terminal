@@ -40,6 +40,17 @@ public sealed class ModelCritic(
         ArgumentNullException.ThrowIfNull(subject);
         ArgumentNullException.ThrowIfNull(bar);
 
+        // THE UNIT THAT WAS WRITTEN DECIDES, NOT THE PANE THAT ASKED FOR IT. The panel is built from
+        // the kind the user selected, and a model that was asked for a strategy can return a
+        // visualizer — the compiler resolves whichever it actually is. Left unchecked, the book critic
+        // would review a visualizer and report its missing exits on every round, forever.
+        //
+        // The same rule the verifier already follows: taken from the resolved type rather than from
+        // the brief, because what the author actually wrote is the only reliable answer.
+        if (definition.AppliesTo is { } only && only != subject.Kind)
+            return CriticVerdict.Skipped(
+                Id, Panel, $"Not applicable to a {subject.Kind.ToString().ToLowerInvariant()}.");
+
         // A picture critic without a picture is not a degraded picture critic — it is a different
         // critic, judging different evidence, and one of the other five already reads the commands.
         // Saying so beats running it and reporting whatever it makes of a text dump.

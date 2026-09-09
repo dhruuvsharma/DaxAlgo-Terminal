@@ -324,6 +324,31 @@ public sealed class GauntletTests
     }
 
     [Fact]
+    public async Task ACriticSkipsAUnitOfTheWrongKindWhateverPanelItWasPutIn()
+    {
+        // The panel is built from the kind the PANE asked for; the unit is whatever the model actually
+        // wrote, and the compiler resolves that. Asked for a strategy, a model can return a visualizer
+        // — and left unchecked the book critic would report its missing exits on every round, forever.
+        var client = new Fake(
+            Json("""{ "verdict": "no exits", "findings": [{ "code": "no-exit", "problem": "never closes" }] }"""),
+            "book",
+            CriticPanel.Quant);
+
+        var critic = new ModelCritic(
+            client,
+            new CriticDefinition("book", CriticPanel.Quant, false, AuthoringKind.Strategy, "review the book"),
+            "PACK",
+            canSeeImages: false);
+
+        var visualizer = Subject() with { Kind = AuthoringKind.Visualizer };
+        var verdict = await critic.JudgeAsync(visualizer, ReferenceBar.None);
+
+        verdict.Ran.Should().BeFalse();
+        verdict.Findings.Should().BeEmpty();
+        client.Seen.Should().BeEmpty("it must not have been paid for either");
+    }
+
+    [Fact]
     public void EveryCriticGetsTheSameOutputContract()
     {
         // Their findings all flow into one repair path, so they must all report the same way.

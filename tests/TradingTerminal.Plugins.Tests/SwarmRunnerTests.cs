@@ -614,6 +614,124 @@ public sealed class SwarmRunnerTests
         run.Usage.TotalTokens.Should().BeGreaterThan(0, "three calls were billed");
     }
 
+    /// <summary>A visualizer split the way a planner would split one: the smoother, then the picture.</summary>
+    private const string TwoTaskVisualizerPlan = """
+        {
+          "contract": {
+            "typeName": "MidViz",
+            "dataRequirement": "L1",
+            "helpers": [{ "typeName": "Smoother", "purpose": "smooths", "signature": "public double Push(double v)" }]
+          },
+          "milestones": [
+            { "id": "m1", "title": "Maths", "tasks": [
+              { "id": "t1", "title": "Smoother", "kind": "Maths", "ownedFile": "Smoother.cs",
+                "intent": "an EMA", "dependsOn": [] }]},
+            { "id": "m2", "title": "The picture", "tasks": [
+              { "id": "t2", "title": "Mid chart", "kind": "Panel", "ownedFile": "Unit.cs",
+                "intent": "the visualizer", "dependsOn": ["t1"] }]}
+          ]
+        }
+        """;
+
+    private const string VisualizerSource = """
+
+        public sealed class MidViz : IVisualizer
+        {
+            private readonly Smoother _smoother = new();
+            private readonly System.Collections.Generic.List<double> _mids = new(64);
+            private int _period;
+
+            public StrategyParameterSchema Schema { get; } = new(
+                StrategyParameter.Int("period", "Period", 10, min: 2, max: 200));
+
+            public StrategyDataRequirement DataRequirement => StrategyDataRequirement.L1;
+
+            public Task OnStartAsync(IVisualizerContext c, CancellationToken ct)
+            {
+                _period = c.Parameters.GetInt("period");
+                _mids.Clear();
+                return Task.CompletedTask;
+            }
+
+            public Task OnQuoteAsync(Quote quote, IVisualizerContext c, CancellationToken ct)
+            {
+                var mid = (quote.Bid + quote.Ask) / 2d;
+                if (mid <= 0d) return Task.CompletedTask;
+                if (_mids.Count == 64) _mids.RemoveAt(0);
+                _mids.Add(_smoother.Push(mid));
+                return Task.CompletedTask;
+            }
+
+            public void Draw(IRenderSurface surface)
+            {
+                using var panel = surface.Panel("Mid", RenderPanelKind.Chart);
+                if (_mids.Count == 0)
+                {
+                    surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary)));
+                    surface.Text(8d, 20d, "Waiting for quotes…");
+                    return;
+                }
+
+                var range = PlotRange.Empty;
+                for (var i = 0; i < _mids.Count; i++) range = range.Include(_mids[i]);
+                Plot.HorizontalGrid(surface, range.Padded());
+                surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Accent)));
+                using var series = surface.Series("Mid", RenderSeriesKind.Line);
+                for (var i = 0; i < _mids.Count; i++) surface.Push(i, _mids[i]);
+            }
+        }
+        """;
+
+    [Fact]
+    public async Task ASwarmDeliversAVisualizerTheSameWayItDeliversAStrategy()
+    {
+        // THE OTHER HALF OF THE CONTRACT. Everything the swarm does is kind-aware — the planner is told
+        // which interface to target, the contract renders it, the gate drives the right verifier, and
+        // the critic panel drops the book critic — and a strategy-only capstone proves none of it.
+        //
+        // A visualizer is also the STRICTER case: it owes a picture. One that paints nothing fails the
+        // draw probe, where a strategy drawing nothing is a legitimate choice.
+        var client = new Scripted((role, _) =>
+        {
+            if (Planner(role)) return Json(TwoTaskVisualizerPlan);
+
+            return role.Contains("YOUR FILE: Smoother.cs", StringComparison.Ordinal)
+                ? File("Smoother.cs", Ambient + SmootherSource)
+                : File("Unit.cs", Ambient + VisualizerSource);
+        });
+
+        var run = await Runner(client).RunAsync(Request(kind: AuthoringKind.Visualizer));
+
+        run.Outcome.Should().Be(SwarmOutcome.Delivered,
+            run.Report is null ? run.Summary : string.Join("; ", run.Report.Findings.Select(f => f.ToString())));
+        run.Compile!.Unit!.Kind.Should().Be(AuthoringKind.Visualizer);
+        run.Compile.Unit.Type.Name.Should().Be("MidViz");
+    }
+
+    [Fact]
+    public void ThePlannerIsToldWhichInterfaceToTarget()
+    {
+        // The contract-first fan-out only works if every builder agrees on the hostable type, and the
+        // interface is the first thing they have to agree on.
+        SwarmPrompts.Planner(AuthoringKind.Visualizer, 8).Should().Contain("IVisualizer");
+        SwarmPrompts.Planner(AuthoringKind.Strategy, 8).Should().Contain("IStrategyKernel");
+
+        SwarmPrompts.Contract(UnitContract.Minimal("U", AuthoringKind.Visualizer)).Should().Contain("IVisualizer");
+        SwarmPrompts.Contract(UnitContract.Minimal("U", AuthoringKind.Strategy)).Should().Contain("IStrategyKernel");
+    }
+
+    [Fact]
+    public void TheFallbackPlanKeepsTheKindItWasAskedFor()
+    {
+        // The path a mumbling planner takes. Losing the kind here would have every unparsed visualizer
+        // brief silently built as a strategy.
+        BuildPlan.Single("draw the book", AuthoringKind.Visualizer).Contract.Kind
+            .Should().Be(AuthoringKind.Visualizer);
+
+        BuildPlanReader.Read(Json(TwoTaskVisualizerPlan), AuthoringKind.Visualizer)!.Contract.Kind
+            .Should().Be(AuthoringKind.Visualizer);
+    }
+
     // ── the gauntlet, behind the ladder ─────────────────────────────────────────────────────────
 
     /// <summary>A critic that says whatever the test needs, without a provider.</summary>
