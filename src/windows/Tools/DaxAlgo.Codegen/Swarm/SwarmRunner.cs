@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
@@ -194,6 +194,12 @@ public sealed class SwarmRunner(
                     "No builder produced a file. Nothing was compiled.");
 
             verdict = _gate.Run(context.Files);
+
+            // A file nobody owns cannot be repaired by anybody, so if it is what broke the build, take
+            // it out — but only on the compiler's word. See ShedDeadWeight.
+            if (!verdict.Passed && ShedDeadWeight(plan, context, verdict, progress) is { } lighter)
+                verdict = lighter;
+
             progress?.Report(new SwarmEvent.Gated(verdict.Report, round));
             Record("Gate", null, CodegenUsage.None, verdict.Report);
 
@@ -481,6 +487,64 @@ public sealed class SwarmRunner(
 
         Record(task.Kind.ToString(), task.Id, reported, files: files.Length);
         return new TaskResult(files, reported, null);
+    }
+
+    // ── a file nobody owns, that nobody can fix ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Drops carried-in files that no task owns when they are what is failing, and only when the
+    /// compiler agrees the unit is better without them.
+    ///
+    /// <para><b>This is the hole a real session fell into.</b> The pane opened on a starter that did not
+    /// compile, handed it to the run as an existing file, and no task owned it. Every repair round
+    /// concluded the same thing — "omit Strategy.cs, the other four files are correct" — and every round
+    /// was structurally incapable of doing it: repairs are routed by owner, an orphan has none, and the
+    /// fixer that got the findings anyway is told in its own prompt not to touch files that are not its.
+    /// Three rounds, the full budget, and four perfectly good files thrown away with the scaffold.</para>
+    ///
+    /// <para><b>The compiler decides, not a model.</b> Removing a file is the only destructive act in
+    /// this pipeline, so it happens on evidence: the reduced set is compiled, and it is kept only if it
+    /// climbs strictly higher than the set that included the file. A file carrying the only hostable
+    /// class takes the unit down with it and is therefore kept — which is the case that makes "just drop
+    /// what fails" the wrong rule and this the right one.</para>
+    /// </summary>
+    private GateResult? ShedDeadWeight(
+        BuildPlan plan, SwarmContext context, GateResult verdict, IProgress<SwarmEvent>? progress)
+    {
+        var orphans = context.Orphans(plan);
+        if (orphans.Count == 0) return null;
+
+        var blamed = verdict.Report.Findings
+            .Select(f => f.File)
+            .Where(f => f is { Length: > 0 })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var dead = orphans.Where(f => blamed.Contains(f.Name)).Select(f => f.Name).ToArray();
+        if (dead.Length == 0) return null;
+
+        var reduced = context.Files
+            .Where(f => !dead.Contains(f.Name, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (reduced.Length == 0) return null;
+
+        // RUNGS, not findings. Findings always fall when a failing file is deleted — that is what
+        // deleting a failing file does — so scoring on them would license dropping anything that
+        // happened to be broken. Clearing a rung that was not cleared before is the only evidence that
+        // the file was in the way rather than merely unfinished, and it is the claim the notice makes.
+        var retry = _gate.Run(reduced);
+        if (retry.Compile?.Success != true) return null;
+        if (retry.Report.RungsCleared <= verdict.Report.RungsCleared) return null;
+
+        foreach (var name in dead) context.Remove(name);
+
+        progress?.Report(new SwarmEvent.Dropped(
+            dead,
+            $"{(dead.Length == 1 ? "It was" : "They were")} already in the editor, no task in this plan "
+            + "wrote or owns it, and the unit compiles without it."));
+
+        Record("Shed", null, CodegenUsage.None, retry.Report);
+        return retry;
     }
 
     // ── routing a repair to whoever owns the broken file ────────────────────────────────────────

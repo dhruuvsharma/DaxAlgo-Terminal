@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 
@@ -39,6 +39,29 @@ public sealed class SwarmContext
 
     /// <summary>The current content of one file, or null.</summary>
     public StrategyFile? File(string name) => _files.GetValueOrDefault(name);
+
+    /// <summary>
+    /// Files in the build that no task in this plan owns.
+    ///
+    /// <para>They can only have arrived one way: they were already in the editor when the run started.
+    /// That makes them the one category of file this pipeline cannot repair — <see cref="Accept"/>
+    /// writes only through a task's owned name, and a repair is routed by owner, so a finding against
+    /// an orphan is a finding addressed to nobody. A real session spent three rounds on exactly that:
+    /// every round concluded "omit Strategy.cs", and not one of them was able to.</para>
+    /// </summary>
+    public IReadOnlyList<StrategyFile> Orphans(BuildPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        // A one-task fallback owns everything there is, so nothing is ever orphaned under one.
+        if (plan.Tasks.Any(t => t.OwnsAllFiles)) return [];
+
+        var owned = new HashSet<string>(plan.Tasks.Select(t => t.OwnedFile), StringComparer.OrdinalIgnoreCase);
+        return [.. _files.Values.Where(f => !owned.Contains(f.Name))];
+    }
+
+    /// <summary>Takes a file out of the build. Returns false when it was not in it.</summary>
+    public bool Remove(string name) => _files.Remove(name);
 
     /// <summary>
     /// Records what a task produced, <b>keeping only the file that task owns</b>.

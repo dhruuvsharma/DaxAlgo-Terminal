@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -859,6 +859,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // Same rule as the effort dials: the kind is baked into the cached system prompt, so a new choice
         // needs a new session rather than a prompt that contradicts the thread above it.
         ResetSession(value == AuthoringKind.Visualizer ? "Switched to a visualizer." : "Switched to a strategy.");
+
+        // And the scaffold follows the switch — but ONLY while it is still the scaffold. Leaving a
+        // strategy starter in the editor under a visualizer brief teaches the wrong contract and hands
+        // the compiler a second hostable class the moment the real one is written. Anything the user has
+        // touched is theirs and is never replaced.
+        if (FilesAreUntouchedTemplate)
+        {
+            SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
+            _filesEditedByUser = false;
+        }
+
         Persist();
     }
 
@@ -1645,7 +1656,16 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
             // The editor is the truth: hand-edits and all. The session ships exactly one copy of it
             // with the turn, so the model always works from the code that is actually there.
-            session.SyncEditedFiles([.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
+            //
+            // EXCEPT AN UNTOUCHED STARTER, which is not work — it is a placeholder the pane put there.
+            // Shipping it made the swarm treat it as an existing file: no task owned it, so no builder
+            // could change it and nothing could remove it, and the gate compiled it alongside the real
+            // unit for ever. A real session ended with four correct generated files, two compile errors
+            // both inside the scaffold, and three repair rounds that each said "omit Strategy.cs" —
+            // advice the harness had no way to take, because a task can only WRITE its own file.
+            session.SyncEditedFiles(FilesAreUntouchedTemplate
+                ? []
+                : [.. Files.Select(f => new StrategyFile(f.Name, f.Content))]);
             _filesEditedByUser = false;
 
             // The standard the critics judge against, assembled before the build so the planner's
@@ -2865,6 +2885,22 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                         : finished.Note ?? "no file"));
                 break;
 
+            // A file the run took out of the build has to leave the editor too, or the next turn
+            // syncs it straight back in as an edited file and the run sheds it again.
+            case SwarmEvent.Dropped dropped:
+                Append(AuthoringMessage.Tool(
+                    "Info",
+                    "Taken out of the build",
+                    string.Join(", ", dropped.Files),
+                    dropped.Why + Environment.NewLine
+                    + "Nothing else changed. Paste it back if you want it — it will be built with the rest."));
+
+                SetFiles([.. Files
+                    .Where(f => !dropped.Files.Contains(f.Name, StringComparer.OrdinalIgnoreCase))
+                    .Select(f => new StrategyFile(f.Name, f.Content))]);
+                _filesEditedByUser = false;
+                break;
+
             case SwarmEvent.Reviewed reviewed:
                 Append(AuthoringMessage.Tool(
                     reviewed.Result.Findings.Count == 0 ? "Ok" : "Info",
@@ -3134,56 +3170,160 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     /// <summary>Starter strategy shown in the editor — a complete, compiling skeleton with a
     /// declarative parameter schema so the auto-editor lights up on first compile.</summary>
-    private const string TemplateSource = """
-        // Authored strategy. The following namespaces are imported for you:
+    /// <summary>
+    /// The starter the Code tab opens on, for the kind being authored.
+    ///
+    /// <para><b>It has to COMPILE.</b> The one it replaced targeted <c>IOrderRoutedStrategy</c> — the
+    /// retired contract, which lives in <c>TradingTerminal.Core.Strategies.Legacy</c> and is not among
+    /// the global usings the authoring compiler injects. So it did not resolve: every new session opened
+    /// on code that could not build, hand-authoring from it failed immediately, and every AI build
+    /// carried it into the compile set and failed there too. Found from a real session whose four
+    /// generated files were fine and whose only two errors were both in this file.</para>
+    /// </summary>
+    private string TemplateSource =>
+        AuthoringKind == AuthoringKind.Visualizer ? VisualizerTemplate : StrategyTemplate;
+
+    private const string StrategyTemplate = """
+        // Authored strategy. These namespaces are imported for you:
         //   System, System.Collections.Generic, System.Linq, System.Threading(.Tasks),
-        //   TradingTerminal.Core.Domain / Trading / Time / Backtest / MarketData,
+        //   DaxAlgo.Sdk (+ .Drawing, .Layout, .Quant),
+        //   TradingTerminal.Core.Domain / Trading / Time / Strategies / MarketData,
         //   TradingTerminal.Core.Strategies.Parameters
         //
-        // Rules: define exactly ONE public class implementing IOrderRoutedStrategy with a
-        // public (Contract) constructor. Optionally add a static Schema and a static
-        // Create(Contract, StrategyParameters) to expose tunable parameters in the UI.
-        // Helpers may live in additional files (the + button on the file list).
+        // Define exactly ONE public class implementing IStrategyKernel. Helpers may live in
+        // additional files (the + button on the file list).
 
-        public sealed class MyStrategy : IOrderRoutedStrategy
+        public sealed class MyStrategy : IStrategyKernel
         {
-            public static StrategyParameterSchema Schema { get; } = new(
-                StrategyParameter.Int("lookback", "Look-back", 20, min: 2, max: 500),
-                StrategyParameter.Number("threshold", "Entry threshold", 1.5, min: 0.1, max: 10, step: 0.1));
+            private const int History = 256;
 
-            public static IOrderRoutedStrategy Create(Contract contract, StrategyParameters p) =>
-                new MyStrategy(contract, p.GetInt("lookback"), p.GetDouble("threshold"));
+            private readonly List<double> _closes = new(History);
+            private int _lookback;
 
-            private readonly Contract _contract;
-            private readonly int _lookback;
-            private readonly double _threshold;
+            // Declared here and read in OnStartAsync — a parameter the code never reads is a dial
+            // that does nothing, and the verifier checks for exactly that.
+            public StrategyParameterSchema Schema { get; } = new(
+                StrategyParameter.Int("lookback", "Look-back", 20, min: 2, max: 500));
 
-            public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
+            // Only what you declare here actually arrives at runtime.
+            public StrategyDataRequirement DataRequirement => StrategyDataRequirement.Bars;
 
-            public MyStrategy(Contract contract, int lookback, double threshold)
+            public Task OnStartAsync(IStrategyRuntimeContext context, CancellationToken ct)
             {
-                _contract = contract;
-                _lookback = lookback;
-                _threshold = threshold;
-            }
-
-            public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-                => Task.CompletedTask;
-
-            public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
-            {
-                // Your signal logic here. Submit orders via
-                // router.PlaceOrderAsync(new OrderRequest(...)). _contract names the instrument.
-                if (_lookback <= 0 || _threshold <= 0 || _contract is null) return Task.CompletedTask;
+                _lookback = context.Parameters.GetInt("lookback");
+                _closes.Clear();
                 return Task.CompletedTask;
             }
 
-            public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
+            public Task OnBarAsync(OhlcvBar bar, IStrategyRuntimeContext context, CancellationToken ct)
+            {
+                // Bounded on purpose: a list appended to per bar and never trimmed is the leak that
+                // only shows up hours into a live session.
+                if (_closes.Count == History) _closes.RemoveAt(0);
+                _closes.Add(bar.Close);
 
-            public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-                => Task.CompletedTask;
+                // Your signal goes here. Warm up first — acting before you have _lookback bars is
+                // acting on numbers that do not mean anything yet.
+                if (_closes.Count < _lookback) return Task.CompletedTask;
+
+                return Task.CompletedTask;
+            }
+
+            public void Draw(IRenderSurface surface)
+            {
+                using var panel = surface.Panel("My strategy", RenderPanelKind.Chart);
+
+                if (_closes.Count == 0)
+                {
+                    surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary)));
+                    surface.Text(8d, 20d, "Waiting for bars…");
+                    return;
+                }
+
+                var range = PlotRange.Empty;
+                for (var i = 0; i < _closes.Count; i++) range = range.Include(_closes[i]);
+
+                Plot.HorizontalGrid(surface, range.Padded());
+                surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Accent)));
+
+                using var series = surface.Series("Close", RenderSeriesKind.Line);
+                for (var i = 0; i < _closes.Count; i++) surface.Push(i, _closes[i]);
+            }
         }
         """;
+
+    private const string VisualizerTemplate = """
+        // Authored visualizer. These namespaces are imported for you:
+        //   System, System.Collections.Generic, System.Linq, System.Threading(.Tasks),
+        //   DaxAlgo.Sdk (+ .Drawing, .Layout, .Quant),
+        //   TradingTerminal.Core.Domain / Trading / Time / Strategies / MarketData,
+        //   TradingTerminal.Core.Strategies.Parameters
+        //
+        // Define exactly ONE public class implementing IVisualizer. A visualizer OWES a picture:
+        // one that draws nothing is refused, because a blank panel reads as a broken application.
+
+        public sealed class MyVisualizer : IVisualizer
+        {
+            private const int History = 240;
+
+            private readonly List<double> _mids = new(History);
+            private int _period;
+
+            public StrategyParameterSchema Schema { get; } = new(
+                StrategyParameter.Int("period", "Average period", 10, min: 2, max: 200));
+
+            public StrategyDataRequirement DataRequirement => StrategyDataRequirement.L1;
+
+            public Task OnStartAsync(IVisualizerContext context, CancellationToken ct)
+            {
+                _period = context.Parameters.GetInt("period");
+                _mids.Clear();
+                return Task.CompletedTask;
+            }
+
+            public Task OnQuoteAsync(Quote quote, IVisualizerContext context, CancellationToken ct)
+            {
+                var mid = (quote.Bid + quote.Ask) / 2d;
+                if (mid <= 0d) return Task.CompletedTask;
+
+                if (_mids.Count == History) _mids.RemoveAt(0);
+                _mids.Add(mid);
+                return Task.CompletedTask;
+            }
+
+            public void Draw(IRenderSurface surface)
+            {
+                using var panel = surface.Panel("Mid", RenderPanelKind.Chart);
+
+                if (_mids.Count == 0)
+                {
+                    surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary)));
+                    surface.Text(8d, 20d, "Waiting for quotes…");
+                    return;
+                }
+
+                var range = PlotRange.Empty;
+                for (var i = 0; i < _mids.Count; i++) range = range.Include(_mids[i]);
+
+                Plot.HorizontalGrid(surface, range.Padded());
+                surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.Accent)));
+
+                using var series = surface.Series("Mid", RenderSeriesKind.Line);
+                for (var i = 0; i < _mids.Count; i++) surface.Push(i, _mids[i]);
+            }
+        }
+        """;
+
+    /// <summary>
+    /// True when the editor still holds nothing but an untouched starter.
+    ///
+    /// <para>The difference matters at exactly one place and it is not cosmetic: a scaffold the pane put
+    /// there is NOT the user's work, and sending it to the builder as an existing file made it a file no
+    /// task owned — unremovable by any repair, and compiled alongside the real unit for ever.</para>
+    /// </summary>
+    public bool FilesAreUntouchedTemplate =>
+        Files.Count == 1
+        && (Files[0].Content == StrategyTemplate || Files[0].Content == VisualizerTemplate);
 }
 
 /// <summary>One source file in the builder's Code tab — editable, and observed so a hand-edit is fed

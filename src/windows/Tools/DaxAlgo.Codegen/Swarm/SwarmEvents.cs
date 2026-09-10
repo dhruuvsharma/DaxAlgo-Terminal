@@ -1,4 +1,4 @@
-using TradingTerminal.Core.Strategies.Authoring;
+﻿using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
@@ -60,6 +60,16 @@ public abstract record SwarmEvent
 
     /// <summary>The whole unit has been compiled and run up the ladder.</summary>
     public sealed record Gated(VerificationReport Report, int Round) : SwarmEvent;
+
+    /// <summary>
+    /// A file was taken out of the build because it was not part of it and would not compile.
+    ///
+    /// <para><b>Reported, never silent.</b> Removing somebody's file is the one thing here that
+    /// destroys work rather than adding to it, so it is only ever done when the compiler has confirmed
+    /// the unit is better without it — and it is always said out loud, with the reason, so a user who
+    /// wanted that file knows exactly what happened to it and can put it back.</para>
+    /// </summary>
+    public sealed record Dropped(IReadOnlyList<string> Files, string Why) : SwarmEvent;
 
     /// <summary>The critics have judged a unit that cleared the ladder.</summary>
     public sealed record Reviewed(Gauntlet.GauntletResult Result, int Round) : SwarmEvent;
