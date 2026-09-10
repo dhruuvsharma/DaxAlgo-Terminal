@@ -1,4 +1,4 @@
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -156,14 +156,25 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
 
             while (true)
             {
-                var (moved, stalled) = await OpenAiCompatibleCodegenClient
-                    .TryMoveAsync(events).ConfigureAwait(false);
+                var (moved, stalled, broken) = await OpenAiCompatibleCodegenClient
+                    .TryMoveAsync(events, DisplayName, ct).ConfigureAwait(false);
 
                 if (stalled is not null)
                 {
                     yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
                         $"{DisplayName} opened a stream and then stopped sending. {stalled} "
                         + "Raise AiCodegen:TimeoutSeconds if the model needs longer to think."));
+                    yield break;
+                }
+
+                // Shared with the OpenAI-compatible client, and so is the hole it closes: a connection
+                // that dies part-way through an answer used to throw out of the iterator and take the
+                // whole run with it.
+                if (broken is not null)
+                {
+                    yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
+                        broken + " Nothing partial is kept: half a source file cannot compile. "
+                        + "The turn is lost, but the rest of the run is not."));
                     yield break;
                 }
 

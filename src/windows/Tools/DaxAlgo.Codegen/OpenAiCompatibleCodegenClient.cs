@@ -203,7 +203,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
             while (true)
             {
-                var (moved, stalled) = await TryMoveAsync(chunks).ConfigureAwait(false);
+                var (moved, stalled, broken) = await TryMoveAsync(chunks, DisplayName, ct).ConfigureAwait(false);
 
                 if (stalled is not null)
                 {
@@ -211,6 +211,14 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                         $"{DisplayName} opened a stream and then stopped sending. {stalled} "
                         + "Raise AiCodegen:TimeoutSeconds if the model needs longer to think, or try "
                         + "another provider."));
+                    yield break;
+                }
+
+                if (broken is not null)
+                {
+                    yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
+                        broken + " Nothing partial is kept: half a source file cannot compile. "
+                        + "The turn is lost, but the rest of the run is not."));
                     yield break;
                 }
 
@@ -290,18 +298,39 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         return null;
     }
 
-    /// <summary>Advances the stream and classifies the stall, for the same reason as
-    /// <see cref="TrySendAsync"/>: an iterator may not yield from a catch.</summary>
-    internal static async Task<(bool Moved, string? Stalled)> TryMoveAsync(
-        IAsyncEnumerator<JsonElement> chunks)
+    /// <summary>
+    /// Advances the stream and classifies what went wrong, for the same reason as
+    /// <see cref="TrySendAsync"/>: an iterator may not yield from a catch.
+    ///
+    /// <para><b>A CONNECTION CAN DIE AFTER IT OPENED, and this is the third place in this file to learn
+    /// it.</b> Sending was guarded and stalling was guarded; reading the body was not. So a network drop
+    /// mid-generation threw an IOException straight out of the iterator, past the drain, past the
+    /// builder, and out of the whole run. Measured: two runs, an hour and eighteen minutes each, four
+    /// files already written between them, all discarded because DNS failed while two builders were
+    /// mid-stream.</para>
+    ///
+    /// <para>The partial text is deliberately NOT returned. Half a C# file is not a smaller answer, it
+    /// is an answer that cannot compile, and handing it back as the task's file would put a truncated
+    /// source into the build and spend the repair budget on a diagnostic nobody can act on.</para>
+    /// </summary>
+    internal static async Task<(bool Moved, string? Stalled, string? Broken)> TryMoveAsync(
+        IAsyncEnumerator<JsonElement> chunks, string displayName, CancellationToken ct = default)
     {
         try
         {
-            return (await chunks.MoveNextAsync().ConfigureAwait(false), null);
+            return (await chunks.MoveNextAsync().ConfigureAwait(false), null, null);
         }
         catch (TimeoutException stalled)
         {
-            return (false, stalled.Message);
+            return (false, stalled.Message, null);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // the user pressed Stop
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException)
+        {
+            return (false, null, $"{displayName} lost the connection part-way through the answer: {ex.Message}");
         }
     }
 

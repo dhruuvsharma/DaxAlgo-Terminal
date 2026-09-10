@@ -67,7 +67,16 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
         var brief = HyperionBriefs.Find(id)
             ?? throw new InvalidOperationException($"No brief called '{id}'.");
 
+        // EMPTIED, not just created. A re-run plans differently — the same brief produced a five-task
+        // plan once and a three-task plan the next time — so leaving the previous attempt's files in
+        // place hands somebody a directory holding two different units and no way to tell which source
+        // belongs to the summary sitting beside it.
         var directory = Path.Combine(Root, brief.Id);
+        if (Directory.Exists(directory))
+        {
+            foreach (var stale in Directory.GetFiles(directory)) File.Delete(stale);
+        }
+
         Directory.CreateDirectory(directory);
 
         // UTF-8 explicitly, and FileShare.ReadWrite so the log can be tailed while the run is still
@@ -151,7 +160,10 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
         var written = 0;
         var beats = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
-        var turn = await session.SendToSwarmAsync(
+        StrategyBuildTurn turn;
+        try
+        {
+            turn = await session.SendToSwarmAsync(
             brief.Text,
             new SwarmRunner(
                 client,
@@ -191,7 +203,23 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
                     case CodegenEvent.TextDelta t: written += t.Text.Length; break;
                 }
             }),
-            cts.Token).ConfigureAwait(false);
+                cts.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // WHATEVER THE SESSION HOLDS IS STILL WORTH KEEPING. A run that throws has still paid for
+            // every file already written — measured: two runs lost an hour and eighteen minutes each,
+            // and four finished files between them, because the network dropped and nothing saved on
+            // the way out.
+            Say($"THREW: {ex.GetType().Name}: {ex.Message}");
+            Save(brief, new StrategyBuildTurn(
+                    BuildTurnKind.CompileFailed, "The run did not finish: " + ex.Message,
+                    session.Files, null, ex.Message, 0, session.TotalUsage),
+                session, gate: null, directory, clock.Elapsed);
+
+            Say($"kept {session.Files.Count} file(s) in {directory}");
+            throw;
+        }
 
         Say($"turn: {turn.Kind} · {turn.Files.Count} file(s) · {thinking} thought / {written} written chars");
         if (turn.Error is { Length: > 0 } error) Say($"error: {error}");
