@@ -304,7 +304,7 @@ public sealed class SwarmRunner(
                 }
 
                 var targets = RepairTargets(
-                    verdict.Passed ? new VerificationReport([]) : verdict.Report, plan, findings);
+                    verdict.Passed ? new VerificationReport([]) : verdict.Report, plan, context, findings);
 
                 if (targets.Count == 0)
                     return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
@@ -615,12 +615,25 @@ public sealed class SwarmRunner(
     /// whoever wrote the hostable class is what makes one builder repair files it never saw.</para>
     /// </summary>
     private static IReadOnlyList<BuildTask> RepairTargets(
-        VerificationReport report, BuildPlan plan, IReadOnlyList<VerificationFinding>? extra = null)
+        VerificationReport report, BuildPlan plan, SwarmContext context,
+        IReadOnlyList<VerificationFinding>? extra = null)
     {
         var tasks = plan.Tasks;
         if (tasks.Count == 0) return [];
 
         IReadOnlyList<VerificationFinding> all = extra is { Count: > 0 } ? extra : report.Findings;
+
+        // A TASK THAT NEVER WROTE ITS FILE IS ALWAYS A TARGET, whatever the findings say.
+        //
+        // Routing is by file name, and a file that does not exist is named by no diagnostic — so a
+        // builder that returned nothing was never asked again. Measured: the kernel task spent
+        // sixty-six minutes reasoning and produced no answer, and the gate then reported "no public
+        // class implementing IStrategyKernel" (which names no file) beside two ordinary compile errors
+        // (which do). The two named files were repaired; the missing unit was not, because nothing
+        // pointed at it. The run finished with four correct helpers and no entry point.
+        var missing = tasks
+            .Where(t => !t.OwnsAllFiles && context.File(t.OwnedFile) is null)
+            .ToArray();
 
         var named = all
             .Select(f => f.File)
@@ -632,7 +645,8 @@ public sealed class SwarmRunner(
             .Select(t => t!)
             .ToArray();
 
-        if (named.Length > 0) return named;
+        if (named.Length > 0 || missing.Length > 0)
+            return [.. missing.Concat(named).DistinctBy(t => t.Id, StringComparer.OrdinalIgnoreCase)];
 
         // A picture failure names no file — it is about behaviour, not a line — so it belongs to
         // whoever paints. Critic codes are prefixed by critic id, so the picture panel's two are

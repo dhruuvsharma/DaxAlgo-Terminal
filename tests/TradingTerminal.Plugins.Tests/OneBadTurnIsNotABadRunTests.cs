@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -114,11 +114,15 @@ public sealed class OneBadTurnIsNotABadRunTests
         }
         """;
 
+    /// <summary>Each builder answers with ITS OWN file. Giving them all the same one would let the
+    /// merge rule rename a stray unit into the missing file's place and quietly hide the gap.</summary>
     private static string Answer(string role) => Planner(role)
         ? Json(ThreeTaskPlan)
         : role.Contains("Maths.cs", StringComparison.Ordinal)
             ? File("Maths.cs", "public sealed class Maths { public double Push(double v) => v; }")
-            : File("Unit.cs", GoodUnit);
+            : role.Contains("Grid.cs", StringComparison.Ordinal)
+                ? File("Grid.cs", "public sealed class Grid { public void Paint() { } }")
+                : File("Unit.cs", GoodUnit);
 
     private static SwarmRequest Request() =>
         new("a correlation matrix", "PACK", AuthoringKind.Strategy,
@@ -156,6 +160,30 @@ public sealed class OneBadTurnIsNotABadRunTests
 
         empty.Task.OwnedFile.Should().Be("Grid.cs");
         empty.Note.Should().Contain("reasoning", "the provider's own account of it is what the user needs");
+    }
+
+    [Fact]
+    public async Task The_task_that_wrote_nothing_is_asked_again()
+    {
+        // Routing is by file name, and a file that does not exist is named by no diagnostic — so the
+        // builder that returned nothing was never asked twice. Measured: the KERNEL task was the one
+        // that failed, the gate said "no public class implementing IStrategyKernel" (which names no
+        // file) beside two ordinary compile errors (which do), the two named files were repaired, and
+        // the missing unit was not. Four correct helpers and no entry point.
+        var client = new FailsOn(Answer, "Unit.cs");
+        var seen = new List<SwarmEvent>();
+
+        await new SwarmRunner(client, new UnitGate(new RoslynStrategyCompiler(), "test.unit", "Test unit"))
+            .RunAsync(
+                new SwarmRequest("a correlation matrix", "PACK", AuthoringKind.Strategy,
+                    new SwarmBudget(MaxParallel: 2, MaxRounds: 1, MaxTasks: 8)),
+                new Progress<SwarmEvent>(seen.Add));
+
+        await Task.Delay(50);
+
+        seen.OfType<SwarmEvent.TaskStarted>()
+            .Should().Contain(s => s.IsRepair && s.Task.OwnedFile == "Unit.cs",
+                "the file nobody wrote is the one the repair round exists for");
     }
 
     [Fact]
