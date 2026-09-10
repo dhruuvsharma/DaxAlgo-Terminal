@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
@@ -456,6 +456,7 @@ public sealed class StrategyBuildSession
         SwarmEvent.MilestoneStarted started => started.Milestone.Title,
         SwarmEvent.TaskStarted started => started.Task.Title,
         SwarmEvent.TaskFinished finished => $"{finished.Task.Title} — {(finished.Wrote ? "written" : "nothing")}",
+        SwarmEvent.Dropped dropped => $"Removed {string.Join(", ", dropped.Files)} from the build.",
         SwarmEvent.Gated gated => gated.Report.Passed
             ? "Verified."
             : $"Fixing {gated.Report.Findings.Count} problem(s)…",

@@ -114,191 +114,248 @@ public sealed class SwarmRunner(
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // EVERYTHING THE RUN HAS REACHED, declared out here so the catch below can still report it.
+        // A cancelled run is not a failed one: the builders that already answered were paid for, and
+        // their files are the whole reason Stop is not called Discard.
         var usage = CodegenUsage.None;
         var context = new SwarmContext(request.Brief, request.Existing);
         string? note = null;
+        GateResult? verdict = null;
 
-        // ── plan ────────────────────────────────────────────────────────────────────────────────
-        BuildPlan plan;
-        PlanOrigin origin;
+        // The last provider failure, kept rather than acted on. See the build loop: one builder failing
+        // is not the run failing, but if the run ends with nothing at all, this is why.
+        string? providerError = null;
 
-        if (request.Plan is { } resumed)
+        // The plan a cancellation before planning reports: the one-task fallback, which is a truthful
+        // description of a run that never got as far as deciding anything else.
+        var plan = BuildPlan.Single(request.Brief, request.Kind);
+        var origin = PlanOrigin.Planned;
+
+        try
         {
-            (plan, origin) = (resumed, PlanOrigin.Planned);
-        }
-        else
-        {
-            progress?.Report(new SwarmEvent.Planning());
-            var planned = await PlanAsync(request, events, ct).ConfigureAwait(false);
-            usage = usage.Add(planned.Usage);
-            (plan, origin) = (planned.Plan, planned.Origin);
+            // ── plan ────────────────────────────────────────────────────────────────────────────────
 
-            if (origin == PlanOrigin.ProviderFailed)
-                return Failed(plan, origin, context, usage, planned.Error);
-
-            // A question is the one reply that must stop the run, because the answer is the user's.
-            // Building anyway would spend the whole budget on a brief the model has just said it does
-            // not understand — and would throw away the turn in which it could have been corrected.
-            if (origin == PlanOrigin.Asked)
-                return new SwarmRun(
-                    SwarmOutcome.AwaitingUser, plan, origin, context.Files, null, null, usage,
-                    planned.Asked ?? string.Empty, PlannerNote: planned.Asked);
-
-            note = planned.Asked;
-        }
-
-        progress?.Report(new SwarmEvent.Planned(plan, origin));
-        Record("Planner", null, usage);
-
-        // ── build ───────────────────────────────────────────────────────────────────────────────
-        foreach (var milestone in plan.Milestones)
-        {
-            ct.ThrowIfCancellationRequested();
-            progress?.Report(new SwarmEvent.MilestoneStarted(milestone));
-
-            foreach (var layer in Layers(milestone.Tasks))
+            if (request.Plan is { } resumed)
             {
-                var results = await FanOutAsync(
-                    layer,
-                    task => BuildOneAsync(task, plan, context, request, isRepair: false, [], events, progress, ct),
-                    request.Budget.MaxParallel,
-                    ct).ConfigureAwait(false);
+                (plan, origin) = (resumed, PlanOrigin.Planned);
+            }
+            else
+            {
+                progress?.Report(new SwarmEvent.Planning());
+                var planned = await PlanAsync(request, events, ct).ConfigureAwait(false);
+                usage = usage.Add(planned.Usage);
+                (plan, origin) = (planned.Plan, planned.Origin);
 
-                foreach (var (task, result) in results)
+                if (origin == PlanOrigin.ProviderFailed)
+                    return Failed(plan, origin, context, usage, planned.Error);
+
+                // A question is the one reply that must stop the run, because the answer is the user's.
+                // Building anyway would spend the whole budget on a brief the model has just said it does
+                // not understand — and would throw away the turn in which it could have been corrected.
+                if (origin == PlanOrigin.Asked)
+                    return new SwarmRun(
+                        SwarmOutcome.AwaitingUser, plan, origin, context.Files, null, null, usage,
+                        planned.Asked ?? string.Empty, PlannerNote: planned.Asked);
+
+                note = planned.Asked;
+            }
+
+            progress?.Report(new SwarmEvent.Planned(plan, origin));
+            Record("Planner", null, usage);
+
+            // ── build ───────────────────────────────────────────────────────────────────────────────
+            foreach (var milestone in plan.Milestones)
+            {
+                ct.ThrowIfCancellationRequested();
+                progress?.Report(new SwarmEvent.MilestoneStarted(milestone));
+
+                foreach (var layer in Layers(milestone.Tasks))
+                {
+                    await FanOutAsync(
+                        layer,
+                        task => BuildOneAsync(task, plan, context, request, isRepair: false, [], events, progress, ct),
+                        request.Budget.MaxParallel,
+                        ct,
+                        landed: (task, result) =>
+                    {
+                        usage = usage.Add(result.Usage);
+
+                        // A BUILDER THAT FAILED IS A TASK THAT WROTE NOTHING, NOT A FAILED RUN.
+                        //
+                        // Aborting here threw away every sibling task the moment any one call came back
+                        // empty — measured on a real run: three tasks, the first wrote its file in half
+                        // an hour, the second reasoned itself out of its token budget, and the third —
+                        // the one owning the hostable class — was never asked. An hour and fifty
+                        // minutes and 170,000 tokens produced one orphan helper and a unit with no
+                        // entry point.
+                        //
+                        // The failure modes are not alike. A missing key fails EVERY call, and that run
+                        // ends below with nothing built and this error as the reason. A model that
+                        // over-thinks one turn fails ONE call, and the gate and the repair round are
+                        // already built to notice a missing file and route somebody at it.
+                        if (result.Error is { Length: > 0 } failed)
+                        {
+                            providerError = failed;
+                            progress?.Report(new SwarmEvent.TaskFinished(
+                                task, false, result.Usage, failed, context.Files));
+                            return;
+                        }
+
+                        var wrote = context.Accept(task, result.Files);
+                        progress?.Report(new SwarmEvent.TaskFinished(
+                            task, wrote, result.Usage,
+                            wrote ? null : "returned no file — the turn was spent without producing one",
+                            context.Files));
+                    }).ConfigureAwait(false);
+                }
+            }
+
+            // ── gate, and repair what it rejected ───────────────────────────────────────────────────
+            var best = int.MinValue;
+            var stalled = 0;
+            GauntletResult? lastReview = null;
+
+            for (var round = 0; round <= request.Budget.MaxRounds; round++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (context.Files.Count == 0)
+                    return providerError is { Length: > 0 }
+                        ? Failed(plan, origin, context, usage, providerError)
+                        : Done(SwarmOutcome.BudgetExhausted, plan, origin, context, null, usage, note: note, summary:
+                            "No builder produced a file. Nothing was compiled.");
+
+                verdict = _gate.Run(context.Files);
+
+                // A file nobody owns cannot be repaired by anybody, so if it is what broke the build, take
+                // it out — but only on the compiler's word. See ShedDeadWeight.
+                if (!verdict.Passed && ShedDeadWeight(plan, context, verdict, progress) is { } lighter)
+                    verdict = lighter;
+
+                progress?.Report(new SwarmEvent.Gated(verdict.Report, round));
+                Record("Gate", null, CodegenUsage.None, verdict.Report);
+
+                // THE LADDER FIRST, ALWAYS. It is deterministic and free; a critic costs a model call. A
+                // unit that does not compile is never shown to one.
+                var findings = verdict.Report.Findings;
+                GauntletResult? review = null;
+
+                if (verdict.Passed)
+                {
+                    if (_gauntlet is null || verdict.Unit is null)
+                        return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
+                            $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) cleared.");
+
+                    var subject = await GauntletSubjects.BuildAsync(
+                        AuthoredUnitPreview.Create(verdict.Unit), context.Files, verdict.Report, _rasterizer, ct)
+                        .ConfigureAwait(false);
+
+                    // The bar the planner wrote, unless the caller supplied a stronger one. A rubric
+                    // written from the brief at plan time beats one invented after the fact by whoever is
+                    // now defending what got built.
+                    var bar = request.Bar.Rubric.Count > 0 || request.Bar.HasImages
+                        ? request.Bar
+                        : ReferenceBar.FromRubric(plan.Rubric);
+
+                    review = await _gauntlet.RunAsync(
+                        subject, bar, request.Budget.MaxParallel, progress: null, ct).ConfigureAwait(false);
+
+                    // A SKIPPED REVIEW IS NOT AN APPROVAL. The pass was skipped because the artifact has
+                    // not changed since the last one — so the last one's findings are still true, and
+                    // reading "no findings this time" as "the critics are happy" would let a repair that
+                    // changed nothing arrive as a success. Carrying them forward instead lets the stall
+                    // detector do its job: nothing moved, so the run ends and says so.
+                    if (review.Skipped && lastReview is { } standing) review = standing;
+                    else if (!review.Skipped) lastReview = review;
+
+                    progress?.Report(new SwarmEvent.Reviewed(review, round));
+                    Record("Gauntlet", null, CodegenUsage.None, verdict.Report);
+
+                    if (review.Findings.Count == 0)
+                        return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
+                            $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) "
+                            + $"cleared, {review.Summary}.");
+
+                    findings = review.Findings;
+                }
+
+                // Ground gained: rungs cleared, then findings removed at the same height — and a critic's
+                // findings count, or a run could clear the ladder and then circle a picture forever.
+                var height = LadderScore.HeightOf(verdict.Report) - (review?.Findings.Count ?? 0);
+                if (height > best) { best = height; stalled = 0; } else { stalled++; }
+
+                if (stalled >= request.Budget.StallLimit)
+                    return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
+                        $"Stopped after {round} repair round(s): the last {request.Budget.StallLimit} bought no "
+                        + "further ground. Read the diagnostics and say what to change — repeating the same "
+                        + "round will not.");
+
+                // Out of rounds with a unit that builds and was only criticised: that is delivered with
+                // notes, not a failure. Saying otherwise would send a user to the diagnostics list to look
+                // for an error that is not there.
+                if (round == request.Budget.MaxRounds)
+                {
+                    if (verdict.Passed)
+                        return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
+                            $"Delivered with {findings.Count} open review note(s) — the repair budget ran out "
+                            + "before they were addressed. " + (review?.Summary ?? string.Empty));
+
+                    break;
+                }
+
+                var targets = RepairTargets(
+                    verdict.Passed ? new VerificationReport([]) : verdict.Report, plan, findings);
+
+                if (targets.Count == 0)
+                    return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
+                        "The unit failed verification and no file could be identified as the cause.");
+
+                await FanOutAsync(
+                    targets,
+                    task => BuildOneAsync(task, plan, context, request, isRepair: true, findings, events, progress, ct),
+                    request.Budget.MaxParallel,
+                    ct,
+                    landed: (task, result) =>
                 {
                     usage = usage.Add(result.Usage);
-                    if (result.Error is { Length: > 0 })
-                        return Failed(plan, origin, context, usage, result.Error);
+
+                    // Same rule on the way back: a repair that failed is a file that did not improve,
+                    // and the next round — or the budget — decides what that is worth. Ending the run
+                    // here would discard every OTHER repair in the same wave.
+                    if (result.Error is { Length: > 0 } failedRepair)
+                    {
+                        providerError = failedRepair;
+                        progress?.Report(new SwarmEvent.TaskFinished(
+                            task, false, result.Usage, failedRepair, context.Files));
+                        return;
+                    }
 
                     var wrote = context.Accept(task, result.Files);
                     progress?.Report(new SwarmEvent.TaskFinished(
-                        task, wrote, result.Usage,
-                        wrote ? null : "returned no file — the turn was spent without producing one",
-                        context.Files));
-                }
+                        task, wrote, result.Usage, wrote ? null : "returned no file", context.Files));
+                }).ConfigureAwait(false);
             }
+
+            return Done(SwarmOutcome.BudgetExhausted, plan, origin, context, verdict, usage, note:  note, summary:
+                $"Stopped at the {request.Budget.MaxRounds}-round repair budget. "
+                + $"Furthest it got: {(verdict?.Compile?.Success == true ? "it compiles" : "it does not compile")}.");
         }
-
-        // ── gate, and repair what it rejected ───────────────────────────────────────────────────
-        var best = int.MinValue;
-        var stalled = 0;
-        GateResult? verdict = null;
-        GauntletResult? lastReview = null;
-
-        for (var round = 0; round <= request.Budget.MaxRounds; round++)
+        catch (OperationCanceledException)
         {
-            ct.ThrowIfCancellationRequested();
+            // STOP MUST NOT ALSO MEAN DISCARD, and it did: nothing produced SwarmOutcome.Cancelled, so
+            // pressing Stop threw out of the run and took every file the builders had already written
+            // with it. On this provider that is minutes of thinking and real money for nothing — and
+            // the enum member has said "whatever was built is kept" since the day it was written.
+            var stopped = Done(
+                SwarmOutcome.Cancelled, plan, origin, context, verdict, usage, note: note, summary:
+                context.Files.Count == 0
+                    ? "Stopped before anything was written."
+                    : $"Stopped. {context.Files.Count} file(s) kept: "
+                      + string.Join(", ", context.Files.Select(f => f.Name)) + ".");
 
-            if (context.Files.Count == 0)
-                return Done(SwarmOutcome.BudgetExhausted, plan, origin, context, null, usage, note:  note, summary:
-                    "No builder produced a file. Nothing was compiled.");
-
-            verdict = _gate.Run(context.Files);
-
-            // A file nobody owns cannot be repaired by anybody, so if it is what broke the build, take
-            // it out — but only on the compiler's word. See ShedDeadWeight.
-            if (!verdict.Passed && ShedDeadWeight(plan, context, verdict, progress) is { } lighter)
-                verdict = lighter;
-
-            progress?.Report(new SwarmEvent.Gated(verdict.Report, round));
-            Record("Gate", null, CodegenUsage.None, verdict.Report);
-
-            // THE LADDER FIRST, ALWAYS. It is deterministic and free; a critic costs a model call. A
-            // unit that does not compile is never shown to one.
-            var findings = verdict.Report.Findings;
-            GauntletResult? review = null;
-
-            if (verdict.Passed)
-            {
-                if (_gauntlet is null || verdict.Unit is null)
-                    return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
-                        $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) cleared.");
-
-                var subject = await GauntletSubjects.BuildAsync(
-                    AuthoredUnitPreview.Create(verdict.Unit), context.Files, verdict.Report, _rasterizer, ct)
-                    .ConfigureAwait(false);
-
-                // The bar the planner wrote, unless the caller supplied a stronger one. A rubric
-                // written from the brief at plan time beats one invented after the fact by whoever is
-                // now defending what got built.
-                var bar = request.Bar.Rubric.Count > 0 || request.Bar.HasImages
-                    ? request.Bar
-                    : ReferenceBar.FromRubric(plan.Rubric);
-
-                review = await _gauntlet.RunAsync(
-                    subject, bar, request.Budget.MaxParallel, progress: null, ct).ConfigureAwait(false);
-
-                // A SKIPPED REVIEW IS NOT AN APPROVAL. The pass was skipped because the artifact has
-                // not changed since the last one — so the last one's findings are still true, and
-                // reading "no findings this time" as "the critics are happy" would let a repair that
-                // changed nothing arrive as a success. Carrying them forward instead lets the stall
-                // detector do its job: nothing moved, so the run ends and says so.
-                if (review.Skipped && lastReview is { } standing) review = standing;
-                else if (!review.Skipped) lastReview = review;
-
-                progress?.Report(new SwarmEvent.Reviewed(review, round));
-                Record("Gauntlet", null, CodegenUsage.None, verdict.Report);
-
-                if (review.Findings.Count == 0)
-                    return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
-                        $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) "
-                        + $"cleared, {review.Summary}.");
-
-                findings = review.Findings;
-            }
-
-            // Ground gained: rungs cleared, then findings removed at the same height — and a critic's
-            // findings count, or a run could clear the ladder and then circle a picture forever.
-            var height = LadderScore.HeightOf(verdict.Report) - (review?.Findings.Count ?? 0);
-            if (height > best) { best = height; stalled = 0; } else { stalled++; }
-
-            if (stalled >= request.Budget.StallLimit)
-                return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
-                    $"Stopped after {round} repair round(s): the last {request.Budget.StallLimit} bought no "
-                    + "further ground. Read the diagnostics and say what to change — repeating the same "
-                    + "round will not.");
-
-            // Out of rounds with a unit that builds and was only criticised: that is delivered with
-            // notes, not a failure. Saying otherwise would send a user to the diagnostics list to look
-            // for an error that is not there.
-            if (round == request.Budget.MaxRounds)
-            {
-                if (verdict.Passed)
-                    return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
-                        $"Delivered with {findings.Count} open review note(s) — the repair budget ran out "
-                        + "before they were addressed. " + (review?.Summary ?? string.Empty));
-
-                break;
-            }
-
-            var targets = RepairTargets(
-                verdict.Passed ? new VerificationReport([]) : verdict.Report, plan, findings);
-
-            if (targets.Count == 0)
-                return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
-                    "The unit failed verification and no file could be identified as the cause.");
-
-            var repairs = await FanOutAsync(
-                targets,
-                task => BuildOneAsync(task, plan, context, request, isRepair: true, findings, events, progress, ct),
-                request.Budget.MaxParallel,
-                ct).ConfigureAwait(false);
-
-            foreach (var (task, result) in repairs)
-            {
-                usage = usage.Add(result.Usage);
-                if (result.Error is { Length: > 0 })
-                    return Failed(plan, origin, context, usage, result.Error);
-
-                var wrote = context.Accept(task, result.Files);
-                progress?.Report(new SwarmEvent.TaskFinished(
-                    task, wrote, result.Usage, wrote ? null : "returned no file", context.Files));
-            }
+            progress?.Report(new SwarmEvent.Finished(stopped.Outcome, stopped.Summary));
+            return stopped;
         }
-
-        return Done(SwarmOutcome.BudgetExhausted, plan, origin, context, verdict, usage, note:  note, summary:
-            $"Stopped at the {request.Budget.MaxRounds}-round repair budget. "
-            + $"Furthest it got: {(verdict?.Compile?.Success == true ? "it compiles" : "it does not compile")}.");
     }
 
     // ── the planner ─────────────────────────────────────────────────────────────────────────────
@@ -636,20 +693,37 @@ public sealed class SwarmRunner(
     /// <para>Bounded rather than unbounded, and the bound is not politeness: a provider answers a burst
     /// of eight with 429s, and an agent-CLI provider answers it by starting eight processes.</para>
     /// </summary>
+    /// <param name="landed">
+    /// Run as each task finishes, <b>serialised</b>, so a wave's results are taken one at a time.
+    ///
+    /// <para>This is where a finished file becomes visible, and it used to be the end of the wave. A
+    /// four-way fan-out on a slow model measured 32:23 to 01:11:59 wall-clock, and all four files
+    /// appeared at 01:11:59 — the first was finished and invisible for the better part of forty
+    /// minutes. "The code appears as each task writes it" was true of the event and false of when it
+    /// was raised.</para>
+    ///
+    /// <para>Serialised because the callback merges into the shared <see cref="SwarmContext"/> and adds
+    /// to the run's usage, neither of which is safe from several threads. The lock is held only across
+    /// the merge, never across a model call.</para>
+    /// </param>
     private static async Task<IReadOnlyList<(BuildTask Task, T Result)>> FanOutAsync<T>(
         IReadOnlyList<BuildTask> tasks,
         Func<BuildTask, Task<T>> run,
         int maxParallel,
-        CancellationToken ct)
+        CancellationToken ct,
+        Action<BuildTask, T>? landed = null)
     {
         using var slots = new SemaphoreSlim(Math.Max(1, maxParallel));
+        var pen = new Lock();
 
         var running = tasks.Select(async task =>
         {
             await slots.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                return (task, await run(task).ConfigureAwait(false));
+                var result = await run(task).ConfigureAwait(false);
+                if (landed is not null) lock (pen) landed(task, result);
+                return (task, result);
             }
             finally
             {
