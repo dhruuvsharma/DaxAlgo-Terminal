@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
@@ -426,10 +426,15 @@ public sealed class SwarmRunnerTests
     }
 
     [Fact]
-    public async Task ADrawFailureWithNoFileGoesToThePanels()
+    public async Task ADrawFailureWithNoFileGoesToEveryoneWhoPaints()
     {
         // A picture failure is about behaviour, not a line, so nothing names a file. It belongs to
-        // whoever paints.
+        // whoever paints — WHICH INCLUDES THE HOSTABLE CLASS. Every unit has a Draw on it; for many it
+        // is the only one, and even beside helper panels it declares the layout, sizes the regions and
+        // titles them. This test used to demand the panel ALONE, and that is what made a real drawing
+        // fault unfixable: three rounds against the same "'130' and '130' are drawn on top of each
+        // other", the panel builder rewriting itself each time, and the panel named in the finding
+        // belonging to the kernel nobody was asking.
         const string withPanel = """
             {
               "contract": { "typeName": "U" },
@@ -447,8 +452,10 @@ public sealed class SwarmRunnerTests
 
         await Runner(client, compiler).RunAsync(Request(new SwarmBudget(MaxParallel: 2, MaxRounds: 1, MaxTasks: 8)));
 
-        client.Calls.Where(c => Fixer(c.Role)).Should().ContainSingle()
-            .Which.Role.Should().Contain("YOUR FILE: Ladder.cs");
+        var repairs = client.Calls.Where(c => Fixer(c.Role)).Select(c => c.Role).ToArray();
+        repairs.Should().Contain(r => r.Contains("YOUR FILE: Ladder.cs", StringComparison.Ordinal));
+        repairs.Should().Contain(r => r.Contains("YOUR FILE: Unit.cs", StringComparison.Ordinal),
+            "the hostable class paints too, and is often the only thing that can fix the picture");
     }
 
     [Fact]

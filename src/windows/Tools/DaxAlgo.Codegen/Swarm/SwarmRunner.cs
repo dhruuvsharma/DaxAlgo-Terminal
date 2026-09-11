@@ -476,13 +476,29 @@ public sealed class SwarmRunner(
         IProgress<SwarmEvent>? progress,
         CancellationToken ct)
     {
-        progress?.Report(new SwarmEvent.TaskStarted(task, isRepair));
+        // A REPAIR FOR A FILE THAT DOES NOT EXIST IS NOT A REPAIR, and telling the model otherwise is
+        // asking it to do something impossible.
+        //
+        // The missing-file routing rule is what surfaced this: a builder that produced nothing is now
+        // correctly targeted every round, and then handed the Fixer prompt — "repair ONE file", "change
+        // as little as possible", "the diagnostics name what is wrong" — with no file attached and a
+        // diagnostic (no hostable class) that names none. Measured on the opening-range brief: the
+        // kernel was asked four times, spent between 76,000 and 115,000 output tokens each time, and
+        // never produced a line. It was being asked to minimally edit something it could not see.
+        //
+        // So the ROUND is a repair and the TURN is a build: the builder's prompt, the builder's
+        // context, and a task board that says "building" rather than "repairing", because that is what
+        // is actually happening.
+        var writingFresh = !task.OwnsAllFiles && context.File(task.OwnedFile) is null;
+        var repairing = isRepair && !writingFresh;
 
-        var instruction = isRepair
+        progress?.Report(new SwarmEvent.TaskStarted(task, repairing));
+
+        var instruction = repairing
             ? SwarmPrompts.Fixer(task, plan.Contract)
             : SwarmPrompts.Builder(task, plan.Contract);
 
-        var message = isRepair
+        var message = repairing
             ? context.ComposeRepair(task, findings)
             : context.ComposeBuild(task, plan);
 
@@ -655,8 +671,17 @@ public sealed class SwarmRunner(
             f.Code.StartsWith("draw.", StringComparison.Ordinal)
             || f.Code.StartsWith(Critics.Picture + ".", StringComparison.Ordinal)
             || f.Code.StartsWith(Critics.ChartCraft + ".", StringComparison.Ordinal));
-        if (drawing && tasks.Any(t => t.Kind == TaskKind.Panel))
-            return [.. tasks.Where(t => t.Kind == TaskKind.Panel)];
+
+        // THE HOSTABLE CLASS PAINTS TOO, and leaving it out made a drawing fault unfixable.
+        //
+        // Every unit has a Draw on the hostable class — for many that is the ONLY Draw, and even with
+        // helper panels it is what declares the layout, sizes the regions and titles them. Sending a
+        // picture finding to the Panel tasks alone means the one file that could resolve it is never
+        // asked. Measured on the opening-range brief: three rounds against the same
+        // "'130' and '130' are drawn on top of each other", the two panel builders rewriting
+        // themselves each time, and the panel named in the finding belonging to the kernel.
+        if (drawing && tasks.Any(t => t.Kind is TaskKind.Panel or TaskKind.Signal))
+            return [.. tasks.Where(t => t.Kind is TaskKind.Panel or TaskKind.Signal)];
 
         return [tasks.FirstOrDefault(t => t.Kind == TaskKind.Signal) ?? tasks[0]];
     }

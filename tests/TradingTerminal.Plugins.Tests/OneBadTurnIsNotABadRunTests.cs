@@ -181,9 +181,68 @@ public sealed class OneBadTurnIsNotABadRunTests
 
         await Task.Delay(50);
 
+        // ASKED AGAIN is the property, not "flagged as a repair" — a file that was never written is
+        // written, not repaired, and the round that asks for it is the repair round doing its job.
         seen.OfType<SwarmEvent.TaskStarted>()
-            .Should().Contain(s => s.IsRepair && s.Task.OwnedFile == "Unit.cs",
-                "the file nobody wrote is the one the repair round exists for");
+            .Count(s => s.Task.OwnedFile == "Unit.cs")
+            .Should().BeGreaterThan(1, "the file nobody wrote is the one the repair round exists for");
+    }
+
+    [Fact]
+    public async Task It_is_asked_to_WRITE_the_missing_file_rather_than_to_repair_it()
+    {
+        // A repair for a file that does not exist is not a repair, and the Fixer prompt cannot be
+        // honoured: "change as little as possible" in a file the model cannot see, against a diagnostic
+        // (no hostable class) that names no file. Measured on the opening-range brief — the kernel was
+        // asked four times, spent 76,000 to 115,000 output tokens each time, and never produced a line.
+        //
+        // So the ROUND is a repair and the TURN is a build. The board says so too: a row that has never
+        // been written reads "building", because that is what is happening.
+        var client = new Records(Answer, fail: "Unit.cs");
+        var seen = new List<SwarmEvent>();
+
+        await new SwarmRunner(client, new UnitGate(new RoslynStrategyCompiler(), "test.unit", "Test unit"))
+            .RunAsync(
+                new SwarmRequest("a correlation matrix", "PACK", AuthoringKind.Strategy,
+                    new SwarmBudget(MaxParallel: 2, MaxRounds: 1, MaxTasks: 8)),
+                new Progress<SwarmEvent>(seen.Add));
+
+        await Task.Delay(50);
+
+        client.Roles.Where(r => r.Contains("Unit.cs", StringComparison.Ordinal))
+            .Should().OnlyContain(r => r.Contains("YOUR ROLE: Builder", StringComparison.Ordinal),
+                "there is nothing to fix — the file was never written");
+
+        seen.OfType<SwarmEvent.TaskStarted>()
+            .Where(s => s.Task.OwnedFile == "Unit.cs")
+            .Should().OnlyContain(s => !s.IsRepair, "the board must not call a first write a repair");
+    }
+
+    /// <summary>Fails one owned file and remembers every role instruction it was sent.</summary>
+    private sealed class Records(Func<string, string> reply, string fail) : IStrategyCodegenClient
+    {
+        public string ProviderId => "scripted";
+        public string DisplayName => "Scripted";
+        public bool IsAvailable => true;
+
+        public System.Collections.Concurrent.ConcurrentQueue<string> Sent { get; } = new();
+
+        public IReadOnlyList<string> Roles => [.. Sent];
+
+        public Task<StrategyCodegenResponse> GenerateAsync(
+            StrategyCodegenRequest request, CancellationToken ct = default)
+        {
+            var role = request.RoleInstruction ?? string.Empty;
+            Sent.Enqueue(role);
+
+            if (role.Contains(fail, StringComparison.OrdinalIgnoreCase))
+                return Task.FromResult(StrategyCodegenResponse.Fail(
+                    "The provider spent the whole generation reasoning and never started an answer."));
+
+            var text = reply(role);
+            return Task.FromResult(StrategyCodegenResponse.Ok(
+                CodegenCodeExtractor.ExtractFiles(text), text, new CodegenUsage(10, 20)));
+        }
     }
 
     [Fact]
