@@ -215,6 +215,15 @@ public sealed class SwarmRunner(
             var stalled = 0;
             GauntletResult? lastReview = null;
 
+            // THE BEST VERSION THE RUN REACHED, kept so it can be delivered instead of whatever state
+            // the last round happened to end on. A critic-driven repair is a model rewriting working
+            // code to satisfy a note, and it can make the ladder worse — measured: round 0 cleared
+            // seven rungs, the critics' notes were applied, and round 1 came back with two drawing
+            // faults that had not been there. A run whose budget runs out mid-regression must not hand
+            // over the worse unit while a better one existed minutes earlier.
+            IReadOnlyList<StrategyFile> bestFiles = [];
+            GateResult? bestVerdict = null;
+
             for (var round = 0; round <= request.Budget.MaxRounds; round++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -282,10 +291,21 @@ public sealed class SwarmRunner(
                 // Ground gained: rungs cleared, then findings removed at the same height — and a critic's
                 // findings count, or a run could clear the ladder and then circle a picture forever.
                 var height = LadderScore.HeightOf(verdict.Report) - (review?.Findings.Count ?? 0);
-                if (height > best) { best = height; stalled = 0; } else { stalled++; }
+                if (height > best)
+                {
+                    best = height;
+                    stalled = 0;
+                    bestFiles = context.Files;
+                    bestVerdict = verdict;
+                }
+                else
+                {
+                    stalled++;
+                }
 
                 if (stalled >= request.Budget.StallLimit)
-                    return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
+                    return Done(SwarmOutcome.Stalled, plan, origin, Rewind(context, bestFiles),
+                        bestVerdict ?? verdict, usage, note: note, summary:
                         $"Stopped after {round} repair round(s): the last {request.Budget.StallLimit} bought no "
                         + "further ground. Read the diagnostics and say what to change — repeating the same "
                         + "round will not.");
@@ -336,9 +356,14 @@ public sealed class SwarmRunner(
                 }).ConfigureAwait(false);
             }
 
-            return Done(SwarmOutcome.BudgetExhausted, plan, origin, context, verdict, usage, note:  note, summary:
+            // The best version, not the last. See bestFiles above.
+            var delivered = bestVerdict ?? verdict;
+            return Done(SwarmOutcome.BudgetExhausted, plan, origin, Rewind(context, bestFiles),
+                delivered, usage, note: note, summary:
                 $"Stopped at the {request.Budget.MaxRounds}-round repair budget. "
-                + $"Furthest it got: {(verdict?.Compile?.Success == true ? "it compiles" : "it does not compile")}.");
+                + $"Furthest it got: {(delivered?.Compile?.Success == true ? "it compiles" : "it does not compile")}"
+                + (ReferenceEquals(delivered, verdict) ? string.Empty : ", and that is the version kept")
+                + ".");
         }
         catch (OperationCanceledException)
         {
@@ -814,6 +839,13 @@ public sealed class SwarmRunner(
         {
             // Deliberately swallowed. TrajectoryLog already tolerates a malformed line on read.
         }
+    }
+
+    /// <summary>Puts the context back to the best snapshot, when there is one worth going back to.</summary>
+    private static SwarmContext Rewind(SwarmContext context, IReadOnlyList<StrategyFile> best)
+    {
+        if (best.Count > 0) context.Restore(best);
+        return context;
     }
 
     private SwarmRun Done(

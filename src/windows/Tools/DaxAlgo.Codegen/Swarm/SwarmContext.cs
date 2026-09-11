@@ -64,6 +64,22 @@ public sealed class SwarmContext
     public bool Remove(string name) => _files.Remove(name);
 
     /// <summary>
+    /// Puts the build back to a snapshot of <see cref="Files"/> taken earlier.
+    ///
+    /// <para>For one case only: delivering the best version a run reached rather than the last one it
+    /// happened to end on. A critic-driven repair can make the ladder worse — it is a model rewriting
+    /// working code to satisfy a note — and a run whose budget ran out mid-regression would otherwise
+    /// hand over the worse unit while a better one existed minutes earlier.</para>
+    /// </summary>
+    public void Restore(IReadOnlyList<StrategyFile> snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        _files.Clear();
+        foreach (var file in snapshot) _files[file.Name] = file;
+    }
+
+    /// <summary>
     /// Records what a task produced, <b>keeping only the file that task owns</b>.
     ///
     /// <para>This is the merge rule enforced rather than requested. Asked for a panel, a model will

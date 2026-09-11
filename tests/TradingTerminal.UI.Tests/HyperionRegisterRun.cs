@@ -66,9 +66,14 @@ public sealed class HyperionRegisterRun(ITestOutputHelper output)
 
             var script = new StrategyScript(session.StrategyId, session.DisplayName, session.Files);
 
-            // THE LADDER FIRST, exactly as the pane does. Registering something that does not clear it
-            // would put a unit in the catalog that cannot draw, cannot warm up, or cannot run at all —
-            // and the catalog is the one place a user is entitled to assume otherwise.
+            // THE SAME BAR THE PANE SETS, which is a clean compile and one hostable class — not a
+            // clean ladder.
+            //
+            // Being stricter here would have been easy to argue for and wrong: the ladder's later rungs
+            // are about quality, and one of them is "two labels overlap by a few pixels". The pane opens
+            // its review overlay on a compile and lets the author decide, so refusing to register a unit
+            // the app would happily register is this harness inventing a policy. The rungs are reported
+            // instead, which is the useful half of being strict.
             var gate = new UnitGate(compiler, script.Id, script.DisplayName).Run(session.Files);
 
             if (gate.Compile is not { Success: true } compiled || gate.Unit is not { } unit)
@@ -81,15 +86,10 @@ public sealed class HyperionRegisterRun(ITestOutputHelper output)
                 continue;
             }
 
-            if (!gate.Passed)
-            {
-                outcomes.Add(new Outcome(
-                    brief.Id,
-                    $"compiled but failed the ladder at {gate.Report.FailedAt}: " + First(gate.Report.Findings),
-                    false,
-                    false));
-                continue;
-            }
+            var ladder = gate.Passed
+                ? $"{gate.Report.RungsCleared} rung(s), clean"
+                : $"{gate.Report.RungsCleared} rung(s), open at {gate.Report.FailedAt}: "
+                  + First(gate.Report.Findings);
 
             var registered = sink.Register(unit, script.Id, script.DisplayName);
 
@@ -110,7 +110,7 @@ public sealed class HyperionRegisterRun(ITestOutputHelper output)
 
             outcomes.Add(new Outcome(
                 brief.Id,
-                $"{unit.Kind} · {unit.Type.Name} · {gate.Report.RungsCleared} rung(s) — {registered} {keptWhy}",
+                $"{unit.Kind} · {unit.Type.Name} · {ladder} — {registered} {keptWhy}",
                 Registered: registered.StartsWith("Registered", StringComparison.Ordinal),
                 Kept: kept));
         }
