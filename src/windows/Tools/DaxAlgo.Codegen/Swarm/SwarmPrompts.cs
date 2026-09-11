@@ -74,8 +74,9 @@ public static class SwarmPrompts
            with candles, gutter, time axis, crosshair, zoom and pan is `PriceChart.Draw`; a depth ladder
            is `Ladder.Draw`; a footprint is `Footprint.Draw`; a correlation grid is `Heatmap.Draw`; a
            volume profile is `VolumeProfile.Draw`; rows and columns are `Table.Draw`; stated numbers are
-           `Tiles.Draw`. Use `""` only when the picture genuinely has no widget, which is rare. Builders
-           are held to what you write here, so a panel you leave empty is a panel drawn from rectangles.
+           `Tiles.Draw`. Write `"none"` only when the picture genuinely has no widget, which is rare —
+           a 3D scene, a novel diagram. Builders are held to what you write here, so a panel you leave
+           unnamed is a panel drawn out of rectangles.
         """;
 
     /// <summary>
@@ -133,7 +134,7 @@ public static class SwarmPrompts
         var mine = contract.Panels
             .Where(p => string.Equals(p.TypeName, TypeIn(task.OwnedFile), StringComparison.OrdinalIgnoreCase)
                         || task.Kind == TaskKind.Signal)
-            .Where(p => !string.IsNullOrWhiteSpace(p.Widget))
+            .Where(p => Decided(p.Widget))
             .Select(p => $"{p.Id} \"{p.Title}\" → {p.Widget}")
             .ToArray();
 
@@ -153,6 +154,12 @@ public static class SwarmPrompts
            none of that and reads as a mock-up of a chart rather than one.
         """;
     }
+
+    /// <summary>True when the planner actually chose a widget. Blank is "did not say"; the literal
+    /// word "none" is the deliberate answer for a picture the catalogue does not cover.</summary>
+    internal static bool Decided(string? widget) =>
+        !string.IsNullOrWhiteSpace(widget)
+        && !string.Equals(widget.Trim(), "none", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The type a file is expected to declare, so a panel spec can be matched to its builder
     /// without the planner having to repeat the file name.</summary>
@@ -247,9 +254,15 @@ public static class SwarmPrompts
             foreach (var panel in contract.Panels)
             {
                 text.Append($"    - {panel.Id} \"{panel.Title}\" — {panel.Shows} (painted by {panel.TypeName})");
-                text.AppendLine(string.IsNullOrWhiteSpace(panel.Widget)
-                    ? " — no widget fits; build the picture yourself"
-                    : $" — DRAW IT WITH {panel.Widget}");
+                // AN EMPTY FIELD IS THE PLANNER SAYING NOTHING, NOT THE PLANNER SAYING "NONE".
+                //
+                // This first rendered "no widget fits; build the picture yourself" whenever the field
+                // was blank, and a live run came back with a panel whose own header comment opened
+                // "No widget fits this picture" — the model quoting an instruction it had been handed
+                // as a finding. A default that licenses the exact behaviour the field exists to stop is
+                // worse than no field. Silence renders as silence; the builder's standing rule to reach
+                // for a widget still applies. A planner that means none says so.
+                text.AppendLine(Decided(panel.Widget) ? $" — DRAW IT WITH {panel.Widget}" : string.Empty);
             }
         }
 

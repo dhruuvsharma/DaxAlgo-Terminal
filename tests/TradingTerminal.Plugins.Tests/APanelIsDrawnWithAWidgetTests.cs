@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 using Xunit;
@@ -98,18 +98,37 @@ public sealed class APanelIsDrawnWithAWidgetTests
     }
 
     [Fact]
-    public void A_picture_with_no_widget_says_so_rather_than_naming_a_wrong_one()
+    public void A_planner_that_said_nothing_is_not_quoted_as_saying_none()
     {
-        // The pack has a section for this: some pictures genuinely have no widget, and forcing one would
-        // be worse than the hand-rolling this is meant to stop.
+        // MEASURED, and it was my own line that caused it. The first version rendered "no widget fits;
+        // build the picture yourself" for a blank field, and a live run came back with a panel whose
+        // header comment opened "No widget fits this picture" — the model quoting an instruction it had
+        // been handed, on a picture that Footprint.Draw covers exactly. A default that licenses the
+        // behaviour the field exists to prevent is worse than having no field.
         var rendered = SwarmPrompts.Contract(Contract(
-            new PanelSpec("scene", "Battlefield", "orders as soldiers", "ScenePanel")));
+            new PanelSpec("cluster", "Footprint", "buy/sell per price", "ClusterPanel")));
 
-        rendered.Should().Contain("no widget fits");
+        rendered.Should().NotContain("no widget fits");
+        rendered.Should().NotContain("build the picture yourself");
 
-        var instruction = SwarmPrompts.Builder(Panel("ScenePanel.cs"), Contract(
-            new PanelSpec("scene", "Battlefield", "orders as soldiers", "ScenePanel")));
+        // The standing rule still reaches the builder, so silence costs guidance rather than adding a
+        // licence.
+        SwarmPrompts.Builder(Panel("ClusterPanel.cs"), Contract(
+                new PanelSpec("cluster", "Footprint", "buy/sell per price", "ClusterPanel")))
+            .Should().Contain("Reach for a widget before drawing by hand");
+    }
 
-        instruction.Should().Contain("Reach for a widget before drawing by hand");
+    [Fact]
+    public void A_picture_that_genuinely_has_no_widget_is_said_deliberately()
+    {
+        // The pack has a section for this — a 3D scene, a novel diagram — and forcing a widget onto one
+        // would be worse than the hand-rolling this is meant to stop. It takes a word, so that meaning
+        // it and forgetting to answer cannot look the same.
+        SwarmPrompts.Decided("none").Should().BeFalse();
+        SwarmPrompts.Decided("  ").Should().BeFalse();
+        SwarmPrompts.Decided("Ladder.Draw").Should().BeTrue();
+
+        SwarmPrompts.Planner(AuthoringKind.Visualizer, maxTasks: 8)
+            .Should().Contain("\"none\"", "the planner has to be told the word exists");
     }
 }
