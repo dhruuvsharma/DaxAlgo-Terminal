@@ -1,4 +1,4 @@
-using TradingTerminal.Core.Configuration;
+﻿using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure.Plugins;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
@@ -44,6 +44,12 @@ public sealed class AuthoredUnitStore(PluginHostContext host, IPluginSignatureIn
             host.TrustPolicy,
             inspector ?? new AuthenticodeSignatureInspector(),
             host.State,
-            PluginScanMode.Enforce);
+            PluginScanMode.Enforce,
+
+            // The SAME profile the loader will use. Scanning an authored unit under the curated
+            // profile and then loading it under the sandbox one is how "Installed. Restart the app
+            // to activate it" became a lie: the refusal arrived at the next start, in the Plugin
+            // Manager, as a quarantine record for a rule nobody had been shown.
+            PluginScanProfile.Sandbox);
     }
 }

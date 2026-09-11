@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.IO;
 using System.Reflection;
 using System.Reflection.Metadata;
@@ -180,6 +180,50 @@ public static class PluginPolicyScanner
         "TradingTerminal.Core.Trading",
         "TradingTerminal.Core.Strategies",
     ];
+
+    /// <summary>
+    /// What a sandboxed unit may name under a forbidden prefix, because the CONTRACT requires it.
+    ///
+    /// <para><b>Without this the rule denied the contract itself.</b> Both
+    /// <c>IStrategyKernel</c> and <c>IVisualizer</c> declare
+    /// <c>StrategyParameterSchema Schema</c> and <c>StrategyDataRequirement DataRequirement</c> as
+    /// members, and the authoring compiler injects both namespaces as global usings — so every unit
+    /// that has ever been written names them, including the shipped samples. A unit compiled clean,
+    /// verified clean, registered, installed, and was then quarantined at startup for "accessing host
+    /// services outside the sandbox contract", naming a type it could not legally omit.</para>
+    ///
+    /// <para>Listed rather than un-denying the namespace, and that distinction is the whole point.
+    /// <c>TradingTerminal.Core.Strategies</c> also holds the registry, the catalog and the authoring
+    /// compiler; a sandboxed unit reaching for those is precisely what the rule is for. What is allowed
+    /// here is the parameter vocabulary — a whole namespace of value types with no behaviour — and the
+    /// one enum that says which streams the unit wants.</para>
+    /// </summary>
+    private static readonly string[] SandboxContractNamespaces =
+    [
+        "TradingTerminal.Core.Strategies.Parameters",
+    ];
+
+    /// <summary>Individual contract types under a forbidden prefix. See
+    /// <see cref="SandboxContractNamespaces"/>.</summary>
+    private static readonly HashSet<string> SandboxContractTypes =
+    [
+        "TradingTerminal.Core.Strategies.StrategyDataRequirement",
+    ];
+
+    /// <summary>True when this type is part of the sandbox contract despite sitting under a namespace
+    /// the sandbox otherwise denies. Public so the rule can be stated as a test rather than inferred
+    /// from a scan of something that happens to compile.</summary>
+    public static bool IsSandboxContractType(string fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return false;
+        if (SandboxContractTypes.Contains(fullName)) return true;
+
+        var lastDot = fullName.LastIndexOf('.');
+        if (lastDot <= 0) return false;
+
+        var ns = fullName[..lastDot];
+        return SandboxContractNamespaces.Any(allowed => IsNamespace(ns, allowed));
+    }
 
     /// <summary>Scans every managed assembly in <paramref name="pluginDirectory"/> (the plugin's own
     /// DLL and the private dependencies it ships). Under <see cref="PluginScanProfile.Curated"/>,
@@ -447,7 +491,8 @@ public static class PluginPolicyScanner
             Add(findings, declared, PluginScanProfile.Sandbox, assembly, "hostAccess", PluginScanSeverity.Block,
                 $"{assembly} accesses host market-data infrastructure instead of IMarketDataView ({full})");
 
-        if (SandboxForbiddenHostNamespacePrefixes.Any(prefix => IsNamespace(ns, prefix)))
+        if (SandboxForbiddenHostNamespacePrefixes.Any(prefix => IsNamespace(ns, prefix))
+            && !IsSandboxContractType(full))
             Add(findings, declared, PluginScanProfile.Sandbox, assembly, "hostAccess", PluginScanSeverity.Block,
                 $"{assembly} accesses host services outside the sandbox contract ({full})");
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -107,7 +107,8 @@ public static class PluginInstaller
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
         PluginStateStore? state = null,
-        PluginScanMode scanMode = PluginScanMode.Enforce)
+        PluginScanMode scanMode = PluginScanMode.Enforce,
+        PluginScanProfile scanProfile = PluginScanProfile.Curated)
     {
         try
         {
@@ -119,7 +120,7 @@ public static class PluginInstaller
             return InstallValidatedFolder(
                 Path.GetDirectoryName(sourceDllPath)!,
                 Path.GetFileNameWithoutExtension(sourceDllPath),
-                pluginsRoot, policy, inspector, state, scanMode,
+                pluginsRoot, policy, inspector, state, scanMode, scanProfile,
                 copyAllFiles: false);
         }
         catch (Exception ex)
@@ -142,7 +143,8 @@ public static class PluginInstaller
         PluginTrustPolicy policy,
         IPluginSignatureInspector inspector,
         PluginStateStore? state = null,
-        PluginScanMode scanMode = PluginScanMode.Enforce)
+        PluginScanMode scanMode = PluginScanMode.Enforce,
+        PluginScanProfile scanProfile = PluginScanProfile.Curated)
     {
         try
         {
@@ -172,7 +174,7 @@ public static class PluginInstaller
             {
                 Stage(contents, staging);
                 return InstallValidatedFolder(
-                    staging, assemblyName, pluginsRoot, policy, inspector, state, scanMode,
+                    staging, assemblyName, pluginsRoot, policy, inspector, state, scanMode, scanProfile,
                     copyAllFiles: true);
             }
             finally
@@ -273,6 +275,7 @@ public static class PluginInstaller
         IPluginSignatureInspector inspector,
         PluginStateStore? state,
         PluginScanMode scanMode,
+        PluginScanProfile scanProfile,
         bool copyAllFiles)
     {
         PluginManifest? manifest;
@@ -296,7 +299,14 @@ public static class PluginInstaller
         // say so now, while the user is looking at the install dialog).
         if (scanMode != PluginScanMode.Off)
         {
-            var scan = PluginPolicyScanner.Scan(sourceDir, manifest?.Permissions);
+            // THE PROFILE IT WILL BE LOADED UNDER, not a laxer one.
+            //
+            // This scanned Curated for everything while authored units load under Sandbox, which is
+            // stricter and ignores manifest declarations — so the comment above was true of plugins and
+            // false of exactly the artifacts this path exists for. Six units were installed with
+            // "Restart the app to activate it" and every one of them was quarantined on the next start,
+            // for a rule the install had never applied.
+            var scan = PluginPolicyScanner.Scan(sourceDir, manifest?.Permissions, scanProfile);
             if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
                 return new(false, $"Blocked by the policy scan: {scan.Summary}.");
         }
