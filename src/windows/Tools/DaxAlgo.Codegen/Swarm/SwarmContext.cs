@@ -196,7 +196,8 @@ public sealed class SwarmContext
     /// file that called it, so a repair needs to know its caller is unhappy — but handing it the other
     /// file's diagnostics invites it to fix code it does not own and cannot see.</para>
     /// </summary>
-    public string ComposeRepair(BuildTask task, IReadOnlyList<VerificationFinding> findings)
+    public string ComposeRepair(
+        BuildTask task, IReadOnlyList<VerificationFinding> findings, BuildPlan? plan = null)
     {
         ArgumentNullException.ThrowIfNull(task);
         ArgumentNullException.ThrowIfNull(findings);
@@ -234,8 +235,37 @@ public sealed class SwarmContext
                 string.Join(", ", elsewhere) + Environment.NewLine
                 + "Do not try to fix them. If your file is what they disagree with, change yours.");
 
+        // THE OWNERSHIP RULE BELONGS HERE TOO, and leaving it out of the repair path is what let the
+        // duplicate back in after ComposeBuild had learned to prevent it.
+        //
+        // Measured on the second run: the furniture helper stalled five times out of six, so the kernel
+        // was repaired against "CS0103: the name ChartFurniture does not exist" — and the obvious repair
+        // for a name that does not exist is to define it. When the real file finally landed the unit had
+        // CS0101, already contains a definition. The fixer's own prompt tells it not to FIX another
+        // file; nothing told it not to ABSORB one.
+        if (plan is not null && Missing(plan, task) is { Length: > 0 } absent)
+        {
+            Section(
+                text,
+                "NOT YET WRITTEN — and not yours to write",
+                string.Join(", ", absent) + Environment.NewLine
+                + "Another builder owns each of those and is writing it now. A name from one that does "
+                + "not resolve yet is not a reason to declare it here: two files declaring one type is "
+                + "an ambiguity error across the whole unit, and it outlives the missing file it came "
+                + "from. Call them through the contract signatures and leave them undefined.");
+        }
+
         return text.ToString();
     }
+
+    /// <summary>Files the plan promises that nobody has written yet — the ones a repair is most tempted
+    /// to absorb, because their names are exactly what the diagnostics are complaining about.</summary>
+    private string[] Missing(BuildPlan plan, BuildTask task) =>
+        [.. plan.Tasks
+            .Where(t => !t.OwnsAllFiles)
+            .Where(t => !string.Equals(t.OwnedFile, task.OwnedFile, StringComparison.OrdinalIgnoreCase))
+            .Where(t => File(t.OwnedFile) is null)
+            .Select(t => t.OwnedFile)];
 
     /// <summary>The files this task may rewrite: its own, or all of them for the fallback task.</summary>
     private IReadOnlyList<StrategyFile> Owned(BuildTask task) =>

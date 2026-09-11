@@ -524,7 +524,7 @@ public sealed class SwarmRunner(
             : SwarmPrompts.Builder(task, plan.Contract);
 
         var message = repairing
-            ? context.ComposeRepair(task, findings)
+            ? context.ComposeRepair(task, findings, plan)
             : context.ComposeBuild(task, plan);
 
         // THE HEARTBEAT. Counted per task and reported as numbers, so a fan-out has something moving

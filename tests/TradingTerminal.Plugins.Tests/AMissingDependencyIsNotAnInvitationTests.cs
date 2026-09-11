@@ -1,6 +1,7 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
 using Xunit;
 
 namespace TradingTerminal.Plugins.Tests;
@@ -84,6 +85,47 @@ public sealed class AMissingDependencyIsNotAnInvitationTests
         message.Should().Contain("Geometry.cs");
         message.Should().Contain("Cells.cs");
         message.Should().NotContain("Unit.cs", "a file is not told to avoid declaring its own type");
+    }
+
+    [Fact]
+    public void A_repair_is_told_the_same_thing()
+    {
+        // WHERE THE DUPLICATE ACTUALLY GOT IN, after ComposeBuild had learned to prevent it. The
+        // furniture helper stalled five times out of six, so the kernel was repaired against "CS0103:
+        // the name ChartFurniture does not exist" — and the obvious repair for a name that does not
+        // exist is to define it. When the real file finally landed, the unit had CS0101.
+        var plan = Plan();
+        var context = new SwarmContext("a footprint",
+            [new StrategyFile("Unit.cs", "public sealed class Unit { }")]);
+
+        var message = context.ComposeRepair(
+            Kernel(plan),
+            [new VerificationFinding("CS0103", "The name 'Geometry' does not exist.", "Fix it.")],
+            plan);
+
+        message.Should().Contain("NOT YET WRITTEN — and not yours to write");
+        message.Should().Contain("Geometry.cs");
+        message.Should().Contain("leave them undefined");
+    }
+
+    [Fact]
+    public void A_repair_with_nothing_missing_is_not_warned_about_nothing()
+    {
+        // Every file exists, so there is nothing to absorb and nothing to say. A warning that fires
+        // always is a warning that is read never.
+        var plan = Plan();
+        var context = new SwarmContext("a footprint",
+        [
+            new StrategyFile("Geometry.cs", "public sealed class Geometry { }"),
+            new StrategyFile("Cells.cs", "public sealed class Cells { }"),
+            new StrategyFile("Unit.cs", "public sealed class Unit { }"),
+        ]);
+
+        context.ComposeRepair(
+                Kernel(plan),
+                [new VerificationFinding("CS1002", "; expected", "Add it.")],
+                plan)
+            .Should().NotContain("NOT YET WRITTEN");
     }
 
     [Fact]
