@@ -186,11 +186,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         RefreshAggregateState();
         _brokerSelector.StateChanged += (_, _) =>
         {
+            // The universe comes from the CONNECTED brokers, so connecting one changes the answer.
+            // Rebuilt here rather than only when a window opens, so the picker is warm by the time
+            // anybody asks for it and the join in SelectableInstruments costs nothing.
+            _ = RefreshAuthoredInstrumentsAsync();
+
             if (System.Windows.Application.Current?.Dispatcher is { } d && !d.CheckAccess())
                 d.BeginInvoke(new Action(RefreshAggregateState));
             else
                 RefreshAggregateState();
         };
+
+        // And once at start, for a session that opens a unit before touching a broker.
+        _ = RefreshAuthoredInstrumentsAsync();
 
         _session.Changed += (_, _) =>
         {
@@ -767,13 +775,54 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     /// </summary>
     private IReadOnlyList<AuthoredUnitInstrument> SelectableInstruments()
     {
-        _ = RefreshAuthoredInstrumentsAsync();
+        // THE LIST HAS TO BE HERE BY THE TIME THE WINDOW IS COMPOSED, and it was not.
+        //
+        // This started the load and returned whatever the cache already held — which on the first call
+        // is nothing. The picker only renders when it has rows (IsInstrument checks Count > 0), so the
+        // first authored unit opened in a session got a FREE TEXT BOX whose validator then demanded a
+        // canonical surrogate id: "Must be an instrument id." Nobody knows their own. Reported twice as
+        // "the instrument selector is broken", and intermittent exactly as a race is — a second window
+        // opened later inherited the list the first one's load had finally filled.
+        //
+        // Warmed at construction so the wait is normally zero, and joined here with a bound when it is
+        // not. Blocking briefly on the first open is the lesser evil against a control that cannot be
+        // used at all, and the load is ConfigureAwait(false) throughout so joining it cannot deadlock.
+        if (_authoredInstruments.Count > 0) return _authoredInstruments;
+
+        try
+        {
+            RefreshAuthoredInstrumentsAsync().Wait(InstrumentLoadBound);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Authored-unit instrument list failed while a window was opening");
+        }
+
         return _authoredInstruments;
     }
 
+    /// <summary>How long composing a window may wait for the instrument universe. Long enough for a
+    /// repository read, short enough that a wedged broker cannot hold a window shut.</summary>
+    private static readonly TimeSpan InstrumentLoadBound = TimeSpan.FromSeconds(4);
+
     private volatile IReadOnlyList<AuthoredUnitInstrument> _authoredInstruments = [];
 
-    private async Task RefreshAuthoredInstrumentsAsync()
+    /// <summary>The load in flight, so several windows opening at once join one rather than starting
+    /// four of them against the same repository.</summary>
+    private Task? _instrumentLoad;
+
+    private readonly Lock _instrumentGate = new();
+
+    private Task RefreshAuthoredInstrumentsAsync()
+    {
+        lock (_instrumentGate)
+        {
+            if (_instrumentLoad is { IsCompleted: false } running) return running;
+            return _instrumentLoad = LoadAuthoredInstrumentsAsync();
+        }
+    }
+
+    private async Task LoadAuthoredInstrumentsAsync()
     {
         try
         {

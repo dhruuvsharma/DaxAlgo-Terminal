@@ -67,6 +67,16 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
         var brief = HyperionBriefs.Find(id)
             ?? throw new InvalidOperationException($"No brief called '{id}'.");
 
+        // An ad-hoc brief, for trying a differently-worded one without committing it to the table. The
+        // id still selects the kind, the display name and where the artifacts land; only the words
+        // change, which is exactly the variable worth isolating when the question is "does saying it
+        // differently produce a better picture".
+        if (Environment.GetEnvironmentVariable("HYPERION_TEXT") is { Length: > 0 } custom)
+            brief = brief with { Text = custom };
+
+        if (Environment.GetEnvironmentVariable("HYPERION_NAME") is { Length: > 0 } renamed)
+            brief = brief with { DisplayName = renamed };
+
         // EMPTIED, not just created. A re-run plans differently — the same brief produced a five-task
         // plan once and a three-task plan the next time — so leaving the previous attempt's files in
         // place hands somebody a directory holding two different units and no way to tell which source
