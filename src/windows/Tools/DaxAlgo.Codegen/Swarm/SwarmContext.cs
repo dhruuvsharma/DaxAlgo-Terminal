@@ -137,8 +137,48 @@ public sealed class SwarmContext
         foreach (var id in task.DependsOn)
         {
             if (plan.Tasks.FirstOrDefault(t => t.Id == id) is not { } upstream) continue;
-            if (File(upstream.OwnedFile) is not { } file) continue;
-            Section(text, $"ALREADY WRITTEN — {file.Name}", file.Content);
+
+            if (File(upstream.OwnedFile) is { } file)
+            {
+                Section(text, $"ALREADY WRITTEN — {file.Name}", file.Content);
+                continue;
+            }
+
+            // A DEPENDENCY THAT IS NOT THERE YET HAS TO BE SAID OUT LOUD.
+            //
+            // It used to be skipped in silence, and silence is the worst of the three answers. The
+            // contract names the type, no file defines it, and a builder told to write a complete file
+            // does the reasonable thing: it writes the type itself. Measured — the geometry helper
+            // stalled, the kernel was built while it was missing and declared its own copy, and the
+            // repair round then wrote the real one. The unit ended with FootprintGeometry declared in
+            // two files and fifteen CS0229 "ambiguity between X and X" errors, which is a worse failure
+            // than the missing file it came from.
+            Section(
+                text,
+                $"NOT YET WRITTEN — {upstream.OwnedFile}",
+                $"Another builder owns {upstream.OwnedFile} and is writing it now. Call what it "
+                + "provides through the contract signature exactly as written. DO NOT DEFINE IT HERE: "
+                + "two files declaring one type is an ambiguity error across the whole unit, and the "
+                + "file that owns it is not yours.");
+        }
+
+        // The types this file may NOT declare, whether or not their files exist yet. Stated every time
+        // rather than only when one is missing, because the failure is the same either way and a rule
+        // that appears only in the broken case is a rule nobody learns.
+        var elsewhere = plan.Tasks
+            .Where(t => !string.Equals(t.OwnedFile, task.OwnedFile, StringComparison.OrdinalIgnoreCase))
+            .Select(t => t.OwnedFile)
+            .ToArray();
+
+        if (elsewhere.Length > 0)
+        {
+            Section(
+                text,
+                "OWNED BY OTHER FILES — do not declare these types",
+                string.Join(", ", elsewhere)
+                + Environment.NewLine
+                + "Each of those files declares its own type. Yours declares only what its task asks "
+                + "for.");
         }
 
         // Its own previous attempt, when there is one. A second round on the same task is a revision,

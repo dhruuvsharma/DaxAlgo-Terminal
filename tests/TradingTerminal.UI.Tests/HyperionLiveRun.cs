@@ -164,6 +164,14 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
         if (Count(Environment.GetEnvironmentVariable("HYPERION_PARALLEL")) is { } parallel)
             budget = budget with { MaxParallel = parallel };
 
+        // HOW MANY TASKS THE PLANNER MAY ASK FOR, and on a model that stalls it is the setting that
+        // decides whether a run finishes. A detailed brief buys decomposition — one produced the full
+        // eight — and every task is another chance for a generation that reasons past its output budget
+        // and returns nothing. At roughly one stall in four, eight tasks almost never complete in one
+        // pass and three usually do.
+        if (Count(Environment.GetEnvironmentVariable("HYPERION_TASKS")) is { } tasks)
+            budget = budget with { MaxTasks = tasks };
+
         Say($"budget: {budget.MaxParallel} parallel · {budget.MaxRounds} round(s) · {budget.MaxTasks} task(s) max");
 
         var thinking = 0;
