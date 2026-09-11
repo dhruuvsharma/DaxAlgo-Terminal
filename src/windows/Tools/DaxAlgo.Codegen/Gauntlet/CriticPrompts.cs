@@ -1,4 +1,4 @@
-using TradingTerminal.Core.Strategies.Authoring;
+﻿using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
 
@@ -93,6 +93,15 @@ public static class CriticPrompts
               things, is misreading waiting to happen.
             - Literal colours instead of theme tokens: correct in one theme, unreadable in the other.
             - Density: a heatmap of four cells, or a ladder of two rows, is a placeholder.
+            - A WIDGET HAND-ROLLED OUT OF PRIMITIVES. The library already draws the whole trading
+              chart (`PriceChart.Draw` — candles, price gutter, time axis, volume, last-price tag,
+              legend, crosshair, wheel-zoom and drag-pan), the depth ladder (`Ladder.Draw`), the
+              footprint (`Footprint.Draw`), the volume profile, the heatmap, the table and the
+              tiles. A panel that assembles one of those out of `surface.Rect` and `surface.Text`
+              gets none of the behaviour, and reads as a mock-up of a chart rather than a chart.
+              Say which call it should have made. This is the single most common thing wrong with
+              a generated picture: measured across six builds, twenty-eight styling calls and
+              twelve rectangles against one widget call.
             """),
 
         new(Critics.MarketLogic, CriticPanel.Quant, NeedsPicture: false, AppliesTo: null,

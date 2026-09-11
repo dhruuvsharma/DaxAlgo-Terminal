@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
@@ -36,7 +36,7 @@ public static class SwarmPrompts
             "dataRequirement": "Bars | L1 | Depth | TradeTape (what the unit subscribes to)",
             "parameters": [{ "name": "lookback", "label": "Look-back", "type": "int", "default": "20" }],
             "panels": [{ "id": "ladder", "title": "Depth ladder", "shows": "resting size per price",
-                         "typeName": "LadderPanel" }],
+                         "typeName": "LadderPanel", "widget": "Ladder.Draw" }],
             "helpers": [{ "typeName": "LadderPanel", "purpose": "paints the depth ladder",
                           "signature": "public void Draw(IRenderSurface surface, IReadOnlyList<DepthLevel> book)" }]
           },
@@ -70,6 +70,12 @@ public static class SwarmPrompts
            axis is labelled in ticks", not "looks professional".
         8. If the brief leaves something genuinely undecided, put it in `openQuestions` and pick a
            sensible default anyway. Do not stop to ask; the user can correct a built unit.
+        9. EVERY panel names the `widget` that draws it, from the drawing pack's table — a price chart
+           with candles, gutter, time axis, crosshair, zoom and pan is `PriceChart.Draw`; a depth ladder
+           is `Ladder.Draw`; a footprint is `Footprint.Draw`; a correlation grid is `Heatmap.Draw`; a
+           volume profile is `VolumeProfile.Draw`; rows and columns are `Table.Draw`; stated numbers are
+           `Tiles.Draw`. Use `""` only when the picture genuinely has no widget, which is rare. Builders
+           are held to what you write here, so a panel you leave empty is a panel drawn from rectangles.
         """;
 
     /// <summary>
@@ -101,9 +107,59 @@ public static class SwarmPrompts
                   + "do not re-implement what a helper already does."
                 : "You are writing a helper type. Do not declare a class implementing IStrategyKernel or "
                   + "IVisualizer — exactly one file does that, and it is not yours.")}
-
+        {Painting(task, contract)}
         {Contract(contract)}
         """;
+
+    /// <summary>
+    /// What a task that PAINTS is told, on top of the ordinary builder rules.
+    ///
+    /// <para><b>Because the catalogue alone did not work.</b> Six live builds loaded the drawing pack —
+    /// verified, not assumed — read its opening line "reach for a widget before you draw anything by
+    /// hand", and produced 28 <c>SetStyle</c> calls, 15 <c>Text</c>, 12 <c>Rect</c> and one widget call
+    /// between them. A depth ladder was built from rectangles beside <c>Ladder</c>; a footprint beside
+    /// <c>Footprint</c>; a correlation grid beside <c>Heatmap</c>. The one unit that did call
+    /// <c>PriceChart.Draw</c> came back with candles, a price gutter, a time axis, a crosshair, the
+    /// session range shaded over the bars and the entries marked on them — the difference is not
+    /// subtle.</para>
+    ///
+    /// <para>A general instruction in a 13,000-character pack is a suggestion. The same instruction in
+    /// the role, naming the exact call this file must make, is the job.</para>
+    /// </summary>
+    private static string Painting(BuildTask task, UnitContract contract)
+    {
+        if (task.Kind is not (TaskKind.Panel or TaskKind.Signal)) return string.Empty;
+
+        var mine = contract.Panels
+            .Where(p => string.Equals(p.TypeName, TypeIn(task.OwnedFile), StringComparison.OrdinalIgnoreCase)
+                        || task.Kind == TaskKind.Signal)
+            .Where(p => !string.IsNullOrWhiteSpace(p.Widget))
+            .Select(p => $"{p.Id} \"{p.Title}\" → {p.Widget}")
+            .ToArray();
+
+        var named = mine.Length > 0
+            ? "5. DRAW WITH THE WIDGET THE CONTRACT NAMES: " + string.Join("; ", mine) + ". Call it, then "
+              + "add your own marks ON TOP — overlays, markers, levels, shading. Do not rebuild what it "
+              + "already draws."
+            : "5. Reach for a widget before drawing by hand. The drawing pack's table has one for almost "
+              + "every trading picture; a hand-rolled version of a widget is refused at review.";
+
+        return $"""
+
+        {named}
+        6. A chart means a TRADING chart. `PriceChart.Draw(surface, bars)` is the whole thing —
+           candles, price gutter, time axis, volume, last-price tag, legend, crosshair, and the wheel
+           and the drag already wired. A picture assembled from `surface.Rect` and `surface.Text` has
+           none of that and reads as a mock-up of a chart rather than one.
+        """;
+    }
+
+    /// <summary>The type a file is expected to declare, so a panel spec can be matched to its builder
+    /// without the planner having to repeat the file name.</summary>
+    private static string TypeIn(string ownedFile) =>
+        ownedFile.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+            ? ownedFile[..^3]
+            : ownedFile;
 
     /// <summary>
     /// The instruction for the single-task fallback plan: write the whole unit, in as many files as it
@@ -189,7 +245,12 @@ public static class SwarmPrompts
             text.AppendLine();
             text.AppendLine("  Panels:");
             foreach (var panel in contract.Panels)
-                text.AppendLine($"    - {panel.Id} \"{panel.Title}\" — {panel.Shows} (painted by {panel.TypeName})");
+            {
+                text.Append($"    - {panel.Id} \"{panel.Title}\" — {panel.Shows} (painted by {panel.TypeName})");
+                text.AppendLine(string.IsNullOrWhiteSpace(panel.Widget)
+                    ? " — no widget fits; build the picture yourself"
+                    : $" — DRAW IT WITH {panel.Widget}");
+            }
         }
 
         if (contract.Helpers.Count > 0)

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using TradingTerminal.Core.Strategies.Authoring;
 
@@ -36,7 +36,22 @@ public sealed record ParameterSpec(string Name, string Label, string Type, strin
 /// <param name="Shows">What is in it, in one line.</param>
 /// <param name="TypeName">The helper type that paints it, which is what makes it independently
 /// buildable.</param>
-public sealed record PanelSpec(string Id, string Title, string Shows, string TypeName);
+/// <param name="Widget">
+/// The library call that draws this picture — <c>PriceChart.Draw</c>, <c>Ladder.Draw</c>,
+/// <c>Footprint.Draw</c>, <c>Heatmap.Draw</c> — or empty when nothing in the catalogue fits.
+///
+/// <para><b>Decided here, with the helper signatures, and for the same reason.</b> Six live builds
+/// produced 28 <c>SetStyle</c> calls, 15 <c>Text</c>, 12 <c>Rect</c> and one widget call between them:
+/// a depth ladder hand-rolled out of rectangles while <c>Ladder</c> sat in the library, a footprint
+/// hand-rolled while <c>Footprint</c> did, a correlation grid hand-rolled while <c>Heatmap</c> did. The
+/// drawing pack was loaded on all six and opens with "reach for a widget before you draw anything by
+/// hand". Guidance the builder is free to skip is guidance it skips.</para>
+///
+/// <para>So the choice moves into the contract, where a decision made once is binding on whoever
+/// writes the file — which is how every other cross-file disagreement in this plan is already
+/// prevented. Empty is a legitimate answer: some pictures have no widget, and the pack says so.</para>
+/// </param>
+public sealed record PanelSpec(string Id, string Title, string Shows, string TypeName, string Widget = "");
 
 /// <summary>A helper type, and the exact signature everything else will call it through.</summary>
 /// <param name="TypeName">Its name.</param>
