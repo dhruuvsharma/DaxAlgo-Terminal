@@ -88,14 +88,16 @@ public sealed class AgentCliAdapterTests
     }
 
     [Fact]
-    public void A_non_streaming_claude_run_asks_for_no_streaming_flags()
+    public void A_non_streaming_claude_run_asks_for_one_json_result_and_no_stream()
     {
-        // The fallback path. stream-json changes the OUTPUT SHAPE, so leaking these flags into a
-        // one-shot run would hand the plain-text parser a JSONL document.
+        // The fallback path. stream-json changes the OUTPUT SHAPE into JSONL, which the one-shot reader
+        // does not parse; `json` is one object carrying the reply and its usage, which it does. Plain
+        // text reported no usage at all, so a one-shot run read as free.
         var argv = AgentCliAdapter.ClaudeCode.ArgumentsFor("opus", CodegenEffort.High);
 
         argv.Should().Contain("-p");
-        argv.Should().NotContain("--output-format");
+        argv.Should().ContainInOrder("--output-format", "json");
+        argv.Should().NotContain("stream-json");
         argv.Should().NotContain("--include-partial-messages");
     }
 
@@ -104,11 +106,183 @@ public sealed class AgentCliAdapterTests
     {
         // A blank model must not become an empty argument: `--model ""` is not "use the default", it is
         // a model named empty string, and the CLI rejects it.
-        var argv = AgentCliAdapter.ClaudeCode.ArgumentsFor(null, CodegenEffort.Default);
+        var argv = AgentCliAdapter.ClaudeCode.ArgumentsFor(null, CodegenEffort.Default).ToList();
 
         argv.Should().NotContain("--model");
         argv.Should().NotContain("--effort");
-        argv.Should().NotContain(string.Empty);
+
+        // Exactly one empty argument, and it is the tool list: `claude --help` documents `--tools ""`
+        // as "disable all tools". Anywhere else an empty argument is a value somebody forgot.
+        argv.Count(a => a.Length == 0).Should().Be(1);
+        argv[argv.IndexOf(string.Empty) - 1].Should().Be("--tools");
+    }
+
+    // -- a prompt to answer, not an agent to run ------------------------------------------------------
+
+    /// <summary>
+    /// What every Claude call must carry, read out of <c>claude --help</c> (2.1.270) on 2026-09-13.
+    /// Measured the same day from an empty folder: a plain <c>claude -p</c> carried 24,882 tokens of
+    /// Claude Code's own harness before a byte of the prompt; these flags plus a system prompt, 540.
+    /// </summary>
+    private static readonly string[] PromptOnly =
+        ["--safe-mode", "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"];
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Claude_is_sent_a_prompt_to_answer_and_none_of_its_own_harness(bool stream)
+    {
+        var argv = AgentCliAdapter.ClaudeCode.ArgumentsFor("opus", CodegenEffort.High, stream: stream);
+
+        argv.Should().Contain(PromptOnly, "Claude Code's tools, plugins, MCP servers, CLAUDE.md and saved "
+            + "sessions are all tokens a generation pays for and never uses");
+        argv.Should().ContainInOrder("--tools", string.Empty);
+
+        // The tempting flag, and the wrong one: --bare reads ONLY an API key, so on a subscription
+        // sign-in — the reason to pick this provider at all — it answers nothing. Measured.
+        argv.Should().NotContain("--bare");
+    }
+
+    [Fact]
+    public void Codex_runs_without_saving_a_session_and_keeps_the_users_profile()
+    {
+        var argv = AgentCliAdapter.Codex.ArgumentsFor("gpt-x", cliProfile: "work").ToList();
+
+        argv.Should().Contain("--ephemeral");
+        argv.IndexOf("--ephemeral").Should().BeLessThan(argv.IndexOf("-"), "a flag after the marker is prompt");
+
+        // A profile is layered on top of the user config, so ignoring that file discards the profile.
+        argv.Should().NotContain("--ignore-user-config");
+    }
+
+    [Fact]
+    public void The_pack_goes_to_claude_as_its_system_prompt_and_not_down_stdin()
+    {
+        // THE CACHE DEFECT, pinned. Flattened into stdin, the pack and the task were one block that ended
+        // differently every call, so every call wrote the pack to the cache and none read it back: the
+        // live runs of 2026-09-12 wrote 52-70k tokens on every call. As the system prompt it is a block of
+        // its own, and the second call reads it — measured, 17,254 written then 16,736 read.
+        using var scratch = new Scratch();
+        var client = new AgentCliCodegenClient(AgentCliAdapter.ClaudeCode, scratchDirectory: scratch.Path);
+        var request = Request(pack: "THE SHARED PACK — with an en dash", role: "YOU ARE THE PLANNER");
+
+        var file = client.Prepare(request);
+
+        file.Should().NotBeNull();
+        File.ReadAllText(file!, Encoding.UTF8).Should().Be(request.SystemContext,
+            "the file is the cached prefix, so it must be the pack byte for byte");
+
+        var argv = client.ProcessFor("claude", stream: true, file).ArgumentList.ToList();
+        argv.Should().ContainInOrder("--system-prompt-file", file);
+
+        var stdin = AgentCliCodegenClient.FlattenPrompt(request, includeSystemContext: false);
+        stdin.Should().NotContain("THE SHARED PACK", "sending it twice bills it twice");
+        stdin.Should().Contain("YOU ARE THE PLANNER", "the role differs per call, so it stays out of the prefix");
+        stdin.Should().Contain("build me a footprint");
+    }
+
+    [Fact]
+    public void Every_call_carrying_the_same_pack_names_the_same_file()
+    {
+        // The cache keys on bytes. The planner, each builder, each repair and each critic in a run carry
+        // one pack and must land on one file; a different pack must never be served a stale one.
+        using var scratch = new Scratch();
+        var client = new AgentCliCodegenClient(AgentCliAdapter.ClaudeCode, scratchDirectory: scratch.Path);
+
+        var planner = client.Prepare(Request(pack: "PACK A", role: "planner"));
+        var builder = client.Prepare(Request(pack: "PACK A", role: "builder"));
+        var other = client.Prepare(Request(pack: "PACK B", role: "planner"));
+
+        builder.Should().Be(planner);
+        other.Should().NotBe(planner);
+    }
+
+    [Fact]
+    public void Codex_keeps_the_pack_at_the_front_of_its_prompt()
+    {
+        // No system-prompt file for Codex — and none needed: OpenAI's cache matches a raw token prefix,
+        // which the flattened prompt already leads with.
+        using var scratch = new Scratch();
+        var client = new AgentCliCodegenClient(AgentCliAdapter.Codex, scratchDirectory: scratch.Path);
+        var request = Request(pack: "THE SHARED PACK", role: "YOU ARE THE PLANNER");
+
+        client.Prepare(request).Should().BeNull();
+
+        var stdin = AgentCliCodegenClient.FlattenPrompt(request);
+        stdin.Should().StartWith("THE SHARED PACK");
+        stdin.IndexOf("YOU ARE THE PLANNER", StringComparison.Ordinal)
+            .Should().BeGreaterThan(stdin.IndexOf("THE SHARED PACK", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_cli_runs_in_an_empty_folder_of_its_own()
+    {
+        // It inherited the app's working directory: a developer's build output inside a checkout whose
+        // CLAUDE.md and hooks an agent CLI would load, or wherever a shortcut started the terminal.
+        using var scratch = new Scratch();
+        var client = new AgentCliCodegenClient(AgentCliAdapter.ClaudeCode, scratchDirectory: scratch.Path);
+
+        client.Prepare(Request(pack: "PACK", role: null));
+        var psi = client.ProcessFor("claude", stream: true);
+
+        psi.WorkingDirectory.Should().Be(client.WorkingDirectory);
+        psi.WorkingDirectory.Should().NotBe(Environment.CurrentDirectory);
+        Directory.EnumerateFileSystemEntries(psi.WorkingDirectory).Should().BeEmpty(
+            "nothing in it may be read as instructions — the pack lives beside it, not inside it");
+    }
+
+    [Fact]
+    public void A_json_result_is_read_with_the_whole_prompt_and_its_cached_share()
+    {
+        // Shape captured from `claude -p --output-format json` on 2026-09-13.
+        const string stdout = """
+            {"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"OK",
+             "usage":{"input_tokens":9,"cache_creation_input_tokens":506,"cache_read_input_tokens":16736,"output_tokens":42}}
+            """;
+
+        var result = AgentCliCodegenClient.ReadResult(stdout);
+
+        result.Should().NotBeNull();
+        result!.IsError.Should().BeFalse();
+        result.Text.Should().Be("OK");
+
+        // The stream parser's convention: input is the whole prompt, cache included, with the cached part
+        // beside it — otherwise a cached call reads as a nine-token prompt.
+        result.Usage.InputTokens.Should().Be(9 + 506 + 16736);
+        result.Usage.CachedInputTokens.Should().Be(16736);
+        result.Usage.OutputTokens.Should().Be(42);
+    }
+
+    [Fact]
+    public void A_refusal_in_a_json_result_is_a_failure_with_its_own_words()
+    {
+        // A spent usage window exits non-zero AND explains itself on stdout. The words are what a caller
+        // waiting out the window reads the reset time from.
+        const string stdout = """{"type":"result","is_error":true,"result":"Claude usage limit reached. Your limit resets 3pm"}""";
+
+        var result = AgentCliCodegenClient.ReadResult(stdout);
+
+        result.Should().NotBeNull();
+        result!.IsError.Should().BeTrue();
+        result.Text.Should().Contain("resets 3pm");
+
+        AgentCliCodegenClient.ReadResult("not json at all").Should().BeNull(
+            "output that is not the result object goes to the plain-text path, not to an exception");
+    }
+
+    private static StrategyCodegenRequest Request(string pack, string? role) =>
+        new(pack, [new CodegenMessage(CodegenRole.User, "build me a footprint")], role);
+
+    /// <summary>A scratch directory of the test's own, so no test writes into the real temp folder.</summary>
+    private sealed class Scratch : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), "daxalgo-cli-tests", Guid.NewGuid().ToString("N"));
+
+        public void Dispose()
+        {
+            try { Directory.Delete(Path, recursive: true); } catch (IOException) { }
+        }
     }
 
     // -- the fourth table: the curated model lists ------------------------------------------------
