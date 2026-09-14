@@ -227,9 +227,14 @@ public static class PluginLoader
                 //    carrying Block-level code is refused outright and the user is never asked to
                 //    consent to it — and so the consent dialog can show what the plugin reaches for.
                 //    Still no code loaded: the assembly is read as DATA.
+                //    A unit compiled against the Blocks SDK is scanned by the Blocks rule — the sandbox
+                //    profile minus the network, which the Blocks SDK allows — whichever root it is in. It
+                //    is recognised from its metadata, not from anything its manifest claims.
                 var scan = scanMode == PluginScanMode.Off
                     ? PluginScanReport.Clean
-                    : PluginPolicyScanner.Scan(pluginDir, manifest?.Permissions, scanProfile);
+                    : Strategies.Authoring.Blocks.BlocksPackage.IsBlocksAssembly(dll)
+                        ? Strategies.Authoring.Blocks.BlocksPackage.Scan(pluginDir)
+                        : PluginPolicyScanner.Scan(pluginDir, manifest?.Permissions, scanProfile);
                 if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
                     throw new PluginBlockedException(dll, scan);
 
@@ -265,7 +270,7 @@ public static class PluginLoader
                 {
                     loaded.Add(meta with { Scan = scan, Unsigned = unsigned, Image = asm });
                 }
-                else if (HostableUnits.Any(asm))
+                else if (HostableUnits.Any(asm) || Strategies.Authoring.Blocks.BlocksPackage.Units(asm).Count > 0)
                 {
                     // No IStrategyPlugin, but kernels or visualizers the host can run — which is every
                     // artifact Hyperion emits. Before this branch existed such an assembly was not merely

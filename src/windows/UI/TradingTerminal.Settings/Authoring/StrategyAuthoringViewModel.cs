@@ -2622,9 +2622,25 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     {
         if (_pendingBlocks is { } blocksResult && _pendingScript is { } blocksScript && _blocks is not null)
         {
-            Status = _blocks.Register(blocksResult, blocksScript.Files, StrategyId.Trim(), string.IsNullOrWhiteSpace(DisplayName) ? null : DisplayName.Trim())
-                     + " It lasts for this session: Blocks units are not packaged yet.";
+            Status = _blocks.Register(blocksResult, blocksScript.Files, StrategyId.Trim(), string.IsNullOrWhiteSpace(DisplayName) ? null : DisplayName.Trim());
             _logger.LogInformation("Authored Blocks unit {Id} registered from {Files} file(s).", blocksScript.Id, blocksScript.Files.Count);
+
+            // The same file, the same install, the same trust policy as a widget-SDK unit: a
+            // .daxalgostrategy or .daxalgovisualizer, kept in the authored-units folder so the unit is
+            // there after a restart. Never allowed to undo the registration that already happened.
+            ArtifactPath = null;
+            var blocksArtifact = AuthoredArtifact.Write(blocksScript, blocksResult);
+            if (blocksArtifact.Success)
+            {
+                ArtifactPath = blocksArtifact.Path;
+                Status += $" {blocksArtifact.Message} " + Keep(blocksArtifact.Path!);
+                _logger.LogInformation("Authored Blocks unit {Id} packaged to {Path}", blocksScript.Id, blocksArtifact.Path);
+            }
+            else
+            {
+                Status += $" It is registered for this session, but could not be packaged: {blocksArtifact.Message}";
+                _logger.LogWarning("Authored Blocks unit {Id} could not be packaged: {Reason}", blocksScript.Id, blocksArtifact.Message);
+            }
 
             _registeredBaseline.Clear();
             foreach (var file in blocksScript.Files) _registeredBaseline[file.Name] = file.Content;

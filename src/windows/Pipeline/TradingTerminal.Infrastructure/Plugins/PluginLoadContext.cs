@@ -53,6 +53,10 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
     internal static bool IsHostContract(string? simpleName) =>
         simpleName is not null &&
         (simpleName.StartsWith("DaxAlgo.Sdk", StringComparison.Ordinal) ||
+         // The Blocks SDK and the maths it shares with the widget SDK. Shared, not probed: a package
+         // carrying its own DaxAlgo.Blocks.dll would otherwise get an IUnit the host cannot recognise.
+         simpleName.Equals("DaxAlgo.Blocks", StringComparison.Ordinal) ||
+         simpleName.Equals("DaxAlgo.Quant", StringComparison.Ordinal) ||
          simpleName.StartsWith("TradingTerminal.", StringComparison.Ordinal) ||
          simpleName.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) ||
          simpleName.StartsWith("CommunityToolkit.", StringComparison.Ordinal) ||

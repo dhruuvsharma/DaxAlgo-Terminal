@@ -48,8 +48,11 @@ public static class AuthoredArtifact
     /// <para>Under the user's own profile rather than beside the installed application, because these are
     /// the user's documents in every sense that matters — their strategies, kept whether or not the app is
     /// reinstalled, and writable without administrator rights.</para>
+    ///
+    /// <para>Settable for one reason: a test assembly driving the authoring pane redirects it once, at
+    /// module load, so registering a unit in a test never drops a package into the user's own folder.</para>
     /// </summary>
-    public static string DefaultRoot { get; } = System.IO.Path.Combine(
+    public static string DefaultRoot { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "DaxAlgo Terminal",
         "authored");
@@ -147,6 +150,97 @@ public static class AuthoredArtifact
         {
             return new AuthoredArtifactResult(false, null, $"Could not write the package: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Writes a Blocks unit's artifact: its assembly, its C# as source, its page as UI payloads under
+    /// <c>ui/</c>, and the plugin manifest. The kind is what its code does — a unit that uses the orders
+    /// block is a <c>.daxalgostrategy</c>, anything else a <c>.daxalgovisualizer</c>.
+    ///
+    /// <para>The page travels as files rather than as a declaration, because the page IS the unit's
+    /// look: the installer stages it beside the assembly and the catalog loads it from there.</para>
+    /// </summary>
+    public static AuthoredArtifactResult Write(
+        StrategyScript script,
+        Blocks.BlocksCompileResult compiled,
+        string? root = null,
+        string? version = null)
+    {
+        ArgumentNullException.ThrowIfNull(script);
+        ArgumentNullException.ThrowIfNull(compiled);
+
+        if (!compiled.Success || compiled.UnitType is null)
+            return new AuthoredArtifactResult(false, null, "It did not compile, so there is nothing to package.");
+
+        if (compiled.Image is not { Length: > 0 } image)
+            return new AuthoredArtifactResult(false, null, "The compiler produced no assembly image, so the package would not be installable.");
+
+        if (string.IsNullOrWhiteSpace(script.Id))
+            return new AuthoredArtifactResult(false, null, "Give the unit an id before packaging it.");
+
+        if (string.IsNullOrWhiteSpace(compiled.UnitType.FullName))
+            return new AuthoredArtifactResult(false, null, $"'{compiled.UnitType.Name}' has no full type name, so the host could not resolve it.");
+
+        var kind = compiled.UsesOrders ? DaxPackageKind.Strategy : DaxPackageKind.Visualizer;
+        var effectiveVersion = string.IsNullOrWhiteSpace(version) ? DefaultVersion : version!;
+        var stem = Sanitize(script.Id);
+        var directory = root ?? DefaultRoot;
+        var path = System.IO.Path.Combine(directory, stem + DaxPackage.ExtensionFor(kind));
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+
+            var csharp = new StrategyScript(script.Id, script.DisplayName,
+                [.. script.Files.Where(f => !CodegenCodeExtractor.IsPageFile(f.Name))]);
+            var payloads = Payloads(csharp, image, stem, uiPayload: null, effectiveVersion);
+
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in compiled.PageFiles ?? [])
+            {
+                if (PagePath(file.Name) is not { } relative || !used.Add(relative)) continue;
+                payloads.Add(DaxPayloadSource.FromBytes(
+                    $"payload/{Blocks.BlocksPackage.PageFolder}/{relative}", DaxPayloadRole.Ui, Encoding.UTF8.GetBytes(file.Content)));
+            }
+
+            var result = DaxPackage.Write(path, new DaxPackageRequest
+            {
+                Kind = kind,
+                Id = script.Id,
+                Version = effectiveVersion,
+                DisplayName = string.IsNullOrWhiteSpace(script.DisplayName) ? script.Id : script.DisplayName,
+                Publisher = "Authored locally",
+                EntryTypeName = compiled.UnitType.FullName!,
+                Payloads = payloads,
+            });
+
+            return new AuthoredArtifactResult(
+                true, result.Path, $"Saved {System.IO.Path.GetFileName(result.Path)} to {directory}.", result.Manifest);
+        }
+        catch (DaxPackageException ex)
+        {
+            return new AuthoredArtifactResult(false, null, $"The package was rejected: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new AuthoredArtifactResult(false, null, $"Could not write the package: {ex.Message}");
+        }
+    }
+
+    /// <summary>A page file's path under <c>ui/</c>, every segment sanitised, or null when nothing is
+    /// left of it. Folders are kept — a page's scripts and styles reference each other by path.</summary>
+    private static string? PagePath(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !CodegenCodeExtractor.IsPageFile(name)) return null;
+
+        var segments = name.Replace('\\', '/')[CodegenCodeExtractor.PageFolder.Length..]
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Where(s => s is not ("." or ".."))
+            .Select(s => Sanitize(s, fallback: string.Empty))
+            .Where(s => s.Length > 0)
+            .ToArray();
+
+        return segments.Length == 0 ? null : string.Join('/', segments);
     }
 
     private static List<DaxPayloadSource> Payloads(

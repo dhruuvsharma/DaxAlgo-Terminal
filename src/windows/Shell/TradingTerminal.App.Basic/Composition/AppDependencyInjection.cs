@@ -127,8 +127,15 @@ public static class AppDependencyInjection
         // it), their compiler, the page probe that opens a unit's page while the build is gated, and the
         // one dependency the authoring pane takes for all of it. Composing BlocksAuthoring is what
         // switches Hyperion from the widget SDK to blocks.
-        services.AddSingleton<TradingTerminal.Blocks.Runtime.IBlocksUnitRegistry,
-            TradingTerminal.Blocks.Runtime.BlocksUnitRegistry>();
+        services.AddSingleton<TradingTerminal.Blocks.Runtime.IBlocksUnitRegistry>(sp =>
+        {
+            // Seeded with every Blocks unit the authored-units root loaded at start, so a unit kept from an
+            // earlier session is in the catalog before anything is authored in this one.
+            var registry = new TradingTerminal.Blocks.Runtime.BlocksUnitRegistry();
+            if (sp.GetService<TradingTerminal.Infrastructure.Plugins.PluginHostContext>() is { } host)
+                TradingTerminal.Infrastructure.Strategies.Authoring.Blocks.BlocksPackage.Register(host.LoadedPlugins, registry);
+            return registry;
+        });
         services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.Blocks.BlocksUnitCompiler>();
         services.AddSingleton<TradingTerminal.Blocks.Runtime.Verification.IPageProbe>(
             _ => new TradingTerminal.Blocks.WebHost.WebPageProbe());

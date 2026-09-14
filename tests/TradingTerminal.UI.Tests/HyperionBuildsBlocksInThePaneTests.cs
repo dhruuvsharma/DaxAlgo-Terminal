@@ -57,6 +57,12 @@ public sealed class HyperionBuildsBlocksInThePaneTests : IDisposable
         Assert.True(registration.IsStrategy, "the starter uses the orders block");
         Assert.True(pane.IsRegistered);
 
+        // Kept as a real package, the same file a widget-SDK unit becomes — in this run's own folder.
+        Assert.NotNull(pane.ArtifactPath);
+        Assert.EndsWith(".daxalgostrategy", pane.ArtifactPath, StringComparison.Ordinal);
+        Assert.StartsWith(TestAuthoringRoot.Directory, pane.ArtifactPath, StringComparison.OrdinalIgnoreCase);
+        Assert.True(File.Exists(pane.ArtifactPath));
+
         var card = Assert.Single(items);
         Assert.Equal(registration.Id, card.HostedUnit?.Id);
         Assert.Equal(CatalogItemKind.Strategy, card.Kind);

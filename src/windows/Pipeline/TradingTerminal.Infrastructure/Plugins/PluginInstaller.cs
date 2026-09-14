@@ -306,7 +306,11 @@ public static class PluginInstaller
             // false of exactly the artifacts this path exists for. Six units were installed with
             // "Restart the app to activate it" and every one of them was quarantined on the next start,
             // for a rule the install had never applied.
-            var scan = PluginPolicyScanner.Scan(sourceDir, manifest?.Permissions, scanProfile);
+            // A Blocks unit is scanned by the rule the loader will apply to it: the sandbox minus the
+            // network. Recognised from the assembly's metadata, so a manifest cannot talk its way in.
+            var scan = Strategies.Authoring.Blocks.BlocksPackage.IsBlocksAssembly(mainDll)
+                ? Strategies.Authoring.Blocks.BlocksPackage.Scan(sourceDir)
+                : PluginPolicyScanner.Scan(sourceDir, manifest?.Permissions, scanProfile);
             if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
                 return new(false, $"Blocked by the policy scan: {scan.Summary}.");
         }

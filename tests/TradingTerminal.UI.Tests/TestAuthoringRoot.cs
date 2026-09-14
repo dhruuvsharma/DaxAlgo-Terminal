@@ -49,5 +49,6 @@ internal static class TestAuthoringRoot
     {
         AuthoringSessionStore.Directory = Directory;
         AiCodegenUserFile.Path = ProviderFile;
+        TradingTerminal.Infrastructure.Strategies.Authoring.AuthoredArtifact.DefaultRoot = Path.Combine(Directory, "authored");
     }
 }
