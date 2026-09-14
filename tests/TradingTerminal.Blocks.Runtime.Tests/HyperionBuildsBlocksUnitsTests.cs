@@ -238,6 +238,64 @@ public sealed class HyperionBuildsBlocksUnitsTests
         probe.Runs.Should().Be(2);
     }
 
+    [Fact]
+    public async Task A_tight_budget_keeps_the_unit_and_its_page_and_drops_helpers_first()
+    {
+        var dialect = new BlocksSwarmDialect();
+        var crowded = PlanJson.Replace(
+            "\"tasks\": [",
+            "\"tasks\": [ { \"id\": \"h1\", \"title\": \"Helper\", \"kind\": \"Maths\", \"ownedFile\": \"Helper.cs\", \"intent\": \"a helper\", \"dependsOn\": [] },",
+            StringComparison.Ordinal);
+
+        var client = new Scripted((role, _) =>
+            IsPlanner(role) ? Json(crowded)
+            : role.Contains("YOUR FILE: ui/index.html", StringComparison.Ordinal) ? PageReply
+            : CSharp("SpreadWatch.cs", SpreadWatchSource));
+
+        var run = await Runner(client, dialect).RunAsync(Request(dialect) with { Budget = new SwarmBudget(1, 1, MaxTasks: 2) });
+
+        run.Plan.Tasks.Select(t => t.Id).Should().Equal("t1", "t2");
+        run.Outcome.Should().Be(SwarmOutcome.Delivered, run.Summary);
+    }
+
+    [Theory]
+    [InlineData(AuthoringKind.Strategy, true)]
+    [InlineData(AuthoringKind.Visualizer, false)]
+    public void The_starters_compile_and_are_the_kind_they_say(AuthoringKind kind, bool strategy)
+    {
+        var source = BlocksAuthoring.Starter(kind);
+        var compiled = new BlocksUnitCompiler().Compile("starter", [new StrategyFile("MyUnit.cs", source)]);
+
+        compiled.Success.Should().BeTrue(string.Join(" / ", compiled.Errors));
+        compiled.UsesOrders.Should().Be(strategy);
+        BlocksAuthoring.IsStarter(source).Should().BeTrue();
+        BlocksAuthoring.IsBlocksUnit([new StrategyFile("MyUnit.cs", source)]).Should().BeTrue();
+        BlocksAuthoring.IsBlocksUnit([new StrategyFile("Old.cs", "public sealed class Old : IStrategyKernel { }")]).Should().BeFalse();
+        BlocksAuthoring.IsBlocksUnit([new StrategyFile("ui/index.html", "<p>page</p>")]).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Registering_puts_the_compiled_unit_in_the_registry_as_the_kind_its_code_is()
+    {
+        var registry = new BlocksUnitRegistry();
+        var changed = 0;
+        registry.Changed += (_, _) => changed++;
+        var authoring = new BlocksAuthoring(new BlocksUnitCompiler(), registry);
+
+        var files = new[] { new StrategyFile("SpreadWatch.cs", SpreadWatchSource), new StrategyFile("ui/index.html", Page) };
+        var message = authoring.Register(authoring.Compiler.Compile("spread", files), files, "spread", null);
+
+        message.Should().Contain("Registered visualizer 'Spread watch'");
+        var registration = registry.Find("spread")!;
+        registration.IsStrategy.Should().BeFalse();
+        registration.PageFiles.Should().ContainSingle();
+        registration.Create().Should().NotBeNull();
+
+        authoring.Register(authoring.Compiler.Compile("spread", files), files, "spread", "Renamed");
+        registry.All.Should().ContainSingle().Which.DisplayName.Should().Be("Renamed");
+        changed.Should().Be(2);
+    }
+
     // ── fixtures ────────────────────────────────────────────────────────────────────────────────
 
     private static readonly DriveOptions Quick = new(Steps: 30, SettleTime: TimeSpan.FromMilliseconds(200));

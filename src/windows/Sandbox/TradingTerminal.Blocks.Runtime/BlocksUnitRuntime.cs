@@ -129,7 +129,7 @@ public sealed class BlocksUnitRuntime : IAsyncDisposable
         var source = string.IsNullOrWhiteSpace(info.Name) ? _unitId : info.Name;
         _log = new LogBlock(source, _host.AppendActivityLog);
         _settingsBlock = new SettingsBlock(schema, _settings, _thread);
-        _market = new MarketBlock(_host.Hub, _thread, _options.RecentWindow, Fault);
+        _market = new MarketBlock(_host.Hub, _thread, _options.RecentWindow, Fault, _host.OpenFeed, _log.Warn);
         _schedule = new ScheduleBlock(_thread);
         _ui = new UiBlock(_endpoint, _thread, _options.UiFlush, _log.Warn);
         _state = new StateBlock(_unitId, _host.StateStore);

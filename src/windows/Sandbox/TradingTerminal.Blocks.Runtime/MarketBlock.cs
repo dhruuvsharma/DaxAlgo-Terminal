@@ -15,7 +15,13 @@ namespace TradingTerminal.Blocks.Runtime;
 /// <c>RecentBars</c> sees the bar it is being called for, and it lives exactly as long as the stream has
 /// a handler. Handlers themselves only ever run on the unit thread.</para>
 /// </summary>
-internal sealed class MarketBlock(IMarketDataHub hub, UnitThread thread, int window, Action<Exception> fault)
+internal sealed class MarketBlock(
+    IMarketDataHub hub,
+    UnitThread thread,
+    int window,
+    Action<Exception> fault,
+    Func<InstrumentId, MarketFeed, BarSize, IDisposable?>? openFeed = null,
+    Action<string>? warn = null)
     : IMarketData, IDisposable
 {
     private readonly object _gate = new();
@@ -130,7 +136,7 @@ internal sealed class MarketBlock(IMarketDataHub hub, UnitThread thread, int win
             thread.Enqueue(new MarketEvent(key.Kind, key.Instrument, key.Size, payload));
         }
 
-        return key.Kind switch
+        var listening = key.Kind switch
         {
             MarketEventKind.Quote => hub.Quotes(key.Instrument).Subscribe(new Observer<Quote>(q => Arrive(q.InstrumentId, q))),
             MarketEventKind.Trade => hub.Trades(key.Instrument).Subscribe(new Observer<TradePrint>(t => Arrive(t.InstrumentId, t))),
@@ -141,6 +147,33 @@ internal sealed class MarketBlock(IMarketDataHub hub, UnitThread thread, int win
             MarketEventKind.Depth => hub.Depth(key.Instrument).Subscribe(new Observer<DepthSnapshot>(d => Arrive(key.Instrument, d))),
             _ => throw new ArgumentOutOfRangeException(nameof(key)),
         };
+
+        return new Both(listening, StartFeed(key));
+    }
+
+    /// <summary>Asks the host to start the venue stream behind a subscription. A refusal is said and
+    /// survived: the hub may still be fed by another window or a recording.</summary>
+    private IDisposable? StartFeed(StreamKey key)
+    {
+        if (openFeed is null) return null;
+
+        var feed = key.Kind switch
+        {
+            MarketEventKind.Quote => MarketFeed.Quotes,
+            MarketEventKind.Trade => MarketFeed.Trades,
+            MarketEventKind.Bar => MarketFeed.Bars,
+            _ => MarketFeed.Depth,
+        };
+
+        try
+        {
+            return openFeed(key.Instrument, feed, key.Size);
+        }
+        catch (Exception ex)
+        {
+            warn?.Invoke($"Could not start the {feed} feed for {key.Instrument}: {ex.Message}");
+            return null;
+        }
     }
 
     private IReadOnlyList<T> Recent<T>(StreamKey key, int count)
@@ -164,6 +197,16 @@ internal sealed class MarketBlock(IMarketDataHub hub, UnitThread thread, int win
                 stream.Subscription = null;
                 stream.Handlers.Clear();
             }
+        }
+    }
+
+    private sealed class Both(IDisposable listening, IDisposable? feed) : IDisposable
+    {
+        public void Dispose()
+        {
+            // The hub first, so nothing arrives for a stream whose feed is already going away.
+            listening.Dispose();
+            try { feed?.Dispose(); } catch { /* a venue failing to stop must not stop the rest */ }
         }
     }
 

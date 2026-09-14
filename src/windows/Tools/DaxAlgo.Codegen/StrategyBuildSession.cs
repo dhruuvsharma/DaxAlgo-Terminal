@@ -440,7 +440,7 @@ public sealed class StrategyBuildSession
             // By what was actually produced rather than by how the run ended. A unit that compiles but
             // draws nothing is not a compile failure, and calling it one sends the user to the
             // diagnostics list to look for an error that is not there.
-            _ => run.Compile?.Success == true ? BuildTurnKind.Compiled : BuildTurnKind.CompileFailed,
+            _ => run.Compiled ? BuildTurnKind.Compiled : BuildTurnKind.CompileFailed,
         };
 
         return new StrategyBuildTurn(
@@ -682,6 +682,25 @@ public sealed class StrategyBuildSession
     /// same path parses and renders as buttons. One method both drivers call is what keeps them from
     /// drifting apart again; <c>AgentSharedContextTests</c> asserts the agent path reaches it.</para>
     /// </summary>
+    /// <summary>
+    /// Switches this session to the Blocks SDK: the system prompt becomes the Blocks conventions and
+    /// index, fixed, with no widget-SDK surface, exemplar or skill packs.
+    ///
+    /// <para>Called before the first turn, and again on a resumed one — it is idempotent and always
+    /// produces the same prompt, which is what keeps the prefix cacheable. The cards themselves are not
+    /// here: each builder is sent only its task's.</para>
+    /// </summary>
+    public void UseBlocks(string sharedContext)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sharedContext);
+
+        _resolved = true;
+        LoadedSkills = [];
+        SurfaceCharactersSaved = 0;
+        BasePack = sharedContext;
+        SystemContext = sharedContext;
+    }
+
     public string PrepareFor(string brief)
     {
         ResolveSkills(brief);

@@ -374,6 +374,52 @@ public sealed class BlocksUnitRuntimeTests
         runtime.State.Should().Be(UnitRunState.Stopped);
     }
 
+    [Fact]
+    public async Task A_venue_feed_is_started_on_a_streams_first_handler_and_stopped_after_its_last()
+    {
+        var hub = new FakeHub();
+        var open = new List<string>();
+        var log = new List<string>();
+        IDisposable? second = null;
+
+        var unit = new LambdaUnit(new UnitInfo("Feeds"), context =>
+        {
+            context.Market.OnQuote(LegA, _ => { });
+            second = context.Market.OnQuote(LegA, _ => { });
+            context.Market.OnBar(LegB, BarSize.FiveMinutes, _ => { });
+            context.Market.OnDepth(LegB, _ => { });
+            return Task.CompletedTask;
+        });
+
+        var host = Host.For(hub, log) with
+        {
+            OpenFeed = (instrument, feed, size) =>
+            {
+                if (feed == MarketFeed.Depth) throw new InvalidOperationException("no depth at this venue");
+                var name = $"{instrument.Value}:{feed}:{size}";
+                lock (open) open.Add(name);
+                return new Disposer(() => { lock (open) open.Remove(name); });
+            },
+        };
+
+        var runtime = new BlocksUnitRuntime(() => unit, "feeds", host);
+        await runtime.StartAsync();
+
+        open.Should().BeEquivalentTo($"{LegA.Value}:Quotes:{default(BarSize)}", $"{LegB.Value}:Bars:{BarSize.FiveMinutes}");
+        log.Should().Contain(l => l.StartsWith("WARN") && l.Contains("no depth at this venue"), "a venue refusing a stream is said, not fatal");
+
+        second!.Dispose();
+        open.Should().HaveCount(2, "another handler still listens to the quotes");
+
+        await runtime.StopAsync();
+        open.Should().BeEmpty();
+    }
+
+    private sealed class Disposer(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
+    }
+
     private static Task RunOnUnit(IUnitContext context, Action work)
     {
         var done = new TaskCompletionSource();

@@ -14,6 +14,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Sandbox\TradingTerminal.Blocks.Runtime\TradingTerminal.Blocks.Runtime.csproj" />
+    <!-- The terminal's unit window chrome (settings, book, log) that a Blocks unit's page sits inside,
+         and the catalog seam its units are listed through. This project sits above that library. -->
+    <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
     <InternalsVisibleTo Include="TradingTerminal.Blocks.WebHost.Tests" />
   </ItemGroup>
 

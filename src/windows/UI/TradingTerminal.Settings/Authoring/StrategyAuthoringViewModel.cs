@@ -14,6 +14,7 @@ using TradingTerminal.Core.Configuration;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Blocks;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Reference;
 using TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
@@ -307,6 +308,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
     private readonly IAuthoredUnitStore? _units;
 
+    /// <summary>
+    /// The Blocks SDK's compiler, gate, dialect and registry, or null to author against the widget SDK.
+    ///
+    /// <para>Its presence is the switch: Hyperion builds units from blocks with a web page of their own.
+    /// A session whose files are widget-SDK code — restored from before the switch — stays on the SDK it
+    /// was written against, because a model continuing a thread must not change contract under it.</para>
+    /// </summary>
+    private readonly BlocksAuthoring? _blocks;
+
     public StrategyAuthoringViewModel(
         IStrategyCompiler compiler,
         IStrategyRegistry registry,
@@ -320,9 +330,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         IAuthoredUnitStore? units = null,
         IUnitRasterizer? rasterizer = null,
         ReferenceBarBuilder? references = null,
-        IReferencePicker? referencePicker = null)
+        IReferencePicker? referencePicker = null,
+        BlocksAuthoring? blocks = null)
     {
         _compiler = compiler;
+        _blocks = blocks;
         _registry = registry;
         _logger = logger;
         _ai = ai;
@@ -1236,8 +1248,56 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
     }
 
+    /// <summary>A Blocks unit's page as its gate photographed it, or null.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPagePreview))]
+    private byte[]? _pagePreview;
+
+    /// <summary>True when the preview is a page photograph rather than a widget-SDK drawing.</summary>
+    public bool HasPagePreview => PagePreview is { Length: > 0 };
+
+    /// <summary>
+    /// The preview for a Blocks turn: the page as the gate photographed it while the unit fed it a
+    /// synthetic market. Kept, captioned as older, when a later turn could not take one — the same rule
+    /// the widget preview follows.
+    /// </summary>
+    private void RefreshPagePreview(StrategyBuildTurn turn, BlocksGate gate)
+    {
+        if (gate.LatestPicture is { } picture)
+        {
+            ShowPagePreview(picture.Png, "The unit's page, photographed while it ran against a synthetic market.");
+            return;
+        }
+
+        if (PagePreview is { Length: > 0 } previous)
+        {
+            ShowPagePreview(previous, turn.Kind == BuildTurnKind.Question
+                ? PreviewSummary ?? string.Empty
+                : "The page from before the last change, which did not verify.");
+            return;
+        }
+
+        ClearPreview();
+        PreviewSummary = turn.Kind == BuildTurnKind.Question
+            ? "No preview yet — answer the question above and the build will produce one."
+            : gate.Latest?.Success == true
+                ? "No preview — the unit has no page, or this machine cannot open one (WebView2)."
+                : "No preview — nothing has compiled yet.";
+    }
+
+    private void ShowPagePreview(byte[] png, string summary)
+    {
+        OpenWorkbench();
+        PreviewDraw = null;
+        PreviewLayout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
+        HasPreview = false;
+        PagePreview = png;
+        PreviewSummary = summary;
+    }
+
     private void ClearPreview()
     {
+        PagePreview = null;
         PreviewDraw = null;
         PreviewLayout = DaxAlgo.Sdk.Layout.UnitLayout.Single;
         HasPreview = false;
@@ -1650,6 +1710,18 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             // Research rather than a second product, which is what stopped the committee and the
             // conversation drifting into two builders with different bugs.
             var session = EnsureSession(choice, profile);
+
+            // Decided before the turn and fixed for it. A Blocks run's prompt is the Blocks conventions
+            // and index, nothing of the widget SDK, and every builder is sent only its task's cards.
+            var blocks = BuildsBlocks ? _blocks : null;
+            if (blocks is not null) session.UseBlocks(blocks.Catalog.SharedContext);
+            var blocksGate = blocks?.Gate(StrategyId!.Trim());
+
+            // A Blocks unit is at least two pieces of work — its C# and its page — so even the cheapest
+            // profile plans two. One would build the unit and leave its window empty.
+            var budget = SwarmBudget.For(profile, AiModelCatalog.IsAgentCli(choice.ProviderId));
+            if (blocks is not null) budget = budget with { MaxTasks = Math.Max(2, budget.MaxTasks) };
+
             var tokensBefore = session.TotalUsage;
             _streamingReply = null;
             _thinking = null;
@@ -1681,7 +1753,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                 prompt,
                 new SwarmRunner(
                     session.Provider,
-                    new UnitGate(_compiler, StrategyId!, DisplayName ?? StrategyId!),
+                    (IUnitGate?)blocksGate ?? new UnitGate(_compiler, StrategyId!, DisplayName ?? StrategyId!),
                     _trajectory,
                     logger: null,
 
@@ -1691,9 +1763,14 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     // provider for it costs little — and with none configured the picture is judged
                     // from the drawing commands, said out loud rather than silently skipped.
                     gauntlet: GauntletLoop.For(
-                        session.Provider, VisionProvider(choice), session.SystemContext, AuthoringKind),
-                    rasterizer: _rasterizer),
-                SwarmBudget.For(profile, AiModelCatalog.IsAgentCli(choice.ProviderId)),
+                        session.Provider, VisionProvider(choice), session.SystemContext, AuthoringKind,
+                        definitions: blocks is null ? null : BlocksAuthoring.Critics(AuthoringKind)),
+
+                    // A Blocks unit is photographed by its own gate, page and all; the rasterizer draws
+                    // widget-SDK units only.
+                    rasterizer: blocks is null ? _rasterizer : null,
+                    dialect: blocks?.Dialect),
+                budget,
                 bar,
 
                 // Taken before the turn and cleared after it, so a picture is sent once rather than
@@ -1793,7 +1870,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
                     $"{turn.Compile?.Errors.Count() ?? 0} error(s) after {turn.Generations} generation(s) — see Diagnostics"));
             }
 
-            RefreshPreview(turn);
+            if (blocksGate is not null) RefreshPagePreview(turn, blocksGate);
+            else RefreshPreview(turn);
 
             AiStatus = turn.Kind switch
             {
@@ -2421,6 +2499,13 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         }
 
         var script = CurrentScript();
+
+        if (BuildsBlocks)
+        {
+            CompileBlocks(script);
+            return;
+        }
+
         StrategyCompileResult result;
         try
         {
@@ -2478,12 +2563,79 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         Status = "Compiled clean — review the code, then press Register.";
     }
 
+    /// <summary>The Blocks unit held between a clean compile and the Register click.</summary>
+    private BlocksCompileResult? _pendingBlocks;
+
+    /// <summary>Step 1 of consent for a Blocks unit: compile, and open the same review overlay.</summary>
+    private void CompileBlocks(StrategyScript script)
+    {
+        BlocksCompileResult result;
+        try
+        {
+            result = _blocks!.Compiler.Compile(script.Id, script.Files);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Blocks compile threw for {Id}", StrategyId);
+            Status = $"Compiler error: {ex.Message}";
+            return;
+        }
+
+        foreach (var diagnostic in result.Diagnostics) Diagnostics.Add(diagnostic);
+
+        if (!result.Success)
+        {
+            Status = $"Compile failed — {result.Errors.Count()} error(s).";
+            return;
+        }
+
+        CompiledOk = true;
+
+        ReviewFiles.Clear();
+        foreach (var file in script.Files)
+        {
+            var baseline = _registeredBaseline.GetValueOrDefault(file.Name, string.Empty);
+            ReviewFiles.Add(new ReviewFileEntry(file.Name, LineDiff.Build(baseline, file.Content)));
+        }
+
+        SelectedReviewFile = ReviewFiles.FirstOrDefault();
+
+        var warnings = result.Diagnostics.Count(d => d.Severity == StrategyDiagnosticSeverity.Warning);
+        ReviewSummary =
+            $"{script.Files.Count} file(s), compiled clean"
+            + (warnings > 0 ? $" with {warnings} warning(s)" : string.Empty)
+            + $" — a {(result.UsesOrders ? "strategy" : "visualizer")}"
+            + ((result.PageFiles?.Count ?? 0) > 0 ? " with its own page" : " with no page")
+            + ". It runs in-process once registered and may use the network — read it first.";
+
+        _pendingBlocks = result;
+        _pendingScript = script;
+        ReviewOpen = true;
+        Status = "Compiled clean — review the code, then press Register.";
+    }
+
     /// <summary>Step 2 of consent: the actual registration, only reachable from the review overlay.
     /// The installer makes this a real strategy (backtest registry, catalog card, plugin on disk);
     /// without one (Basic, tests) it falls back to the backtest registry alone.</summary>
     [RelayCommand]
     private void ConfirmRegister()
     {
+        if (_pendingBlocks is { } blocksResult && _pendingScript is { } blocksScript && _blocks is not null)
+        {
+            Status = _blocks.Register(blocksResult, blocksScript.Files, StrategyId.Trim(), string.IsNullOrWhiteSpace(DisplayName) ? null : DisplayName.Trim())
+                     + " It lasts for this session: Blocks units are not packaged yet.";
+            _logger.LogInformation("Authored Blocks unit {Id} registered from {Files} file(s).", blocksScript.Id, blocksScript.Files.Count);
+
+            _registeredBaseline.Clear();
+            foreach (var file in blocksScript.Files) _registeredBaseline[file.Name] = file.Content;
+
+            IsRegistered = true;
+            Append(AuthoringMessage.Tool("Ok", "Registered", Status));
+            CloseReview();
+            Save();
+            return;
+        }
+
         if (_pendingCompile is not { } result || _pendingScript is not { } script)
         {
             CloseReview();
@@ -2640,6 +2792,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             return;
         }
 
+        if (BuildsBlocks)
+        {
+            _ = PreviewBlocksAsync();
+            return;
+        }
+
         StrategyCompileResult result;
         try
         {
@@ -2662,6 +2820,41 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         ShowPreview(result.Unit);
         Status = PreviewSummary;
+    }
+
+    /// <summary>
+    /// The Blocks preview: the unit's own gate — compile, drive it against a synthetic market with its
+    /// page open, photograph the page — without registering anything.
+    /// </summary>
+    private async Task PreviewBlocksAsync()
+    {
+        var script = CurrentScript();
+        var gate = _blocks!.Gate(script.Id);
+        Status = "Running the unit against a synthetic market…";
+
+        try
+        {
+            var verdict = await gate.RunAsync(script.Files);
+            foreach (var diagnostic in gate.Latest?.Diagnostics ?? []) Diagnostics.Add(diagnostic);
+
+            if (!verdict.Compiled)
+            {
+                Status = $"Nothing to preview — {gate.Latest?.Errors.Count() ?? 0} error(s).";
+                return;
+            }
+
+            if (gate.LatestPicture is { } picture)
+                ShowPagePreview(picture.Png, "The unit's page, photographed while it ran against a synthetic market.");
+
+            Status = verdict.Passed
+                ? PreviewSummary is { Length: > 0 } summary ? summary : "The unit ran cleanly; it has no page to show."
+                : "The unit ran, and " + string.Join("; ", verdict.Report.Findings.Take(3).Select(f => f.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Blocks preview failed for {Id}", script.Id);
+            Status = $"Preview failed: {ex.Message}";
+        }
     }
 
     /// <summary>
@@ -2714,6 +2907,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ReviewSummary = null;
         _pendingCompile = null;
         _pendingScript = null;
+        _pendingBlocks = null;
     }
 
     // ── plumbing ────────────────────────────────────────────────────────────────────────────────────
@@ -3181,7 +3375,8 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// generated files were fine and whose only two errors were both in this file.</para>
     /// </summary>
     private string TemplateSource =>
-        AuthoringKind == AuthoringKind.Visualizer ? VisualizerTemplate : StrategyTemplate;
+        _blocks is not null ? BlocksAuthoring.Starter(AuthoringKind)
+        : AuthoringKind == AuthoringKind.Visualizer ? VisualizerTemplate : StrategyTemplate;
 
     private const string StrategyTemplate = """
         // Authored strategy. These namespaces are imported for you:
@@ -3323,7 +3518,17 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// </summary>
     public bool FilesAreUntouchedTemplate =>
         Files.Count == 1
-        && (Files[0].Content == StrategyTemplate || Files[0].Content == VisualizerTemplate);
+        && (Files[0].Content == StrategyTemplate || Files[0].Content == VisualizerTemplate
+            || BlocksAuthoring.IsStarter(Files[0].Content));
+
+    /// <summary>
+    /// True when this pane builds a Blocks unit: the edition composes the Blocks SDK, and the editor holds
+    /// nothing, the starter, or Blocks code. Widget-SDK files keep the widget SDK.
+    /// </summary>
+    public bool BuildsBlocks =>
+        _blocks is not null
+        && (Files.Count == 0 || FilesAreUntouchedTemplate
+            || BlocksAuthoring.IsBlocksUnit(Files.Select(f => new StrategyFile(f.Name, f.Content))));
 }
 
 /// <summary>One source file in the builder's Code tab — editable, and observed so a hand-edit is fed

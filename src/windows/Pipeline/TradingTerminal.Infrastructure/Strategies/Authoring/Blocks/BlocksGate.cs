@@ -37,6 +37,10 @@ public sealed class BlocksGate(
     /// <summary>The drive behind the latest verdict, warnings included.</summary>
     public DriveReport? LatestDrive { get; private set; }
 
+    /// <summary>The most recent photograph of the page, kept across a later round that could not take
+    /// one — the preview shows it.</summary>
+    public UnitRaster? LatestPicture { get; private set; }
+
     public async Task<GateResult> RunAsync(IReadOnlyList<StrategyFile> files, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(files);
@@ -86,6 +90,7 @@ public sealed class BlocksGate(
                 : VerificationStep.Pass(VerificationRung.DrawProbe),
         ]);
 
+        if (picture is not null) LatestPicture = picture;
         return new GateResult(verdict, Compile: null) { Compiled = true, Picture = picture };
     }
 

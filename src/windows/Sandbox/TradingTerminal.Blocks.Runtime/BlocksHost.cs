@@ -18,6 +18,14 @@ namespace TradingTerminal.Blocks.Runtime;
 /// <param name="SearchInstruments">Catalog search, or null.</param>
 /// <param name="StateStore">Where a unit's state survives restarts, or null to keep it in memory.</param>
 /// <param name="OfferExport">Offers text to the user to save; null when the host cannot.</param>
+/// <param name="OpenFeed">
+/// Starts the venue stream behind a subscription, or null when the hub is fed some other way.
+///
+/// <para>The hub only carries what a broker was asked to stream. A unit that subscribes to an instrument
+/// nothing else is watching would otherwise run, draw, and receive nothing — so the runtime calls this on
+/// a stream's first handler and disposes what it returns after the last. May return null; must not
+/// throw, and a throw is logged and the subscription kept.</para>
+/// </param>
 public sealed record BlocksHost(
     IMarketDataHub Hub,
     IClock Clock,
@@ -27,7 +35,17 @@ public sealed record BlocksHost(
     Func<InstrumentId, Instrument?>? FindInstrument = null,
     Func<string, int, IReadOnlyList<Instrument>>? SearchInstruments = null,
     IUnitStateStore? StateStore = null,
-    Func<string, string, bool>? OfferExport = null);
+    Func<string, string, bool>? OfferExport = null,
+    Func<InstrumentId, MarketFeed, BarSize, IDisposable?>? OpenFeed = null);
+
+/// <summary>Which venue stream a subscription needs.</summary>
+public enum MarketFeed
+{
+    Quotes,
+    Trades,
+    Bars,
+    Depth,
+}
 
 /// <summary>Limits a runtime enforces.</summary>
 /// <param name="MarketQueueCapacity">Market events waiting for the unit thread before the oldest are dropped.</param>

@@ -53,6 +53,26 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
         Apply(presentation);
     }
 
+    /// <summary>
+    /// A unit hosted by something above this library — today, a unit written against the Blocks SDK,
+    /// with its own web page.
+    ///
+    /// <para>A fourth backing, for the reason the third was one: it is a strategy or a visualizer by what
+    /// it does, but it is neither contract, and Open has to reach the host that runs it. Described
+    /// rather than referenced, so this library stays below the runtimes that host such units.</para>
+    /// </summary>
+    public StrategyCatalogItemViewModel(HostedCatalogUnit hosted)
+        : this(hosted, StrategyPresentationStore.Get(hosted.Id)) { }
+
+    public StrategyCatalogItemViewModel(HostedCatalogUnit hosted, StrategyPresentation presentation)
+    {
+        HostedUnit = hosted;
+        Kind = hosted.IsStrategy ? CatalogItemKind.Strategy : CatalogItemKind.Visualizer;
+        _name = hosted.DisplayName;
+        _description = hosted.Description;
+        Apply(presentation);
+    }
+
     public CatalogItemKind Kind { get; } = CatalogItemKind.Strategy;
     public ITradingStrategy? Strategy { get; }
     public VisualizerDescriptor? Visualizer { get; }
@@ -60,7 +80,10 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
     /// <summary>Set when this row is an authored kernel rather than a plugin strategy.</summary>
     public StrategyKernelRegistration? Kernel { get; }
 
-    public string Id => Strategy?.Id ?? Kernel?.Id ?? Visualizer!.Id;
+    /// <summary>Set when this row is a unit hosted above this library (a Blocks unit).</summary>
+    public HostedCatalogUnit? HostedUnit { get; }
+
+    public string Id => Strategy?.Id ?? Kernel?.Id ?? HostedUnit?.Id ?? Visualizer!.Id;
     public string KindLabel => Kind == CatalogItemKind.Strategy ? "STRATEGY" : "VISUALIZER";
     public string KindForegroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Glow.Brush" : "Accent.Brush";
     public string KindBackgroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Soft" : "Accent.Soft";
@@ -68,7 +91,7 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
     public string EditActionLabel => Kind == CatalogItemKind.Strategy ? "Edit strategy card…" : "Edit card";
     /// <summary>Quick backtest is a plugin-strategy affordance. An authored kernel has no engine
     /// behind it — the backtester was archived — so offering it would be offering nothing.</summary>
-    public bool HasQuickBacktest => Kind == CatalogItemKind.Strategy && Kernel is null;
+    public bool HasQuickBacktest => Kind == CatalogItemKind.Strategy && Kernel is null && HostedUnit is null;
 
     public IReadOnlyList<string> DataRequirementTags =>
         Visualizer?.DataRequirementTags ?? Kernel?.Descriptor.DataRequirementTags ?? [];
@@ -104,8 +127,8 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
         // user registered a strategy in Hyperion, which is the one path the card exists for.
         var descriptor = Visualizer ?? Kernel?.Descriptor;
 
-        var defaultName = Strategy?.DisplayName ?? descriptor?.DisplayName ?? string.Empty;
-        var defaultDescription = Strategy?.Description ?? descriptor?.Description ?? string.Empty;
+        var defaultName = Strategy?.DisplayName ?? descriptor?.DisplayName ?? HostedUnit?.DisplayName ?? string.Empty;
+        var defaultDescription = Strategy?.Description ?? descriptor?.Description ?? HostedUnit?.Description ?? string.Empty;
         var defaultImagePath = descriptor?.ImagePath;
 
         Name = string.IsNullOrWhiteSpace(presentation.Name) ? defaultName : presentation.Name!;

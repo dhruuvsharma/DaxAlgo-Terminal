@@ -38,6 +38,9 @@
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.MarketData\TradingTerminal.MarketData.csproj" />
     <ProjectReference Include="..\..\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
     <ProjectReference Include="..\TradingTerminal.UI\TradingTerminal.UI.csproj" />
+    <!-- Units written against the Blocks SDK: their window (page inside the unit chrome), the page probe
+         Hyperion's gate uses, and the catalog adapter. -->
+    <ProjectReference Include="..\TradingTerminal.Blocks.WebHost\TradingTerminal.Blocks.WebHost.csproj" />
     <ProjectReference Include="..\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\UI\TradingTerminal.Settings\TradingTerminal.Settings.csproj" />
     <!-- Off-screen rendering for the Gauntlet's picture critics. -->

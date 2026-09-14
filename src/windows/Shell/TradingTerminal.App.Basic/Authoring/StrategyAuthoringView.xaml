@@ -889,6 +889,21 @@
                                             </render:AuthoredUnitLayoutHost.Style>
                                         </render:AuthoredUnitLayoutHost>
 
+                                        <!-- A Blocks unit's own page, as its gate photographed it while
+                                             the unit fed it a synthetic market. -->
+                                        <Image Source="{Binding PagePreview}" Stretch="Uniform" Margin="6">
+                                            <Image.Style>
+                                                <Style TargetType="Image">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasPagePreview}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
+
                                         <!-- Never an unexplained empty rectangle: a blank panel reads
                                              as a broken application rather than as a unit that has
                                              not been built yet. -->
@@ -897,9 +912,13 @@
                                                 <Style TargetType="StackPanel">
                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasPreview}" Value="False">
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding HasPreview}" Value="False" />
+                                                                <Condition Binding="{Binding HasPagePreview}" Value="False" />
+                                                            </MultiDataTrigger.Conditions>
                                                             <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
+                                                        </MultiDataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </StackPanel.Style>

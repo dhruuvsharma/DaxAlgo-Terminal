@@ -42,17 +42,19 @@ public static class AuthoredUnitCatalog
     /// the WPF dispatcher, which is what a shell wants. A test passes an inline runner: an
     /// <c>Application</c> another test happened to construct would otherwise leave this marshalling to
     /// a dispatcher that has stopped pumping, and a test that hangs is worse than one that fails.</param>
+    /// <param name="hosted">Units hosted above this library — the Blocks SDK's, through its adapter.</param>
     /// <returns>A handle that stops tracking. The shells hold it for the life of the window.</returns>
     public static IDisposable Bind(
         ObservableCollection<StrategyCatalogItemViewModel> items,
         IStrategyKernelRegistry? kernels,
         IVisualizerRegistry? visualizers,
         Action<string>? markUnsigned = null,
-        Action<Action>? dispatch = null)
+        Action<Action>? dispatch = null,
+        IHostedUnitCatalog? hosted = null)
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        var binding = new Binding(items, kernels, visualizers, markUnsigned, dispatch);
+        var binding = new Binding(items, kernels, visualizers, markUnsigned, dispatch, hosted);
         binding.Attach();
         return binding;
     }
@@ -62,7 +64,8 @@ public static class AuthoredUnitCatalog
         IStrategyKernelRegistry? kernels,
         IVisualizerRegistry? visualizers,
         Action<string>? markUnsigned,
-        Action<Action>? dispatch) : IDisposable
+        Action<Action>? dispatch,
+        IHostedUnitCatalog? hosted) : IDisposable
     {
         /// <summary>
         /// The ids this binding put in the catalog.
@@ -86,6 +89,7 @@ public static class AuthoredUnitCatalog
             // is told to look in a catalog that will not show it until a restart.
             if (kernels is not null) kernels.Changed += OnChanged;
             if (visualizers is not null) visualizers.Changed += OnChanged;
+            if (hosted is not null) hosted.Changed += OnChanged;
         }
 
         public void Dispose()
@@ -95,6 +99,7 @@ public static class AuthoredUnitCatalog
 
             if (kernels is not null) kernels.Changed -= OnChanged;
             if (visualizers is not null) visualizers.Changed -= OnChanged;
+            if (hosted is not null) hosted.Changed -= OnChanged;
         }
 
         private void OnChanged(object? sender, EventArgs e)
@@ -138,6 +143,16 @@ public static class AuthoredUnitCatalog
                     live.Add(registration.Id);
                     Show(registration.Id, existing => ReferenceEquals(existing.Visualizer, registration.Descriptor),
                         () => new StrategyCatalogItemViewModel(registration.Descriptor));
+                }
+            }
+
+            if (hosted is not null)
+            {
+                foreach (var unit in hosted.All)
+                {
+                    live.Add(unit.Id);
+                    Show(unit.Id, existing => Equals(existing.HostedUnit, unit),
+                        () => new StrategyCatalogItemViewModel(unit));
                 }
             }
 

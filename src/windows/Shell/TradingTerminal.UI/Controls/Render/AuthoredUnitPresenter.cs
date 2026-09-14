@@ -102,6 +102,20 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
     [ObservableProperty]
     private AuthoredUnitBook _book;
 
+    /// <summary>
+    /// What fills the middle instead of the author's drawing — a Blocks unit's own web page.
+    ///
+    /// <para>Null for a unit that draws through the render surface, which is every unit that is not a
+    /// Blocks unit. The chrome around it — run state, settings, book, log — is the same either way,
+    /// which is the point of putting the page here rather than in a window of its own.</para>
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPageContent))]
+    private object? _pageContent;
+
+    /// <summary>True when <see cref="PageContent"/> replaces the drawing.</summary>
+    public bool HasPageContent => PageContent is not null;
+
     /// <summary>Whether the parameter expander starts open. Closed once a unit is running.</summary>
     [ObservableProperty]
     private bool _isSetupExpanded = true;

@@ -15,6 +15,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The runtime suite's fake hub, host and state store — linked rather than copied so the two
+         cannot drift. -->
+    <Compile Include="..\TradingTerminal.Blocks.Runtime.Tests\Fakes.cs" Link="Fakes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />

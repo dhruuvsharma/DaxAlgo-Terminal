@@ -483,16 +483,22 @@ public sealed class SwarmRunner(
     {
         if (plan.Tasks.Count <= maxTasks) return plan;
 
-        var kept = new List<Milestone>();
-        var left = maxTasks;
+        // WHAT A UNIT CANNOT BE WITHOUT GOES FIRST: the hostable class and the page. Cutting in plan order
+        // dropped whichever came last, and planners list the page last — a two-task budget built the
+        // unit, threw the page away, and delivered a window with nothing in it. Helpers fill what is left,
+        // in the planner's order.
+        var essential = plan.Tasks.Where(t => t.Kind == TaskKind.Signal || t.OwnsPage);
+        var chosen = essential
+            .Concat(plan.Tasks)
+            .DistinctBy(t => t.Id, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Max(0, maxTasks))
+            .Select(t => t.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var milestone in plan.Milestones)
-        {
-            if (left <= 0) break;
-            var tasks = milestone.Tasks.Take(left).ToArray();
-            left -= tasks.Length;
-            if (tasks.Length > 0) kept.Add(milestone with { Tasks = tasks });
-        }
+        var kept = plan.Milestones
+            .Select(m => m with { Tasks = [.. m.Tasks.Where(t => chosen.Contains(t.Id))] })
+            .Where(m => m.Tasks.Count > 0)
+            .ToArray();
 
         return plan with { Milestones = kept };
     }

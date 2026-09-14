@@ -328,7 +328,24 @@
         -->
         <render:AuthoredUnitLayoutHost x:Name="Body" Grid.Row="2"
                                        Layout="{Binding Layout}"
-                                       Draw="{Binding Draw}" />
+                                       Draw="{Binding Draw}">
+            <render:AuthoredUnitLayoutHost.Style>
+                <Style TargetType="render:AuthoredUnitLayoutHost">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasPageContent}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </render:AuthoredUnitLayoutHost.Style>
+        </render:AuthoredUnitLayoutHost>
+
+        <!-- A Blocks unit's own page, where a drawing unit's picture would be. A ContentControl, not a
+             bare ContentPresenter: a presenter takes its content as its own DataContext, so its
+             visibility binding would read the page instead of this view and leave it collapsed — and a
+             collapsed WebView2 never gets the window handle it needs to start. -->
+        <ContentControl Grid.Row="2" Content="{Binding PageContent}" Focusable="False" IsTabStop="False"
+                        Visibility="{Binding HasPageContent, Converter={StaticResource B2V}, FallbackValue=Collapsed}" />
 
         <!-- ── Virtual book (strategies only) ─────────────────────────────────────────────────── -->
         <Border Grid.Row="3"

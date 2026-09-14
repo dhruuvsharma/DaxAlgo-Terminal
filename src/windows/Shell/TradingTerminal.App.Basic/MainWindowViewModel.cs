@@ -135,7 +135,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             CatalogItems,
             _kernels,
             services.GetService<IVisualizerRegistry>(),
-            markUnsigned: id => _unsignedStrategyIds.Add(id));
+            markUnsigned: id => _unsignedStrategyIds.Add(id),
+            hosted: services.GetService<TradingTerminal.Blocks.Runtime.IBlocksUnitRegistry>() is { } blocks
+                ? new TradingTerminal.Blocks.WebHost.BlocksCatalogSource(blocks)
+                : null);
         // A strategy registered while the app is running should appear immediately in both backing
         // collections. Runtime-authored strategies are unsigned, so add the badge id before the card.
         factory.Changed += (_, change) =>
@@ -458,6 +461,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         }
 
         if (_host.TryActivate(strategyId)) return;
+        if (TryOpenBlocksUnit(strategyId)) return;
 
         // An authored kernel is a strategy, but not an ITradingStrategy: it runs in the sandbox with a
         // virtual book rather than through the plugin factory below.
@@ -506,11 +510,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     public void AddVisualizerToChart(string? visualizerId)
     {
         if (string.IsNullOrWhiteSpace(visualizerId))
-            visualizerId = SelectedCatalogItem?.Visualizer?.Id;
+            visualizerId = SelectedCatalogItem?.Visualizer?.Id ?? SelectedCatalogItem?.HostedUnit?.Id;
         if (string.IsNullOrWhiteSpace(visualizerId))
             return;
 
         if (_host.TryActivate(visualizerId)) return;
+        if (TryOpenBlocksUnit(visualizerId!)) return;
 
         var registration = _services.GetService<IVisualizerRegistry>()?.Find(visualizerId);
         if (registration is null)
