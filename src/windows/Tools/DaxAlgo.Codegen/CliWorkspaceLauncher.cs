@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Blocks;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
@@ -12,10 +13,11 @@ public sealed record CliLaunchResult(bool Success, string Message, string Worksp
 
 /// <summary>
 /// The builder's interactive escape hatch: instead of chatting through the in-app pane, hand the
-/// strategy to the user's own installed agent CLI (Claude Code, Codex) in a real terminal, inside a
-/// scaffolded workspace that carries the same context the in-app builder would have sent — the system
-/// prompt as <c>CLAUDE.md</c>/<c>AGENTS.md</c>, the domain skill packs under <c>.claude/skills/</c>,
-/// and a starter project. The vendor CLI owns its own login; no credentials pass through here.
+/// unit to the user's own installed agent CLI (Claude Code, Codex) in a real terminal, inside a
+/// scaffolded workspace that carries the same Blocks SDK context the in-app builder sends — the
+/// conventions and block index as <c>CLAUDE.md</c>/<c>AGENTS.md</c>, one card per block under
+/// <c>blocks/cards/</c>, and a starter unit with its page. The vendor CLI owns its own login; no
+/// credentials pass through here.
 /// </summary>
 public interface ICliWorkspaceLauncher
 {
@@ -30,15 +32,21 @@ public interface ICliWorkspaceLauncher
 
 /// <summary>
 /// Scaffolds <c>%LOCALAPPDATA%\DaxAlgo\Hyperion\&lt;strategy-id&gt;\</c> and opens the CLI in the first
-/// terminal that exists: Windows Terminal → pwsh → Windows PowerShell → cmd. Guide files (the context
-/// pack, the skills) are refreshed on every launch so they never go stale; the user's own code
-/// (<c>MyStrategy.cs</c>, the project files) is written once and never overwritten.
+/// terminal that exists: Windows Terminal → pwsh → Windows PowerShell → cmd. Guide files (the
+/// conventions, the index, the cards) are refreshed on every launch so they never go stale; the user's
+/// own code (<c>MyUnit.cs</c>, <c>ui/index.html</c>) is written once and never overwritten.
+///
+/// <para><b>The cards are files, not the guide.</b> The guide carries the conventions and the one-line
+/// index; each card is its own file, and the guide tells the agent to read only the ones its code calls —
+/// the same progressive disclosure the in-app builder applies, so a CLI session does not start by
+/// reading every signature in the SDK.</para>
 /// </summary>
 public sealed class CliWorkspaceLauncher(
-    StrategyContextPack pack,
-    StrategySkillLibrary skills,
-    ILogger<CliWorkspaceLauncher>? logger = null) : ICliWorkspaceLauncher
+    ILogger<CliWorkspaceLauncher>? logger = null,
+    BlockCatalog? catalog = null) : ICliWorkspaceLauncher
 {
+    private readonly BlockCatalog _catalog = catalog ?? BlockCatalog.Load();
+
     public IReadOnlyList<AgentCliAdapter> AvailableClis() =>
         [.. AgentCliAdapter.All.Where(a => AgentCliCodegenClient.ResolveOnPath(a.Executable) is not null)];
 
@@ -72,46 +80,49 @@ public sealed class CliWorkspaceLauncher(
         logger?.LogInformation(
             "Opened {Cli} via {Terminal} in the Hyperion workspace {Workspace}", adapter.DisplayName, terminal, workspace);
         return new(true,
-            $"Opened {adapter.DisplayName} ({terminal}) in {workspace} — the context pack and skills are already in the folder.",
+            $"Opened {adapter.DisplayName} ({terminal}) in {workspace} — the Blocks conventions and cards are already in the folder.",
             workspace);
     }
 
     // ── scaffolding ─────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Creates/refreshes the workspace and returns its path. Guide files are overwritten each
-    /// time (they mirror the app's embedded pack); user-editable code files are written only once.</summary>
-    private string Scaffold(string strategyId, string displayName, StrategyBuildEffort effort)
+    /// time (they mirror the app's embedded catalog); user-editable code files are written only once.</summary>
+    /// <param name="baseDirectory">The folder the <c>DaxAlgo\Hyperion</c> tree goes under; the user's local
+    /// application data when null. A test passes its own.</param>
+    internal string Scaffold(string strategyId, string displayName, StrategyBuildEffort effort, string? baseDirectory = null)
     {
         var safeId = Sanitize(strategyId);
         var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            baseDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DaxAlgo", "Hyperion", safeId);
-        var skillsDir = Path.Combine(root, ".claude", "skills");
-        Directory.CreateDirectory(root);
-        Directory.CreateDirectory(skillsDir);
+        var cardsDir = Path.Combine(root, "blocks", "cards");
+        Directory.CreateDirectory(cardsDir);
 
         var name = string.IsNullOrWhiteSpace(displayName) ? strategyId : displayName.Trim();
 
-        // Always refreshed — these mirror what ships inside the app, and staleness is a real bug.
-        var guide = GuideMarkdown(strategyId, name, effort, safeId);
+        // Always refreshed — these mirror what ships inside the app, and staleness is a real bug: this
+        // workspace went on teaching a retired contract long after the pane had moved on.
+        var guide = GuideMarkdown(strategyId, name, effort);
         File.WriteAllText(Path.Combine(root, "CLAUDE.md"), guide);
         File.WriteAllText(Path.Combine(root, "AGENTS.md"), guide);
-        File.WriteAllText(Path.Combine(root, "system-prompt.md"), pack.SystemPrompt);
+        File.WriteAllText(Path.Combine(root, "system-prompt.md"), _catalog.SharedContext);
         File.WriteAllText(Path.Combine(root, "README.md"), Readme(name, strategyId, effort));
-        foreach (var skill in skills.All)
-            File.WriteAllText(Path.Combine(skillsDir, $"{Sanitize(skill.Id)}.md"), skill.Body);
+        File.WriteAllText(Path.Combine(root, "blocks", "index.md"), _catalog.Index);
+        foreach (var id in _catalog.Ids)
+            File.WriteAllText(Path.Combine(cardsDir, $"{Sanitize(id)}.md"), _catalog.Card(id));
 
         // Written once — a relaunch must never clobber the user's work-in-progress.
         WriteIfAbsent(Path.Combine(root, ".claude", "settings.json"), SettingsJson);
-        WriteIfAbsent(Path.Combine(root, "MyStrategy.cs"), StarterSource);
-        WriteIfAbsent(Path.Combine(root, "GlobalUsings.cs"), GlobalUsings);
-        WriteIfAbsent(Path.Combine(root, $"{safeId}.csproj"), Csproj);
+        WriteIfAbsent(Path.Combine(root, "MyUnit.cs"), BlockStarters.Strategy);
+        WriteIfAbsent(Path.Combine(root, "ui", "index.html"), BlockStarters.Page);
 
         return root;
     }
 
     private static void WriteIfAbsent(string path, string content)
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (!File.Exists(path)) File.WriteAllText(path, content);
     }
 
@@ -175,59 +186,61 @@ public sealed class CliWorkspaceLauncher(
     // ── workspace content ───────────────────────────────────────────────────────────────────────────
 
     /// <summary>The author-facing guide (written as both <c>CLAUDE.md</c> and <c>AGENTS.md</c>, so
-    /// Claude Code and Codex both pick it up): a short orientation, then the full context pack — the
-    /// same system prompt the in-app builder sends, so the CLI works from identical knowledge.</summary>
-    private string GuideMarkdown(string strategyId, string displayName, StrategyBuildEffort effort, string safeId)
+    /// Claude Code and Codex both pick it up): a short orientation, then the conventions and the index —
+    /// the same prefix the in-app builder sends. Cards stay in their own files.</summary>
+    private string GuideMarkdown(string strategyId, string displayName, StrategyBuildEffort effort)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"# {displayName} — DaxAlgo strategy-authoring workspace");
+        sb.AppendLine($"# {displayName} — DaxAlgo unit workspace (Blocks SDK)");
         sb.AppendLine();
-        sb.AppendLine($"Scaffolded by DaxAlgo Terminal's AI Strategy Builder (\"Hyperion\") for strategy id " +
-                      $"`{strategyId}` at build effort **{effort.Wire()}**. You are writing a DaxAlgo Terminal " +
-                      "strategy plugin: an `IOrderRoutedStrategy` kernel (required), plus an `ITradingStrategy` " +
-                      "descriptor and a live view-model (`LiveSignalStrategyViewModelBase`) for a catalog card. " +
-                      "A view is optional — write one in code only (no XAML; several panels are declared with "
-                      + "UnitLayout), or omit it and the host composes " +
-                      "the default window from the descriptor's `DataRequirement`.");
+        sb.AppendLine($"Scaffolded by DaxAlgo Terminal's Hyperion for `{strategyId}` at build effort **{effort.Wire()}**. " +
+                      "You are writing a DaxAlgo Terminal unit: ONE public C# class implementing `IUnit`, and the unit's " +
+                      "own web page in `ui/`. It is a strategy if it uses the `orders` block, otherwise a visualizer. " +
+                      "C# does the data, maths, logic, orders and network; the page only draws and sends intents back.");
         sb.AppendLine();
         sb.AppendLine("## This folder");
         sb.AppendLine();
-        sb.AppendLine("- `MyStrategy.cs` — the starter skeleton. Grow it or replace it; helpers go in more files.");
-        sb.AppendLine($"- `{safeId}.csproj` + `GlobalUsings.cs` — compile surface via the `DaxAlgo.Sdk` / " +
-                      "`DaxAlgo.Sdk.Wpf` NuGet packages (compile-time only; the host shares its own contract " +
-                      "assemblies at runtime).");
-        sb.AppendLine("- `system-prompt.md` — the raw context pack (duplicated below), the complete authoring contract.");
-        sb.AppendLine("- `.claude/skills/` — DaxAlgo's domain packs (order flow, quant math, risk & exits, the live " +
-                      "window, instruments & data). Read the ones this strategy touches before writing signal code.");
+        sb.AppendLine("- `MyUnit.cs` — the starter unit. Grow it or replace it; helper types go in more `.cs` files.");
+        sb.AppendLine("- `ui/index.html` — the unit's page. Add `.js` and `.css` beside it. The look is entirely yours.");
+        sb.AppendLine("- `blocks/index.md` — one line per block (also below).");
+        sb.AppendLine("- `blocks/cards/<block>.md` — each block's calls, what it needs and its limits. **Read only the " +
+                      "cards for the blocks your code calls**; the index says which is which.");
+        sb.AppendLine("- `system-prompt.md` — the conventions and index exactly as the in-app builder sends them.");
         sb.AppendLine();
-        sb.AppendLine("## Output contract (how code gets back into the terminal)");
+        sb.AppendLine("## Getting it into the terminal");
         sb.AppendLine();
-        sb.AppendLine("When handing files back, emit one ```csharp fenced block per file, each starting with a " +
-                      "`// file: <Name>.cs` line. In the app: paste the files into the AI Strategy Builder's Code " +
-                      "tab and press **Compile & Register** — the same policy scan applies to this code as to any " +
-                      "plugin (file, network, process, registry or reflection-emit access never compiles).");
+        sb.AppendLine("In DaxAlgo Terminal open Hyperion, put each file in the Code tab under the same path (`MyUnit.cs`, " +
+                      "`ui/index.html`, …) and press **Compile & Register**. The same scan applies as to any unit: the " +
+                      "network is allowed; files, processes, threads, reflection emit and assembly loading are refused. " +
+                      "Registering writes a `.daxalgostrategy` or `.daxalgovisualizer` and keeps it for the next start.");
+        sb.AppendLine();
+        sb.AppendLine("Handing files back as text instead: one fenced block per file with its path on the first line, " +
+                      "as the Output section below describes.");
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
-        sb.AppendLine(pack.SystemPrompt);
+        sb.AppendLine(_catalog.Conventions);
+        sb.AppendLine();
+        sb.AppendLine("---");
+        sb.AppendLine();
+        sb.AppendLine(_catalog.Index);
         return sb.ToString();
     }
 
     private static string Readme(string displayName, string strategyId, StrategyBuildEffort effort) => $"""
         # {displayName} (Hyperion workspace)
 
-        A DaxAlgo Terminal strategy-authoring workspace for `{strategyId}`, scaffolded at build effort
-        `{effort.Wire()}`.
+        A DaxAlgo Terminal unit workspace for `{strategyId}`, scaffolded at build effort `{effort.Wire()}`,
+        written against the Blocks SDK.
 
-        1. Work with your agent CLI here — `CLAUDE.md` / `AGENTS.md` carry the full authoring contract,
-           and `.claude/skills/` holds the domain reference packs.
-        2. The strategy skeleton is `MyStrategy.cs`; the `.csproj` gives your IDE the SDK compile surface.
-        3. When it's ready, paste the file set into DaxAlgo Terminal → AI Strategy Builder → Code tab and
-           press Compile & Register. Nothing runs until you do — the terminal's policy scan and consent
-           gate apply to this code like any other plugin.
+        1. Work with your agent CLI here — `CLAUDE.md` / `AGENTS.md` carry the conventions and the block
+           index; `blocks/cards/` holds one card per block.
+        2. The unit is `MyUnit.cs`; its page is `ui/index.html`.
+        3. When it's ready, put the files into DaxAlgo Terminal → Hyperion → Code tab under the same paths
+           and press Compile & Register. Nothing runs until you do.
 
-        Regenerating: launching the CLI from the terminal again refreshes the guide files but never touches
-        your `.cs` / `.csproj` files.
+        Regenerating: launching the CLI from the terminal again refreshes the guide and card files but never
+        touches your `.cs` files or your page.
         """;
 
     /// <summary>A minimal, benign Claude Code project-settings file with one demonstrative echo hook —
@@ -241,106 +254,12 @@ public sealed class CliWorkspaceLauncher(
                 "hooks": [
                   {
                     "type": "command",
-                    "command": "echo DaxAlgo strategy workspace ready - read CLAUDE.md for the authoring contract."
+                    "command": "echo DaxAlgo unit workspace ready - read CLAUDE.md, then only the block cards your code uses."
                   }
                 ]
               }
             ]
           }
-        }
-        """;
-
-    /// <summary>The namespaces the in-app Roslyn compiler imports automatically — mirrored here so the
-    /// same starter file compiles in an IDE against the SDK packages.</summary>
-    private const string GlobalUsings = """
-        // The in-app strategy compiler imports these for you; this file mirrors that for IDE builds.
-        global using System;
-        global using System.Collections.Generic;
-        global using System.Linq;
-        global using System.Threading;
-        global using System.Threading.Tasks;
-        global using TradingTerminal.Core.Strategies;
-        global using TradingTerminal.Core.Domain;
-        global using TradingTerminal.Core.MarketData;
-        global using TradingTerminal.Core.Strategies.Parameters;
-        global using TradingTerminal.Core.Time;
-        global using TradingTerminal.Core.Trading;
-        """;
-
-    private const string Csproj = """
-        <Project Sdk="Microsoft.NET.Sdk">
-
-          <PropertyGroup>
-            <!-- Must match the host: DaxAlgo Terminal's Windows tree is net9.0-windows7.0. -->
-            <TargetFramework>net9.0-windows7.0</TargetFramework>
-            <Nullable>enable</Nullable>
-            <ImplicitUsings>enable</ImplicitUsings>
-            <LangVersion>latest</LangVersion>
-            <EnableWindowsTargeting>true</EnableWindowsTargeting>
-            <UseWPF>true</UseWPF>
-          </PropertyGroup>
-
-          <ItemGroup>
-            <!-- Compile-time surface only (ExcludeAssets=runtime): at runtime the host shares its own
-                 contract assemblies into the plugin's load context, so never ship TradingTerminal.* /
-                 DaxAlgo.Sdk* copies next to the strategy. DaxAlgo.Sdk.Wpf bundles DaxAlgo.Sdk plus the
-                 WPF live-window base types. -->
-            <PackageReference Include="DaxAlgo.Sdk.Wpf" Version="0.2.0-alpha" ExcludeAssets="runtime" />
-          </ItemGroup>
-
-        </Project>
-        """;
-
-    /// <summary>The same starter skeleton the in-app builder opens with (kept verbatim in both places so
-    /// the two entry points never teach a different contract).</summary>
-    private const string StarterSource = """
-        // Authored strategy. The following namespaces are imported for you:
-        //   System, System.Collections.Generic, System.Linq, System.Threading(.Tasks),
-        //   TradingTerminal.Core.Domain / Trading / Time / Backtest / MarketData,
-        //   TradingTerminal.Core.Strategies.Parameters
-        //
-        // Rules: define exactly ONE public class implementing IOrderRoutedStrategy with a
-        // public (Contract) constructor. Optionally add a static Schema and a static
-        // Create(Contract, StrategyParameters) to expose tunable parameters in the UI.
-        // Helpers may live in additional files (the + button on the file list).
-
-        public sealed class MyStrategy : IOrderRoutedStrategy
-        {
-            public static StrategyParameterSchema Schema { get; } = new(
-                StrategyParameter.Int("lookback", "Look-back", 20, min: 2, max: 500),
-                StrategyParameter.Number("threshold", "Entry threshold", 1.5, min: 0.1, max: 10, step: 0.1));
-
-            public static IOrderRoutedStrategy Create(Contract contract, StrategyParameters p) =>
-                new MyStrategy(contract, p.GetInt("lookback"), p.GetDouble("threshold"));
-
-            private readonly Contract _contract;
-            private readonly int _lookback;
-            private readonly double _threshold;
-
-            public MyStrategy(Contract contract) : this(contract, 20, 1.5) { }
-
-            public MyStrategy(Contract contract, int lookback, double threshold)
-            {
-                _contract = contract;
-                _lookback = lookback;
-                _threshold = threshold;
-            }
-
-            public Task OnStartAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-                => Task.CompletedTask;
-
-            public Task OnTickAsync(Tick tick, IClock clock, IOrderRouter router, CancellationToken ct)
-            {
-                // Your signal logic here. Submit orders via
-                // router.PlaceOrderAsync(new OrderRequest(...)). _contract names the instrument.
-                if (_lookback <= 0 || _threshold <= 0 || _contract is null) return Task.CompletedTask;
-                return Task.CompletedTask;
-            }
-
-            public Task OnOrderEventAsync(OrderEvent evt, CancellationToken ct) => Task.CompletedTask;
-
-            public Task OnEndAsync(IClock clock, IOrderRouter router, CancellationToken ct)
-                => Task.CompletedTask;
         }
         """;
 }
