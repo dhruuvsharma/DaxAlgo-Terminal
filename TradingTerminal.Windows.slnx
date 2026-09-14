@@ -4,6 +4,9 @@
   </Folder>
   <Folder Name="/Sdk/">
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj" />
+    <Project Path="src/windows/Sdk/DaxAlgo.Quant/DaxAlgo.Quant.csproj" />
+    <Project Path="src/windows/Sdk/DaxAlgo.Blocks/DaxAlgo.Blocks.csproj" />
+    <Project Path="src/windows/Sandbox/TradingTerminal.Blocks.Runtime/TradingTerminal.Blocks.Runtime.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Analyzers/DaxAlgo.Sdk.Analyzers.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj" />
     <Project Path="src/windows/Sdk/DaxAlgo.Package/DaxAlgo.Package.csproj" />
@@ -22,6 +25,8 @@
     <Project Path="tests/TradingTerminal.Plugins.Tests/TradingTerminal.Plugins.Tests.csproj" />
     <Project Path="tests/TradingTerminal.Updates.Tests/TradingTerminal.Updates.Tests.csproj" />
     <Project Path="tests/DaxAlgo.Package.Tests/DaxAlgo.Package.Tests.csproj" />
+    <Project Path="tests/DaxAlgo.Blocks.Tests/DaxAlgo.Blocks.Tests.csproj" />
+    <Project Path="tests/TradingTerminal.Blocks.Runtime.Tests/TradingTerminal.Blocks.Runtime.Tests.csproj" />
   </Folder>
   <Folder Name="/Samples/">
     <Project Path="samples/DaxAlgo.Sandbox.Samples/DaxAlgo.Sandbox.Samples.csproj" />

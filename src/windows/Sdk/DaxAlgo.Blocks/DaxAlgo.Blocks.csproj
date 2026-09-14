@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── DaxAlgo Blocks SDK ─────────────────────────────────────────────────────────────────────
+       What Hyperion builds against: a unit (IUnit) and the blocks it can use — settings, market data,
+       history, instruments, clock, schedule, orders, portfolio, alerts, log, state, export, the UI
+       bridge, and the maths library. Each block is independent, and the agent is only ever shown the
+       CARD for the blocks a task uses (sdk/ai-context/blocks), never the implementation.
+
+       No UI lives here on purpose. A unit ships its own web page and talks to it through the ui block,
+       so the look is whatever the user asks for rather than whatever a widget library can draw. That
+       is also why this does NOT reference DaxAlgo.Sdk: its drawing surface and widgets must be
+       unreachable from a Blocks unit.
+
+       Not packed yet: Hyperion-only until the host and the authoring loop have proved it. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <ProjectReference Include="..\DaxAlgo.Quant\DaxAlgo.Quant.csproj" />
+  </ItemGroup>
+
+</Project>

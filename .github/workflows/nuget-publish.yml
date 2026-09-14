@@ -43,13 +43,15 @@ jobs:
           }
           Write-Host "Publishing SDK version $sdkInfo"
 
-      - name: Pack (8 packages, lockstep version)
+      - name: Pack (9 packages, lockstep version)
         shell: pwsh
         run: |
           $projects = @(
             'src/windows/Core/TradingTerminal.Core/TradingTerminal.Core.csproj',
             'src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj',
             'src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj',
+            # DaxAlgo.Sdk depends on DaxAlgo.Quant (the maths moved out so the Blocks SDK could share it).
+            'src/windows/Sdk/DaxAlgo.Quant/DaxAlgo.Quant.csproj',
             'src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj',
             'src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj',
             'src/windows/Sdk/DaxAlgo.Strategy.Bundle/DaxAlgo.Strategy.Bundle.csproj',

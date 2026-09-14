@@ -50,6 +50,8 @@ jobs:
             'src/windows/Core/TradingTerminal.Core/TradingTerminal.Core.csproj',
             'src/windows/UI/TradingTerminal.UI.Core/TradingTerminal.UI.Core.csproj',
             'src/windows/Shell/TradingTerminal.UI/TradingTerminal.UI.csproj',
+            # DaxAlgo.Sdk depends on DaxAlgo.Quant (the maths moved out so the Blocks SDK could share it).
+            'src/windows/Sdk/DaxAlgo.Quant/DaxAlgo.Quant.csproj',
             'src/windows/Sdk/DaxAlgo.Sdk/DaxAlgo.Sdk.csproj',
             'src/windows/Sdk/DaxAlgo.Sdk.Wpf/DaxAlgo.Sdk.Wpf.csproj'
           )

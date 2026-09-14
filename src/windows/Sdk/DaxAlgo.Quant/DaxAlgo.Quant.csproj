@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── DaxAlgo quant library ──────────────────────────────────────────────────────────────────
+       The streaming estimators, indicators, order-flow and online-learning maths, on their own.
+
+       They lived inside DaxAlgo.Sdk, beside the drawing widgets and the render surface. The Blocks
+       SDK Hyperion authors against has no UI at all, so it could not reference DaxAlgo.Sdk without
+       handing every generated unit the widget library it is meant to be free of — and copying the
+       maths would make two estimator libraries that drift. So the maths moved here and both SDKs
+       reference it.
+
+       The namespace is still DaxAlgo.Sdk.Quant and DaxAlgo.Sdk type-forwards every type, so a unit
+       or an installed package compiled against the old DaxAlgo.Sdk keeps resolving each one. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>DaxAlgo.Quant</PackageId>
+    <Version>$(DaxAlgoSdkVersion)</Version>
+    <PackageTags>daxalgo;trading;quant;indicators;estimators;order-flow</PackageTags>
+    <Authors>DaxAlgo</Authors>
+    <Description>DaxAlgo streaming quant library — O(1)-per-update smoothers, rolling statistics, indicators (RSI, ATR, MACD, Bollinger, VWAP), regression and cointegration, Kalman filters, order-flow estimators, book statistics, online learners and performance statistics. Shared by the DaxAlgo SDK and the Blocks SDK.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+  </ItemGroup>
+
+</Project>

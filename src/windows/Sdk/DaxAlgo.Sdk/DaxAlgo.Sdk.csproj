@@ -27,6 +27,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <!-- The quant library, in its own assembly since the Blocks SDK needed it without the widgets.
+         Every type is forwarded from this one (QuantTypeForwards.cs), so nothing compiled against
+         DaxAlgo.Sdk loses a name, and the package depends on DaxAlgo.Quant. -->
+    <ProjectReference Include="..\DaxAlgo.Quant\DaxAlgo.Quant.csproj" />
     <!-- Build the policy analyzer with the SDK and run it over this project, but keep it out of
          compile references and NuGet dependency metadata. Its assembly is embedded below. -->
     <ProjectReference Include="..\DaxAlgo.Sdk.Analyzers\DaxAlgo.Sdk.Analyzers.csproj"

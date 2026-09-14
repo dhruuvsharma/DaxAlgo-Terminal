@@ -17,6 +17,9 @@
          is REFLECTED from the SDK rather than described by hand — the previous pack drifted precisely
          because its generator went missing and the prose was left to be maintained manually. -->
     <ProjectReference Include="..\..\Sdk\DaxAlgo.Sdk\DaxAlgo.Sdk.csproj" />
+    <!-- The Blocks SDK Hyperion is moving to. Referenced so its cards are reflected from the block
+         contracts (BlockCatalogGenerator), for the same reason the surface above is. -->
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Blocks\DaxAlgo.Blocks.csproj" />
     <!-- SandboxParameters, so the verifier converts declared values EXACTLY as the host does. A
          second implementation would eventually disagree, and a verifier that disagrees with the host
          either passes units that fail live or fails units that would have worked. -->

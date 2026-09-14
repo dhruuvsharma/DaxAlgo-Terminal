@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── Blocks runtime ─────────────────────────────────────────────────────────────────────────
+       Hosts a DaxAlgo.Blocks unit: one serialized unit thread, dynamic multi-instrument market data,
+       timers, a basket of simulated accounts, settings, state, history, instruments, alerts, log,
+       export, and the endpoint a unit's web page talks through.
+
+       WPF-free. The window that shows the page (WebView2) is a separate project that implements
+       IUnitUiEndpoint; this runtime only knows there is an endpoint. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <UseWPF>false</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Sdk\DaxAlgo.Blocks\DaxAlgo.Blocks.csproj" />
+    <ProjectReference Include="..\..\Core\TradingTerminal.Core\TradingTerminal.Core.csproj" />
+    <!-- SandboxParameters' coercion and MediatedAlertSink's rate limiting, reused rather than copied. -->
+    <ProjectReference Include="..\..\Pipeline\TradingTerminal.Sandbox\TradingTerminal.Sandbox.csproj" />
+    <!-- ModelPortfolioAccount: one simulated account per traded instrument. -->
+    <ProjectReference Include="..\TradingTerminal.Sandbox.Runtime\TradingTerminal.Sandbox.Runtime.csproj" />
+    <InternalsVisibleTo Include="TradingTerminal.Blocks.Runtime.Tests" />
+  </ItemGroup>
+
+</Project>
