@@ -123,6 +123,20 @@ public static class AppDependencyInjection
             TradingTerminal.UI.Strategies.StrategyKernelRegistry>();
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IAuthoredUnitSink,
             TradingTerminal.UI.Strategies.AuthoredUnitSink>();
+        // Units written against the Blocks SDK — what Hyperion builds: their registry (the catalog reads
+        // it), their compiler, the page probe that opens a unit's page while the build is gated, and the
+        // one dependency the authoring pane takes for all of it. Composing BlocksAuthoring is what
+        // switches Hyperion from the widget SDK to blocks.
+        services.AddSingleton<TradingTerminal.Blocks.Runtime.IBlocksUnitRegistry,
+            TradingTerminal.Blocks.Runtime.BlocksUnitRegistry>();
+        services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.Blocks.BlocksUnitCompiler>();
+        services.AddSingleton<TradingTerminal.Blocks.Runtime.Verification.IPageProbe>(
+            _ => new TradingTerminal.Blocks.WebHost.WebPageProbe());
+        services.AddSingleton<TradingTerminal.Infrastructure.Strategies.Authoring.Blocks.BlocksAuthoring>(sp =>
+            new TradingTerminal.Infrastructure.Strategies.Authoring.Blocks.BlocksAuthoring(
+                sp.GetRequiredService<TradingTerminal.Infrastructure.Strategies.Authoring.Blocks.BlocksUnitCompiler>(),
+                sp.GetService<TradingTerminal.Blocks.Runtime.IBlocksUnitRegistry>(),
+                sp.GetService<TradingTerminal.Blocks.Runtime.Verification.IPageProbe>()));
         // Runtime strategy authoring: Roslyn compiler + the authoring pane VM. Lets users
         // write a strategy and register it into the catalog with no recompile of the host.
         services.AddSingleton<TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler, TradingTerminal.Infrastructure.Strategies.Authoring.RoslynStrategyCompiler>();
