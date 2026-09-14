@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ── Blocks web host ────────────────────────────────────────────────────────────────────────
+       Shows a DaxAlgo.Blocks unit's own page (ui/index.html) in WebView2 and connects it to the unit
+       running in TradingTerminal.Blocks.Runtime: the window, the page endpoint, and the probe that
+       checks a page loads, becomes ready, throws nothing and is not blank.
+
+       The only UI here is the frame. What is inside the frame is the unit's. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows7.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Description>WebView2 host for DaxAlgo.Blocks unit pages.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Sandbox\TradingTerminal.Blocks.Runtime\TradingTerminal.Blocks.Runtime.csproj" />
+    <InternalsVisibleTo Include="TradingTerminal.Blocks.WebHost.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same WebView2 version the Charts tool ships, so the terminal loads one runtime binding. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3650.58" />
+  </ItemGroup>
+
+</Project>

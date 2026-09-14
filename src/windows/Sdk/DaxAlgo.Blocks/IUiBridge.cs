@@ -21,6 +21,6 @@ public interface IUiBridge
     /// <summary>Calls <paramref name="handler"/> with the JSON payload whenever the page sends <paramref name="topic"/>; dispose to stop.</summary>
     IDisposable On(string topic, Action<JsonElement> handler);
 
-    /// <summary>Calls <paramref name="handler"/> when the page opens (after <c>dax.ready()</c>) — the moment to send full state.</summary>
+    /// <summary>Calls <paramref name="handler"/> when the page opens (after <c>dax.ready()</c>), or at once if it already has — the moment to send full state.</summary>
     IDisposable OnOpened(Action handler);
 }

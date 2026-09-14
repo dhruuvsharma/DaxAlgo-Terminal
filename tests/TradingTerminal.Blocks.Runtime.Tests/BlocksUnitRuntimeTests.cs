@@ -210,6 +210,33 @@ public sealed class BlocksUnitRuntimeTests
     }
 
     [Fact]
+    public async Task A_page_that_was_ready_before_the_unit_listened_still_opens_it()
+    {
+        // The race the page probe found: dax.ready() arrived before the runtime attached, so Opened fired
+        // for nobody and the unit never sent its page anything.
+        var hub = new FakeHub();
+        var endpoint = new FakeEndpoint();
+        endpoint.Open();
+        var opened = 0;
+
+        var unit = new LambdaUnit(new UnitInfo("Late listener"), context =>
+        {
+            context.Ui.OnOpened(() =>
+            {
+                opened++;
+                context.Ui.Send("state", new { Ready = true });
+            });
+            return Task.CompletedTask;
+        });
+
+        await using var runtime = new BlocksUnitRuntime(() => unit, "late", Host.For(hub), ui: endpoint);
+        await runtime.StartAsync();
+
+        await Host.WaitUntil(() => endpoint.Snapshot().Any(p => p.Topic == "state"), "the unit should send its state to the already-open page");
+        opened.Should().Be(1);
+    }
+
+    [Fact]
     public async Task State_survives_a_restart()
     {
         var hub = new FakeHub();

@@ -40,9 +40,22 @@ public sealed record DriveReport(
 /// <param name="Steps">Price updates per subscribed instrument.</param>
 /// <param name="HasPage">Whether the unit ships a page, so silence towards it is a failure.</param>
 /// <param name="SettleTime">How long timers are given to fire after the feed.</param>
-public sealed record DriveOptions(int Steps = 240, bool HasPage = false, TimeSpan? SettleTime = null)
+/// <param name="Page">A real page to drive instead of the recording stand-in — the WebView2 host passes its
+/// own, so the unit talks to the page it ships while the market is synthetic.</param>
+/// <param name="PageReadyTimeout">How long a real page has to call <c>dax.ready()</c>.</param>
+/// <param name="BeforeStop">Runs after the feed has settled and before the unit stops — the moment to
+/// photograph the page while the unit is still feeding it.</param>
+public sealed record DriveOptions(
+    int Steps = 240,
+    bool HasPage = false,
+    TimeSpan? SettleTime = null,
+    IUnitUiEndpoint? Page = null,
+    TimeSpan? PageReadyTimeout = null,
+    Func<CancellationToken, Task>? BeforeStop = null)
 {
     public TimeSpan Settle => SettleTime ?? TimeSpan.FromMilliseconds(600);
+
+    public TimeSpan PageReady => PageReadyTimeout ?? TimeSpan.FromSeconds(15);
 }
 
 /// <summary>
@@ -70,7 +83,7 @@ public static class BlocksDrive
         var log = new List<string>();
         var hub = new SyntheticHub();
         var clock = new DriveClock();
-        var page = new RecordingPage();
+        using var page = new RecordingPage(options.Page);
 
         var host = new BlocksHost(
             hub,
@@ -92,7 +105,23 @@ public static class BlocksDrive
             return Report(findings, runtime, page, started, []);
         }
 
-        page.Open();
+        if (options.Page is null)
+        {
+            page.Open();
+        }
+        else
+        {
+            // A real page loads on its own schedule. Feeding before it is ready would test a window
+            // nobody is looking at yet.
+            var deadline = DateTime.UtcNow + options.PageReady;
+            while (!page.IsOpen && DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+                await Task.Delay(25, ct).ConfigureAwait(false);
+
+            if (!page.IsOpen)
+                findings.Add(new DriveFinding(DriveSeverity.Failure, "page.never-ready",
+                    $"The page did not call dax.ready() within {options.PageReady.TotalSeconds:0} seconds.",
+                    "Attach the dax.on listeners, then call dax.ready() once; a script error before it stops the page."));
+        }
 
         for (var step = 0; step < options.Steps && !ct.IsCancellationRequested; step++)
         {
@@ -105,6 +134,19 @@ public static class BlocksDrive
         }
 
         await Task.Delay(options.Settle, ct).ConfigureAwait(false);
+
+        if (options.BeforeStop is { } beforeStop)
+        {
+            try
+            {
+                await beforeStop(ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                findings.Add(new DriveFinding(DriveSeverity.Warning, "drive.before-stop",
+                    $"The drive's own check before stopping failed: {ex.Message}"));
+            }
+        }
 
         foreach (var unread in runtime.UnreadSettings)
             findings.Add(new DriveFinding(DriveSeverity.Warning, "settings.unread",
@@ -255,24 +297,54 @@ public static class BlocksDrive
         public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, by.Ticks);
     }
 
-    private sealed class RecordingPage : IUnitUiEndpoint
+    /// <summary>
+    /// Counts what the unit sends its page. Stands in for the page when there is none; wraps the real
+    /// one when the host supplies it, forwarding everything both ways.
+    /// </summary>
+    private sealed class RecordingPage : IUnitUiEndpoint, IDisposable
     {
+        private readonly IUnitUiEndpoint? _inner;
         private int _posts;
+        private bool _open;
 
-        public bool IsOpen { get; private set; }
+        public RecordingPage(IUnitUiEndpoint? inner)
+        {
+            _inner = inner;
+            if (_inner is null) return;
+            _inner.MessageReceived += Forward;
+            _inner.Opened += Raise;
+        }
+
+        public bool IsOpen => _inner?.IsOpen ?? _open;
 
         public int Posts => Volatile.Read(ref _posts);
 
         public event Action<string, string>? MessageReceived;
         public event Action? Opened;
 
-        public void Post(string topic, string json) => Interlocked.Increment(ref _posts);
+        public void Post(string topic, string json)
+        {
+            Interlocked.Increment(ref _posts);
+            _inner?.Post(topic, json);
+        }
 
+        /// <summary>Opens the stand-in page. A real page opens itself.</summary>
         public void Open()
         {
-            IsOpen = true;
+            _open = true;
             Opened?.Invoke();
             MessageReceived?.Invoke("drive.ping", "{}");
+        }
+
+        private void Forward(string topic, string json) => MessageReceived?.Invoke(topic, json);
+
+        private void Raise() => Opened?.Invoke();
+
+        public void Dispose()
+        {
+            if (_inner is null) return;
+            _inner.MessageReceived -= Forward;
+            _inner.Opened -= Raise;
         }
     }
 }

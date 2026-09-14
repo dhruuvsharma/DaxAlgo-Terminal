@@ -215,6 +215,14 @@ internal sealed class UiBlock : IUiBridge, IDisposable
     {
         ArgumentNullException.ThrowIfNull(handler);
         lock (_gate) _opened.Add(handler);
+
+        // A PAGE CAN BE READY BEFORE THE UNIT LISTENS. A fast page calls dax.ready() while the window is
+        // still starting the runtime, the Opened event fires with nobody attached, and the unit — waiting
+        // to be told the page is open — never sends it anything. Found by the page probe, whose page won
+        // that race on a warm browser. So a handler registered on an open page runs at once. At worst it
+        // runs twice around the moment the page opens, which is harmless: it sends whole state.
+        if (IsOpen) _thread.Post(handler);
+
         return new Disposer(() => { lock (_gate) _opened.Remove(handler); });
     }
 
