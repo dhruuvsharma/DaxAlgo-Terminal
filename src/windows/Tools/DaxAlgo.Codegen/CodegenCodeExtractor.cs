@@ -25,7 +25,37 @@ public static partial class CodegenCodeExtractor
     [GeneratedRegex(@"(?<name>[\w.\-]+\.cs)")]
     private static partial Regex FileNameMention();
 
+    /// <summary>A page file's own path marker on the block's first line, in whichever comment syntax
+    /// its language has: <c>&lt;!-- file: ui/index.html --&gt;</c>, <c>// file: ui/app.js</c>,
+    /// <c>/* file: ui/style.css */</c>.</summary>
+    [GeneratedRegex(@"^[ \t]*(?:<!--|//|/\*)[ \t]*(?:file[ \t]*:[ \t]*)?(?<name>[\w.\-/]+\.(?:html?|m?js|css|svg))[ \t]*(?:-->|\*/)?[ \t]*\r?\n", RegexOptions.IgnoreCase)]
+    private static partial Regex PageHeader();
+
+    /// <summary>A page file named in an info string or the prose line above a fence.</summary>
+    [GeneratedRegex(@"(?<name>(?:ui/)?[\w.\-/]*[\w\-]\.(?:html?|m?js|css|svg))\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PageNameMention();
+
     private static readonly string[] CSharpLanguages = ["csharp", "cs", "c#", ""];
+
+    /// <summary>Fence languages that are a unit's web page, and the file a block of each is called when
+    /// it names none.</summary>
+    private static readonly Dictionary<string, string> PageLanguages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["html"] = "ui/index.html",
+        ["htm"] = "ui/index.html",
+        ["js"] = "ui/app.js",
+        ["javascript"] = "ui/app.js",
+        ["mjs"] = "ui/app.js",
+        ["css"] = "ui/style.css",
+        ["svg"] = "ui/image.svg",
+    };
+
+    /// <summary>The folder a unit's page lives in.</summary>
+    public const string PageFolder = "ui/";
+
+    /// <summary>True for a file that belongs to a unit's web page rather than its C#.</summary>
+    public static bool IsPageFile(string? name) =>
+        name is not null && name.Replace('\\', '/').StartsWith(PageFolder, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The first C# block (or the whole reply when unfenced) — the single-file path.</summary>
     public static string Extract(string? reply)
@@ -48,10 +78,14 @@ public static partial class CodegenCodeExtractor
         return FencedBlock().Replace(reply, match =>
         {
             var language = match.Groups["lang"].Value.Trim().ToLowerInvariant();
-            if (!CSharpLanguages.Contains(language)) return match.Value;   // leave json/pwsh alone; it's tiny
+            var page = PageLanguages.ContainsKey(language);
+
+            // Json and shell stay: they are tiny. A page does not — it is as superseded by the next
+            // version as the C# is, and usually longer.
+            if (!page && !CSharpLanguages.Contains(language)) return match.Value;
 
             var body = match.Groups["body"].Value;
-            var header = FileHeader().Match(body);
+            var header = page ? PageHeader().Match(body) : FileHeader().Match(body);
             var name = header.Success ? header.Groups["name"].Value : "a file";
             var lines = body.Count(c => c == '\n');
 
@@ -108,6 +142,82 @@ public static partial class CodegenCodeExtractor
         }
 
         return files;
+    }
+
+    /// <summary>
+    /// Every file of a Blocks unit in the reply: its C# exactly as <see cref="ExtractFiles"/> reads it,
+    /// and its web page — <c>html</c>, <c>js</c> and <c>css</c> fences — under <c>ui/</c>.
+    ///
+    /// <para>Separate from <see cref="ExtractFiles"/> because the widget SDK's compiler takes every file
+    /// it is handed as C#: a page slipping into that path would arrive as forty syntax errors in a file
+    /// nobody meant as a program.</para>
+    /// </summary>
+    public static IReadOnlyList<StrategyFile> ExtractUnitFiles(string? reply)
+    {
+        var files = ExtractFiles(reply).ToList();
+        if (string.IsNullOrWhiteSpace(reply)) return files;
+
+        var used = new HashSet<string>(files.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
+
+        foreach (Match match in FencedBlock().Matches(reply))
+        {
+            var language = match.Groups["lang"].Value.Trim();
+            if (!PageLanguages.TryGetValue(language, out var fallback)) continue;
+
+            var body = match.Groups["body"].Value;
+            var name = PageNameFor(match, reply, body, out var stripped);
+            body = stripped.Trim();
+            if (body.Length == 0) continue;
+
+            files.Add(new StrategyFile(UniquePage(name ?? fallback, used), body));
+        }
+
+        return files;
+    }
+
+    /// <summary>A page block's name: its header line, its info string, or the line above the fence —
+    /// always under <c>ui/</c>, whether or not the model wrote the folder.</summary>
+    private static string? PageNameFor(Match match, string reply, string body, out string strippedBody)
+    {
+        strippedBody = body;
+
+        var header = PageHeader().Match(body);
+        if (header.Success)
+        {
+            strippedBody = body[header.Length..];
+            return InPageFolder(header.Groups["name"].Value);
+        }
+
+        var info = PageNameMention().Match(match.Groups["info"].Value);
+        if (info.Success) return InPageFolder(info.Groups["name"].Value);
+
+        var lineStart = reply.LastIndexOf('\n', Math.Max(0, match.Index - 2));
+        if (lineStart >= 0 && match.Index - lineStart < 200)
+        {
+            var mention = PageNameMention().Match(reply[lineStart..match.Index]);
+            if (mention.Success) return InPageFolder(mention.Groups["name"].Value);
+        }
+
+        return null;
+    }
+
+    private static string InPageFolder(string name)
+    {
+        var path = name.Replace('\\', '/').TrimStart('/');
+        return IsPageFile(path) ? PageFolder + path[PageFolder.Length..] : PageFolder + path;
+    }
+
+    private static string UniquePage(string name, HashSet<string> used)
+    {
+        if (used.Add(name)) return name;
+
+        var dot = name.LastIndexOf('.');
+        var (stem, extension) = dot > 0 ? (name[..dot], name[dot..]) : (name, string.Empty);
+        for (var i = 2; ; i++)
+        {
+            var candidate = $"{stem}{i}{extension}";
+            if (used.Add(candidate)) return candidate;
+        }
     }
 
     /// <summary>The file name for a block: its own header line (stripped from the body so the compiler's

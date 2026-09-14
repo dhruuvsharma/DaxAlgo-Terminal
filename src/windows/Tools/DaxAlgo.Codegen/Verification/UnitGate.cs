@@ -13,6 +13,31 @@ public sealed record GateResult(VerificationReport Report, StrategyCompileResult
 
     /// <summary>The resolved unit, when there is one.</summary>
     public AuthoredUnit? Unit => Compile?.Unit;
+
+    /// <summary>
+    /// Whether the files compiled, for any kind of unit.
+    ///
+    /// <para><see cref="Compile"/> is the widget SDK's compile and is null for a Blocks unit, whose
+    /// compiler reports its own result; this is the one answer both gates give.</para>
+    /// </summary>
+    public bool Compiled { get; init; } = Compile?.Success == true;
+
+    /// <summary>What the unit looks like, when the gate photographed it — a Blocks unit's page, taken
+    /// while the unit was feeding it. The picture critic judges this.</summary>
+    public UnitRaster? Picture { get; init; }
+}
+
+/// <summary>
+/// The objective half of a build: compile a candidate and run whatever can be checked without a model.
+///
+/// <para>An interface because there are two kinds of unit. The widget SDK's gate is the eight-rung
+/// ladder below; a Blocks unit's compiles against its own SDK, drives the unit against a synthetic
+/// market and opens its page. The swarm neither knows nor cares which it has.</para>
+/// </summary>
+public interface IUnitGate
+{
+    /// <summary>Compiles <paramref name="files"/> and reports what is wrong with them.</summary>
+    Task<GateResult> RunAsync(IReadOnlyList<StrategyFile> files, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -33,12 +58,16 @@ public sealed record GateResult(VerificationReport Report, StrategyCompileResult
 /// <para>It is also the gate in the Prime Agent sense: cheap, deterministic, and run before anything
 /// expensive. Nothing that costs a model call ever sees a candidate that has not cleared this.</para>
 /// </summary>
-public sealed class UnitGate(IStrategyCompiler compiler, string strategyId, string displayName)
+public sealed class UnitGate(IStrategyCompiler compiler, string strategyId, string displayName) : IUnitGate
 {
     private readonly IStrategyCompiler _compiler = compiler ?? throw new ArgumentNullException(nameof(compiler));
 
     /// <summary>The compile behind the latest verdict.</summary>
     public StrategyCompileResult? Latest { get; private set; }
+
+    /// <inheritdoc />
+    public Task<GateResult> RunAsync(IReadOnlyList<StrategyFile> files, CancellationToken ct = default) =>
+        Task.FromResult(Run(files));
 
     /// <summary>Compiles the files and runs the ladder over what came out.</summary>
     public GateResult Run(IReadOnlyList<StrategyFile> files)

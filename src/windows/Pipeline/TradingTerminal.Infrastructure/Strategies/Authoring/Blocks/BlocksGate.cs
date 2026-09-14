@@ -1,0 +1,132 @@
+using System.Security.Cryptography;
+using TradingTerminal.Blocks.Runtime.Verification;
+using TradingTerminal.Core.Strategies.Authoring;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Verification;
+
+namespace TradingTerminal.Infrastructure.Strategies.Authoring.Blocks;
+
+/// <summary>
+/// The objective half of a Blocks build: compile the unit, drive it against a synthetic market, and —
+/// when it has a page and the machine can open one — do that with its page open, and photograph it.
+///
+/// <para>Every finding carries the rung it belongs to and a stable code, so the swarm's router and its
+/// best-version keeping work exactly as they do for the widget SDK's ladder: a page fault names
+/// <c>ui/index.html</c> and reaches whoever owns the page; a handler that throws names no file and
+/// reaches the unit's class.</para>
+///
+/// <para>Warnings are left out of the verdict. A setting the unit never read, or market data it dropped
+/// under a burst, is worth telling a user and not worth a repair turn.</para>
+/// </summary>
+public sealed class BlocksGate(
+    BlocksUnitCompiler compiler,
+    string unitId,
+    IPageProbe? probe = null,
+    DriveOptions? drive = null) : IUnitGate
+{
+    private readonly BlocksUnitCompiler _compiler = compiler ?? throw new ArgumentNullException(nameof(compiler));
+
+    /// <summary>The file page findings are addressed to — the page's entry point, owned by the page's task.</summary>
+    public const string PageEntry = "ui/index.html";
+
+    /// <summary>How long and how hard a gate drives a unit: shorter than the default, because it runs every round.</summary>
+    public static DriveOptions DefaultDrive { get; } = new(Steps: 120, SettleTime: TimeSpan.FromMilliseconds(600), PageReadyTimeout: TimeSpan.FromSeconds(15));
+
+    /// <summary>The compile behind the latest verdict — what a caller registers.</summary>
+    public BlocksCompileResult? Latest { get; private set; }
+
+    /// <summary>The drive behind the latest verdict, warnings included.</summary>
+    public DriveReport? LatestDrive { get; private set; }
+
+    public async Task<GateResult> RunAsync(IReadOnlyList<StrategyFile> files, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+
+        var compiled = _compiler.Compile(unitId, files);
+        Latest = compiled;
+        LatestDrive = null;
+
+        if (!compiled.Success || compiled.Factory is null)
+            return new GateResult(Refused(compiled), Compile: null) { Compiled = false };
+
+        var pages = compiled.PageFiles ?? [];
+        var options = (drive ?? DefaultDrive) with { HasPage = pages.Count > 0 };
+
+        DriveReport report;
+        IReadOnlyList<DriveFinding> findings;
+        UnitRaster? picture = null;
+
+        if (pages.Count > 0 && probe is { IsAvailable: true })
+        {
+            var check = await probe.RunAsync(compiled.Factory, pages, unitId, options, ct).ConfigureAwait(false);
+            (report, findings) = (check.Drive, check.Findings);
+
+            if (check.Png is { Length: > 0 } png)
+                picture = new UnitRaster(png, check.Width, check.Height, Convert.ToHexString(SHA256.HashData(png)));
+        }
+        else
+        {
+            report = await BlocksDrive.RunAsync(compiled.Factory, options, ct).ConfigureAwait(false);
+            findings = report.Findings;
+        }
+
+        LatestDrive = report;
+
+        var failures = findings.Where(f => f.Severity == DriveSeverity.Failure).ToArray();
+        var lifecycle = failures.Where(f => !IsPage(f.Code)).Select(f => ToFinding(f, file: null)).ToArray();
+        var page = failures.Where(f => IsPage(f.Code)).Select(f => ToFinding(f, PageEntry)).ToArray();
+
+        var verdict = new VerificationReport(
+        [
+            VerificationStep.Pass(VerificationRung.Compile),
+            VerificationStep.Pass(VerificationRung.Policy),
+            VerificationStep.Pass(VerificationRung.Shape),
+            lifecycle.Length > 0 ? VerificationStep.Fail(VerificationRung.Lifecycle, lifecycle) : VerificationStep.Pass(VerificationRung.Lifecycle),
+            pages.Count == 0 ? VerificationStep.Skip(VerificationRung.DrawProbe)
+                : page.Length > 0 ? VerificationStep.Fail(VerificationRung.DrawProbe, page)
+                : VerificationStep.Pass(VerificationRung.DrawProbe),
+        ]);
+
+        return new GateResult(verdict, Compile: null) { Compiled = true, Picture = picture };
+    }
+
+    /// <summary>A unit that did not compile, pass the scan or have the right shape, sorted onto the rung
+    /// that refused it.</summary>
+    private static VerificationReport Refused(BlocksCompileResult compiled)
+    {
+        var errors = compiled.Errors.ToArray();
+
+        VerificationFinding Finding(StrategyDiagnostic d) => new(
+            d.Id,
+            string.IsNullOrEmpty(d.File) ? d.Message : $"{d.Location}: {d.Message}",
+            d.Id.StartsWith("DAXSCAN", StringComparison.Ordinal)
+                ? "Remove the call. Files, processes, threads and reflection are not available; use the state, schedule and network blocks."
+                : "Fix the diagnostic. The line and column are in the message.",
+            File: string.IsNullOrEmpty(d.File) ? null : d.File);
+
+        var scan = errors.Where(d => d.Id.StartsWith("DAXSCAN", StringComparison.Ordinal)).Select(Finding).ToArray();
+        var shape = errors.Where(d => d.Id.StartsWith("DAXB", StringComparison.Ordinal)).Select(Finding).ToArray();
+        var compile = errors.Except(errors.Where(d => d.Id.StartsWith("DAX", StringComparison.Ordinal))).Select(Finding).ToArray();
+
+        if (compile.Length > 0)
+            return new VerificationReport([VerificationStep.Fail(VerificationRung.Compile, compile)]);
+
+        if (scan.Length > 0)
+            return new VerificationReport(
+                [VerificationStep.Pass(VerificationRung.Compile), VerificationStep.Fail(VerificationRung.Policy, scan)]);
+
+        return new VerificationReport(
+        [
+            VerificationStep.Pass(VerificationRung.Compile),
+            VerificationStep.Pass(VerificationRung.Policy),
+            VerificationStep.Fail(VerificationRung.Shape,
+                shape.Length > 0 ? shape : [new VerificationFinding("compile.failed", "The unit did not compile.", "Read the diagnostics.")]),
+        ]);
+    }
+
+    private static bool IsPage(string code) =>
+        code.StartsWith("page.", StringComparison.Ordinal) || code == "ui.never-sent";
+
+    // ui.never-sent is the unit's silence, not the page's fault, so it names no file and reaches the C#.
+    private static VerificationFinding ToFinding(DriveFinding finding, string? file) =>
+        new(finding.Code, finding.Message, finding.Remedy, finding.Code == "ui.never-sent" ? null : file);
+}

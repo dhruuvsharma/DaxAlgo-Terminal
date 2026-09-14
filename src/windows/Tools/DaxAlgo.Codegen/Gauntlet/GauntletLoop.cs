@@ -128,19 +128,22 @@ public sealed class GauntletLoop(IReadOnlyList<IUnitCritic> critics, ILogger? lo
     /// <param name="vision">A model that can be shown pictures, when one is configured. <b>Only the
     /// picture critic is routed to it</b> — the build stays where the user put it, and a critic call is
     /// one image and a rubric, so the cost of borrowing a second provider for it is small.</param>
+    /// <param name="definitions">The critics to run. The widget SDK's panel for <paramref name="kind"/>
+    /// when omitted; a Blocks unit passes its own.</param>
     public static GauntletLoop For(
         IStrategyCodegenClient build,
         IStrategyCodegenClient? vision,
         string sharedContext,
         AuthoringKind kind,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        IReadOnlyList<CriticDefinition>? definitions = null)
     {
         ArgumentNullException.ThrowIfNull(build);
 
         var buildSees = AiModelCatalog.SupportsVision(build.ProviderId, build.Model);
         var visionSees = vision is not null && AiModelCatalog.SupportsVision(vision.ProviderId, vision.Model);
 
-        var panel = CriticPrompts.For(kind).Select(IUnitCritic (definition) =>
+        var panel = (definitions ?? CriticPrompts.For(kind)).Select(IUnitCritic (definition) =>
         {
             var useVision = definition.NeedsPicture && !buildSees && visionSees;
             var client = useVision ? vision! : build;

@@ -105,6 +105,9 @@
     <!-- The artifact package format (.daxalgostrategy / .daxalgovisualizer). The installer reads and
          verifies packages here; the shell only picks the file. -->
     <ProjectReference Include="..\..\Sdk\DaxAlgo.Package\DaxAlgo.Package.csproj" />
+    <!-- The Blocks runtime, for BlocksGate: a Hyperion build is gated by driving the compiled unit, and
+         the compiler that makes it lives here. WPF-free; the page probe is injected by the shell. -->
+    <ProjectReference Include="..\..\Sandbox\TradingTerminal.Blocks.Runtime\TradingTerminal.Blocks.Runtime.csproj" />
   </ItemGroup>
 
   <ItemGroup>

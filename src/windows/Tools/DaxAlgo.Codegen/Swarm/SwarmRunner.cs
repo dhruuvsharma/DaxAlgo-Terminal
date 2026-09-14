@@ -58,7 +58,12 @@ public sealed record SwarmRun(
     CodegenUsage Usage,
     string Summary,
     string? Error = null,
-    string? PlannerNote = null);
+    string? PlannerNote = null)
+{
+    /// <summary>Whether the delivered files compiled — for either kind of unit, where
+    /// <see cref="Compile"/> is only the widget SDK's.</summary>
+    public bool Compiled { get; init; } = Compile?.Success == true;
+}
 
 /// <summary>
 /// The swarm: plan the work, build it in parallel against one contract, gate it, and repair what the
@@ -74,16 +79,20 @@ public sealed record SwarmRun(
 /// <para>Everything is injected, so a whole run can be driven from a fake client and asserted on. A loop
 /// that can only be observed against a live provider is a loop nobody will change.</para>
 /// </summary>
+/// <param name="dialect">What the run says and reads for the kind of unit being built. The widget SDK's
+/// when omitted.</param>
 public sealed class SwarmRunner(
     IStrategyCodegenClient client,
-    UnitGate gate,
+    IUnitGate gate,
     TrajectoryLog? trajectory = null,
     ILogger? logger = null,
     GauntletLoop? gauntlet = null,
-    IUnitRasterizer? rasterizer = null)
+    IUnitRasterizer? rasterizer = null,
+    ISwarmDialect? dialect = null)
 {
     private readonly IStrategyCodegenClient _client = client ?? throw new ArgumentNullException(nameof(client));
-    private readonly UnitGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+    private readonly IUnitGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+    private readonly ISwarmDialect _dialect = dialect ?? SdkSwarmDialect.Instance;
 
     /// <summary>The critics, or null to deliver on the ladder alone — which is what a host with no
     /// second provider, and every test that is about orchestration, does.</summary>
@@ -234,11 +243,12 @@ public sealed class SwarmRunner(
                         : Done(SwarmOutcome.BudgetExhausted, plan, origin, context, null, usage, note: note, summary:
                             "No builder produced a file. Nothing was compiled.");
 
-                verdict = _gate.Run(context.Files);
+                verdict = await _gate.RunAsync(context.Files, ct).ConfigureAwait(false);
 
                 // A file nobody owns cannot be repaired by anybody, so if it is what broke the build, take
-                // it out — but only on the compiler's word. See ShedDeadWeight.
-                if (!verdict.Passed && ShedDeadWeight(plan, context, verdict, progress) is { } lighter)
+                // it out — but only on the compiler's word. See ShedDeadWeightAsync.
+                if (!verdict.Passed
+                    && await ShedDeadWeightAsync(plan, context, verdict, progress, ct).ConfigureAwait(false) is { } lighter)
                     verdict = lighter;
 
                 progress?.Report(new SwarmEvent.Gated(verdict.Report, round));
@@ -251,13 +261,14 @@ public sealed class SwarmRunner(
 
                 if (verdict.Passed)
                 {
-                    if (_gauntlet is null || verdict.Unit is null)
+                    var subject = _gauntlet is null
+                        ? null
+                        : await _dialect.SubjectAsync(verdict, context.Files, request.Kind, _rasterizer, ct)
+                            .ConfigureAwait(false);
+
+                    if (_gauntlet is null || subject is null)
                         return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
                             $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) cleared.");
-
-                    var subject = await GauntletSubjects.BuildAsync(
-                        AuthoredUnitPreview.Create(verdict.Unit), context.Files, verdict.Report, _rasterizer, ct)
-                        .ConfigureAwait(false);
 
                     // The bar the planner wrote, unless the caller supplied a stronger one. A rubric
                     // written from the brief at plan time beats one invented after the fact by whoever is
@@ -361,7 +372,7 @@ public sealed class SwarmRunner(
             return Done(SwarmOutcome.BudgetExhausted, plan, origin, Rewind(context, bestFiles),
                 delivered, usage, note: note, summary:
                 $"Stopped at the {request.Budget.MaxRounds}-round repair budget. "
-                + $"Furthest it got: {(delivered?.Compile?.Success == true ? "it compiles" : "it does not compile")}"
+                + $"Furthest it got: {(delivered?.Compiled == true ? "it compiles" : "it does not compile")}"
                 + (ReferenceEquals(delivered, verdict) ? string.Empty : ", and that is the version kept")
                 + ".");
         }
@@ -410,7 +421,7 @@ public sealed class SwarmRunner(
                 new StrategyCodegenRequest(
                     request.SharedContext,
                     messages,
-                    SwarmPrompts.Planner(request.Kind, request.Budget.MaxTasks)),
+                    _dialect.Planner(request.Kind, request.Budget.MaxTasks)),
                 ThinkingOnly(events),
                 ct).ConfigureAwait(false);
 
@@ -436,7 +447,7 @@ public sealed class SwarmRunner(
             // CODE means the model skipped planning and wrote the unit instead. That is a formatting
             // failure rather than a question, so it earns one reminder and then the single-file plan —
             // which is the shape it was trying to produce anyway.
-            var wroteCode = CodegenCodeExtractor.ExtractFiles(response.RawText).Count > 0;
+            var wroteCode = CodegenCodeExtractor.ExtractUnitFiles(response.RawText).Count > 0;
 
             if (!wroteCode && request.MayAsk)
                 return new Planned(
@@ -520,12 +531,12 @@ public sealed class SwarmRunner(
         progress?.Report(new SwarmEvent.TaskStarted(task, repairing));
 
         var instruction = repairing
-            ? SwarmPrompts.Fixer(task, plan.Contract)
-            : SwarmPrompts.Builder(task, plan.Contract);
+            ? _dialect.Fixer(task, plan.Contract)
+            : _dialect.Builder(task, plan.Contract);
 
         var message = repairing
-            ? context.ComposeRepair(task, findings, plan)
-            : context.ComposeBuild(task, plan);
+            ? _dialect.ComposeRepair(context, task, findings, plan)
+            : _dialect.ComposeBuild(context, task, plan);
 
         // THE HEARTBEAT. Counted per task and reported as numbers, so a fan-out has something moving
         // in every row — without which a builder thinking for five minutes looks exactly like a
@@ -575,15 +586,11 @@ public sealed class SwarmRunner(
         if (!response.Success)
             return new TaskResult([], reported, response.Error ?? "The provider returned nothing.");
 
-        // Prose in a fence is not code whoever wrote it. The single-conversation path has refused it
-        // since the day it cost three generations — the fix loop reads CS1003 and tries to FIX THE
-        // PROSE — and a second path that compiled it happily is exactly the defect this area keeps
-        // producing.
-        var files = response.FileList
-            .Where(f => CodegenCodeExtractor.LooksLikeCode(f.Content))
-            .ToArray();
+        // Which parts of the reply are files is the dialect's call: prose in a fence is never code, and a
+        // Blocks unit's page is code that is not C#.
+        var files = _dialect.FilesIn(response);
 
-        Record(task.Kind.ToString(), task.Id, reported, files: files.Length);
+        Record(task.Kind.ToString(), task.Id, reported, files: files.Count);
         return new TaskResult(files, reported, null);
     }
 
@@ -606,8 +613,8 @@ public sealed class SwarmRunner(
     /// class takes the unit down with it and is therefore kept — which is the case that makes "just drop
     /// what fails" the wrong rule and this the right one.</para>
     /// </summary>
-    private GateResult? ShedDeadWeight(
-        BuildPlan plan, SwarmContext context, GateResult verdict, IProgress<SwarmEvent>? progress)
+    private async Task<GateResult?> ShedDeadWeightAsync(
+        BuildPlan plan, SwarmContext context, GateResult verdict, IProgress<SwarmEvent>? progress, CancellationToken ct)
     {
         var orphans = context.Orphans(plan);
         if (orphans.Count == 0) return null;
@@ -630,8 +637,8 @@ public sealed class SwarmRunner(
         // deleting a failing file does — so scoring on them would license dropping anything that
         // happened to be broken. Clearing a rung that was not cleared before is the only evidence that
         // the file was in the way rather than merely unfinished, and it is the claim the notice makes.
-        var retry = _gate.Run(reduced);
-        if (retry.Compile?.Success != true) return null;
+        var retry = await _gate.RunAsync(reduced, ct).ConfigureAwait(false);
+        if (!retry.Compiled) return null;
         if (retry.Report.RungsCleared <= verdict.Report.RungsCleared) return null;
 
         foreach (var name in dead) context.Remove(name);
@@ -676,12 +683,15 @@ public sealed class SwarmRunner(
             .Where(t => !t.OwnsAllFiles && context.File(t.OwnedFile) is null)
             .ToArray();
 
+        // By ownership rather than by exact name, so a finding in a page's script reaches whoever owns
+        // the page.
         var named = all
             .Select(f => f.File)
             .Where(f => f is { Length: > 0 })
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(file => tasks.FirstOrDefault(t =>
-                string.Equals(t.OwnedFile, file, StringComparison.OrdinalIgnoreCase)))
+                string.Equals(t.OwnedFile, file, StringComparison.OrdinalIgnoreCase)
+                || (t.OwnsPage && CodegenCodeExtractor.IsPageFile(file))))
             .Where(t => t is not null)
             .Select(t => t!)
             .ToArray();
@@ -694,6 +704,7 @@ public sealed class SwarmRunner(
         // recognised the same way the draw probe's are.
         var drawing = all.Any(f =>
             f.Code.StartsWith("draw.", StringComparison.Ordinal)
+            || f.Code.StartsWith("page.", StringComparison.Ordinal)
             || f.Code.StartsWith(Critics.Picture + ".", StringComparison.Ordinal)
             || f.Code.StartsWith(Critics.ChartCraft + ".", StringComparison.Ordinal));
 
@@ -705,8 +716,8 @@ public sealed class SwarmRunner(
         // asked. Measured on the opening-range brief: three rounds against the same
         // "'130' and '130' are drawn on top of each other", the two panel builders rewriting
         // themselves each time, and the panel named in the finding belonging to the kernel.
-        if (drawing && tasks.Any(t => t.Kind is TaskKind.Panel or TaskKind.Signal))
-            return [.. tasks.Where(t => t.Kind is TaskKind.Panel or TaskKind.Signal)];
+        if (drawing && tasks.Any(t => t.Kind is TaskKind.Panel or TaskKind.Signal or TaskKind.Ui))
+            return [.. tasks.Where(t => t.Kind is TaskKind.Panel or TaskKind.Signal or TaskKind.Ui)];
 
         return [tasks.FirstOrDefault(t => t.Kind == TaskKind.Signal) ?? tasks[0]];
     }
@@ -852,7 +863,10 @@ public sealed class SwarmRunner(
         SwarmOutcome outcome, BuildPlan plan, PlanOrigin origin, SwarmContext context,
         GateResult? verdict, CodegenUsage usage, string summary, string? note = null) =>
         new(outcome, plan, origin, context.Files, verdict?.Report, verdict?.Compile, usage, summary,
-            PlannerNote: note);
+            PlannerNote: note)
+        {
+            Compiled = verdict?.Compiled == true,
+        };
 
     private SwarmRun Failed(
         BuildPlan plan, PlanOrigin origin, SwarmContext context, CodegenUsage usage, string? error) =>

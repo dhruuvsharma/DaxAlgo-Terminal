@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\windows\Shell\TradingTerminal.Blocks.WebHost\TradingTerminal.Blocks.WebHost.csproj" />
+    <!-- BlocksGate and BlocksUnitCompiler, so a Hyperion build's gate can be run with a real page. -->
+    <ProjectReference Include="..\..\src\windows\Pipeline\TradingTerminal.Infrastructure\TradingTerminal.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

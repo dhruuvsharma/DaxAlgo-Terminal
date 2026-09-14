@@ -56,8 +56,7 @@ public sealed class SwarmContext
         // A one-task fallback owns everything there is, so nothing is ever orphaned under one.
         if (plan.Tasks.Any(t => t.OwnsAllFiles)) return [];
 
-        var owned = new HashSet<string>(plan.Tasks.Select(t => t.OwnedFile), StringComparer.OrdinalIgnoreCase);
-        return [.. _files.Values.Where(f => !owned.Contains(f.Name))];
+        return [.. _files.Values.Where(f => !plan.Tasks.Any(t => t.Owns(f.Name)))];
     }
 
     /// <summary>Takes a file out of the build. Returns false when it was not in it.</summary>
@@ -103,6 +102,18 @@ public sealed class SwarmContext
             if (usable.Length == 0) return false;
 
             foreach (var file in usable) _files[file.Name] = file;
+            return true;
+        }
+
+        // The page is a folder: every page file the page's builder wrote is its own, and nothing else is.
+        if (task.OwnsPage)
+        {
+            var page = produced
+                .Where(f => CodegenCodeExtractor.IsPageFile(f.Name) && !string.IsNullOrWhiteSpace(f.Content))
+                .ToArray();
+            if (page.Length == 0) return false;
+
+            foreach (var file in page) _files[file.Name] = file;
             return true;
         }
 
@@ -165,8 +176,10 @@ public sealed class SwarmContext
         // The types this file may NOT declare, whether or not their files exist yet. Stated every time
         // rather than only when one is missing, because the failure is the same either way and a rule
         // that appears only in the broken case is a rule nobody learns.
+        // C# only: a page declares no types, so naming it here would be noise in a list about types.
         var elsewhere = plan.Tasks
             .Where(t => !string.Equals(t.OwnedFile, task.OwnedFile, StringComparison.OrdinalIgnoreCase))
+            .Where(t => !t.OwnsPage)
             .Select(t => t.OwnedFile)
             .ToArray();
 
@@ -211,8 +224,7 @@ public sealed class SwarmContext
         IReadOnlyList<VerificationFinding> mineFindings = task.OwnsAllFiles
             ? findings
             : findings
-                .Where(f => f.File is null
-                            || string.Equals(f.File, task.OwnedFile, StringComparison.OrdinalIgnoreCase))
+                .Where(f => f.File is null || task.Owns(f.File))
                 .ToArray();
 
         Section(
@@ -223,8 +235,7 @@ public sealed class SwarmContext
                 : string.Join(Environment.NewLine, findings.Select(f => f.ToString())));
 
         string[] elsewhere = task.OwnsAllFiles ? [] : [.. findings
-            .Where(f => f.File is { Length: > 0 }
-                        && !string.Equals(f.File, task.OwnedFile, StringComparison.OrdinalIgnoreCase))
+            .Where(f => f.File is { Length: > 0 } && !task.Owns(f.File))
             .Select(f => f.File!)
             .Distinct(StringComparer.OrdinalIgnoreCase)];
 
@@ -269,9 +280,9 @@ public sealed class SwarmContext
 
     /// <summary>The files this task may rewrite: its own, or all of them for the fallback task.</summary>
     private IReadOnlyList<StrategyFile> Owned(BuildTask task) =>
-        task.OwnsAllFiles
-            ? Files
-            : File(task.OwnedFile) is { } mine ? [mine] : [];
+        task.OwnsAllFiles ? Files
+        : task.OwnsPage ? [.. _files.Values.Where(f => CodegenCodeExtractor.IsPageFile(f.Name))]
+        : File(task.OwnedFile) is { } mine ? [mine] : [];
 
     private static void Section(StringBuilder text, string heading, string body)
     {

@@ -25,6 +25,22 @@ public enum TaskKind
 
     /// <summary>What a strategy does to its virtual book — sizing, exits, exposure.</summary>
     Book,
+
+    /// <summary>A Blocks unit's web page: <c>ui/index.html</c> and the scripts and styles beside it.</summary>
+    Ui,
+}
+
+/// <summary>
+/// One message a Blocks unit and its page exchange, fixed in the contract so the C# builder and the page
+/// builder — working at the same time, unable to see each other — send and listen for the same thing.
+/// </summary>
+/// <param name="Name">The topic, as both sides spell it.</param>
+/// <param name="Direction"><c>to-page</c> (the unit sends it) or <c>from-page</c> (the page sends it).</param>
+/// <param name="Payload">The JSON shape, written out: <c>{ spread: number, z: number, legs: [..] }</c>.</param>
+public sealed record TopicSpec(string Name, string Direction, string Payload)
+{
+    /// <summary>True when the page sends it and the unit listens.</summary>
+    public bool FromPage => Direction.Contains("from", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>One declared parameter, as the contract fixes it before anybody writes code.</summary>
@@ -70,14 +86,19 @@ public sealed record HelperSpec(string TypeName, string Purpose, string Signatur
 /// The Roslyn compiler is then the merge check: a builder that ignored the contract fails to compile
 /// against the files that honoured it, and the repair is routed to whoever owns the file.</para>
 /// </summary>
+/// <param name="Topics">A Blocks unit's messages to and from its page. Empty for a widget-SDK unit.</param>
 public sealed record UnitContract(
     string TypeName,
     AuthoringKind Kind,
     string DataRequirement,
     IReadOnlyList<ParameterSpec> Parameters,
     IReadOnlyList<PanelSpec> Panels,
-    IReadOnlyList<HelperSpec> Helpers)
+    IReadOnlyList<HelperSpec> Helpers,
+    IReadOnlyList<TopicSpec>? Topics = null)
 {
+    /// <summary>The page messages, never null.</summary>
+    public IReadOnlyList<TopicSpec> PageTopics => Topics ?? [];
+
     public static UnitContract Minimal(string typeName, AuthoringKind kind) =>
         new(typeName, kind, "Bars", [], [], []);
 }
@@ -105,6 +126,14 @@ public sealed record UnitContract(
 /// two helpers had two of them discarded, and the third renamed to a file name the planner invented
 /// instead of the one the model wrote in its own header.</para>
 /// </param>
+/// <param name="Blocks">
+/// The Blocks SDK cards this task is written against — <c>market</c>, <c>orders</c>,
+/// <c>math.indicators</c>. Null for a widget-SDK task.
+///
+/// <para><b>Named by the planner, so a builder is sent only those.</b> The whole catalog is a few
+/// thousand tokens and a task rarely needs more than four of its twenty-two cards; the planner already
+/// knows which, because deciding what a file does is deciding what it calls.</para>
+/// </param>
 public sealed record BuildTask(
     string Id,
     string Title,
@@ -112,7 +141,28 @@ public sealed record BuildTask(
     string OwnedFile,
     string Intent,
     IReadOnlyList<string> DependsOn,
-    bool OwnsAllFiles = false);
+    bool OwnsAllFiles = false,
+    IReadOnlyList<string>? Blocks = null)
+{
+    /// <summary>The blocks this task names, never null.</summary>
+    public IReadOnlyList<string> Cards => Blocks ?? [];
+
+    /// <summary>True when this task writes a unit's page, which is a folder rather than one file.</summary>
+    public bool OwnsPage => CodegenCodeExtractor.IsPageFile(OwnedFile);
+
+    /// <summary>
+    /// Whether this task may write <paramref name="file"/>: its own file, every file for the fallback
+    /// task, and every page file for the task that owns the page.
+    ///
+    /// <para>The page is the one place the one-file rule is widened, and deliberately: an HTML file and
+    /// the script and stylesheet beside it are one piece of work that no second builder shares, so
+    /// splitting it would buy nothing but a contract between three files nobody else reads.</para>
+    /// </summary>
+    public bool Owns(string file) =>
+        OwnsAllFiles
+        || string.Equals(file, OwnedFile, StringComparison.OrdinalIgnoreCase)
+        || (OwnsPage && CodegenCodeExtractor.IsPageFile(file));
+}
 
 /// <summary>A group of tasks that finish together and are worth reporting as one step.</summary>
 public sealed record Milestone(string Id, string Title, IReadOnlyList<BuildTask> Tasks);
@@ -284,7 +334,8 @@ public static class BuildPlanReader
         string? DataRequirement,
         IReadOnlyList<ParameterSpec>? Parameters,
         IReadOnlyList<PanelSpec>? Panels,
-        IReadOnlyList<HelperSpec>? Helpers)
+        IReadOnlyList<HelperSpec>? Helpers,
+        IReadOnlyList<TopicSpec>? Topics = null)
     {
         public UnitContract ToContract(AuthoringKind kind) => new(
             string.IsNullOrWhiteSpace(TypeName) ? "AuthoredUnit" : TypeName.Trim(),
@@ -292,7 +343,8 @@ public static class BuildPlanReader
             string.IsNullOrWhiteSpace(DataRequirement) ? "Bars" : DataRequirement.Trim(),
             Parameters ?? [],
             Panels ?? [],
-            Helpers ?? []);
+            Helpers ?? [],
+            Topics is null ? null : [.. Topics.Where(t => !string.IsNullOrWhiteSpace(t?.Name))]);
     }
 
     private sealed record MilestoneWire(string? Id, string? Title, IReadOnlyList<TaskWire>? Tasks)
@@ -309,7 +361,8 @@ public static class BuildPlanReader
         TaskKind? Kind,
         string? OwnedFile,
         string? Intent,
-        IReadOnlyList<string>? DependsOn)
+        IReadOnlyList<string>? DependsOn,
+        IReadOnlyList<string>? Blocks = null)
     {
         public BuildTask? ToTask()
         {
@@ -326,7 +379,10 @@ public static class BuildPlanReader
                 Kind ?? TaskKind.Signal,
                 file,
                 Intent.Trim(),
-                DependsOn ?? []);
+                DependsOn ?? [],
+                Blocks: Blocks is null
+                    ? null
+                    : [.. Blocks.Where(b => !string.IsNullOrWhiteSpace(b)).Select(b => b.Trim())]);
         }
     }
 
@@ -340,7 +396,22 @@ public static class BuildPlanReader
     /// </summary>
     private static string? SafeFileName(string name)
     {
-        var leaf = name.Trim().Replace('\\', '/');
+        // A page file keeps its folder, because the folder is what makes it a page. Only ui/ and only a
+        // page type; every segment is held to the same rules a leaf is.
+        var path = name.Trim().Replace('\\', '/');
+        if (CodegenCodeExtractor.IsPageFile(path))
+        {
+            var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var safe = segments.Length >= 2
+                       && segments.All(s => s is not ("." or "..") && !s.Contains(':')
+                                            && s.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) < 0)
+                       && System.IO.Path.GetExtension(path).ToLowerInvariant() is ".html" or ".htm" or ".js"
+                           or ".mjs" or ".css" or ".svg";
+
+            return safe ? string.Join('/', segments) : null;
+        }
+
+        var leaf = path;
         leaf = leaf[(leaf.LastIndexOf('/') + 1)..];
 
         if (leaf.Length == 0 || leaf is "." or ".." || leaf.Contains(':')) return null;

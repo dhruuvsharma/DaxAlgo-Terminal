@@ -58,6 +58,20 @@
       <LogicalName>DaxAlgo.AiContext.Skill.%(Filename).md</LogicalName>
     </EmbeddedResource>
 
+    <!-- The Blocks SDK as Hyperion hands it to a model: the hand-written conventions, the generated
+         index, and one generated card per block. Embedded from the committed copies BlockCardTests keeps
+         fresh, so the app never needs the XML documentation the generator reads. Read via
+         BlockCatalog.Load(). -->
+    <EmbeddedResource Include="..\..\..\..\sdk\ai-context\blocks\conventions.md">
+      <LogicalName>DaxAlgo.AiContext.Blocks.conventions.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\..\sdk\ai-context\blocks\index.md">
+      <LogicalName>DaxAlgo.AiContext.Blocks.index.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\..\sdk\ai-context\blocks\cards\*.md">
+      <LogicalName>DaxAlgo.AiContext.Blocks.Card.%(Filename).md</LogicalName>
+    </EmbeddedResource>
+
     <!-- Worked exemplars (#44 phase 3). These are the SAMPLE PROJECT'S OWN SOURCE, embedded rather
          than copied: a copy drifts from the thing CI compiles, and an exemplar that no longer
          compiles teaches the model to write something that does not. Normalised into authored-unit
