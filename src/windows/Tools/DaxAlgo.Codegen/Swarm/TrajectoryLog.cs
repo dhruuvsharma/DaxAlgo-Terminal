@@ -34,7 +34,21 @@ public sealed record TrajectoryEntry(
     int InputTokens,
     int CachedInputTokens,
     int OutputTokens,
-    int Files);
+    int Files)
+{
+    /// <summary>
+    /// False for a row that records a step of the run rather than a request to the model: the gate, the
+    /// gauntlet pass as a whole, and shedding a dead file. Everything else is one model call — including
+    /// a call that never answered, which is the row a cost comparison can least afford to lose.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsModelCall => Role is not (TrajectoryLog.GateRole or TrajectoryLog.GauntletRole or TrajectoryLog.ShedRole);
+
+    /// <summary>A model call that was billed and produced no answer — a provider error, or a model that
+    /// spent its whole budget reasoning.</summary>
+    [JsonIgnore]
+    public bool Unanswered => Codes.Contains(TrajectoryLog.NoAnswer);
+}
 
 /// <summary>
 /// A JSONL record of what the swarm did and what it cost.
@@ -62,6 +76,25 @@ public sealed class TrajectoryLog(string path, int maxEntries = 2000)
 
     private readonly Lock _gate = new();
 
+    /// <summary>The role of a gate verdict. Not a model call.</summary>
+    public const string GateRole = "Gate";
+
+    /// <summary>The role of a gauntlet pass as a whole; each critic's own call is its own row.</summary>
+    public const string GauntletRole = "Gauntlet";
+
+    /// <summary>The role of shedding a file nobody owns. Not a model call.</summary>
+    public const string ShedRole = "Shed";
+
+    /// <summary>
+    /// The code on a call that returned no answer.
+    ///
+    /// <para><b>Those calls used to leave no row at all</b>, because the row was written only once a reply
+    /// had been read. Measured on a real run: nine calls, seven of which reasoned until the budget was
+    /// gone or met a gateway error, and a log that showed two — while more than 225,000 output tokens
+    /// had been spent on the seven it did not.</para>
+    /// </summary>
+    public const string NoAnswer = "provider.no-answer";
+
     /// <summary>Where the file lives.</summary>
     public string Path { get; } = string.IsNullOrWhiteSpace(path)
         ? throw new ArgumentException("A trajectory log needs a path.", nameof(path))
@@ -76,16 +109,23 @@ public sealed class TrajectoryLog(string path, int maxEntries = 2000)
     /// <param name="files">How many files it produced.</param>
     /// <param name="usage">What the provider billed, or null when it reports none.</param>
     /// <param name="at">Overrides the clock, for tests.</param>
+    /// <param name="answered">False for a model call that returned no answer, which is recorded under
+    /// <see cref="NoAnswer"/>. A flag rather than the provider's message: an error body is text, and this
+    /// log keeps none.</param>
     public void Append(
         string role,
         string? taskId,
         VerificationReport report,
         CodegenUsage? usage,
         int files = 0,
-        DateTime? at = null)
+        DateTime? at = null,
+        bool answered = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(role);
         ArgumentNullException.ThrowIfNull(report);
+
+        IEnumerable<string> codes = report.Findings.Select(f => f.Code);
+        if (!answered) codes = codes.Append(NoAnswer);
 
         var entry = new TrajectoryEntry(
             at ?? DateTime.UtcNow,
@@ -94,7 +134,7 @@ public sealed class TrajectoryLog(string path, int maxEntries = 2000)
             Math.Round(LadderScore.RewardFor(report), 4),
             report.RungsCleared,
             report.FailedAt?.ToString(),
-            [.. report.Findings.Select(f => f.Code)],
+            [.. codes],
             usage?.InputTokens ?? 0,
             usage?.CachedInputTokens ?? 0,
             usage?.OutputTokens ?? 0,
@@ -149,7 +189,10 @@ public sealed class TrajectoryLog(string path, int maxEntries = 2000)
             entries.Count,
             entries.Sum(e => e.InputTokens),
             entries.Sum(e => e.CachedInputTokens),
-            entries.Sum(e => e.OutputTokens));
+            entries.Sum(e => e.OutputTokens),
+            entries.Count(e => e.IsModelCall),
+            entries.Count(e => e.Unanswered),
+            entries.Where(e => e.Unanswered).Sum(e => e.OutputTokens));
     }
 
     /// <summary>Trims to the newest <c>maxEntries</c> lines.</summary>
@@ -163,7 +206,19 @@ public sealed class TrajectoryLog(string path, int maxEntries = 2000)
 }
 
 /// <summary>What a set of turns cost.</summary>
-public sealed record TrajectoryCost(int Turns, int InputTokens, int CachedInputTokens, int OutputTokens)
+/// <param name="Turns">Every row, gate verdicts included.</param>
+/// <param name="ModelCalls">Rows that were a request to the model, answered or not.</param>
+/// <param name="Unanswered">Model calls that returned no answer.</param>
+/// <param name="UnansweredOutputTokens">What those calls were billed for output — the part of a run's
+/// cost that bought nothing.</param>
+public sealed record TrajectoryCost(
+    int Turns,
+    int InputTokens,
+    int CachedInputTokens,
+    int OutputTokens,
+    int ModelCalls = 0,
+    int Unanswered = 0,
+    int UnansweredOutputTokens = 0)
 {
     public int TotalTokens => InputTokens + CachedInputTokens + OutputTokens;
 

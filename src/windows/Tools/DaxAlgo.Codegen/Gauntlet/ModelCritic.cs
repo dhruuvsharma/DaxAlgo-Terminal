@@ -75,16 +75,18 @@ public sealed class ModelCritic(
 
         var message = new CodegenMessage(CodegenRole.User, Compose(subject, bar), images.Count > 0 ? images : null);
 
-        var (response, _) = await CodegenStream.DrainAsync(
+        var (response, reported) = await CodegenStream.DrainAsync(
             client,
             new StrategyCodegenRequest(sharedContext, [message], definition.Instruction + CriticPrompts.OutputContract),
             events: null,
             ct).ConfigureAwait(false);
 
+        // The usage rides on the verdict either way. Critic calls used to be read and thrown away, so a
+        // run's total never included them and a run that reached the gauntlet looked cheaper than it was.
         if (!response.Success)
-            return CriticVerdict.Skipped(Id, Panel, $"{client.DisplayName} failed: {response.Error}");
+            return CriticVerdict.Skipped(Id, Panel, $"{client.DisplayName} failed: {response.Error}") with { Usage = reported };
 
-        return Read(response.RawText);
+        return Read(response.RawText) with { Usage = reported };
     }
 
     /// <summary>What this critic is shown, in the order it should read it.</summary>

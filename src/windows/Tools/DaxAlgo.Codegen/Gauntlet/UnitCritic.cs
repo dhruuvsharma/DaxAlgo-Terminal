@@ -27,14 +27,20 @@ public enum CriticPanel
 /// <param name="Verdict">One line for the transcript.</param>
 /// <param name="Ran">False when the critic could not be run at all — no provider, no picture — which is
 /// distinct from running and finding nothing. A skipped critic must never read as a pass.</param>
+/// <param name="Usage">What the critic's model call was billed, or null when no model was asked. Set
+/// even when the call failed: a critic that asked and got nothing back was still paid for.</param>
 public sealed record CriticVerdict(
     string CriticId,
     CriticPanel Panel,
     IReadOnlyList<VerificationFinding> Findings,
     string Verdict,
-    bool Ran = true)
+    bool Ran = true,
+    CodegenUsage? Usage = null)
 {
     public bool Passes => Ran && Findings.Count == 0;
+
+    /// <summary>A model was asked, whatever came of it.</summary>
+    public bool CalledModel => Usage is not null;
 
     public static CriticVerdict Skipped(string id, CriticPanel panel, string why) =>
         new(id, panel, [], why, Ran: false);

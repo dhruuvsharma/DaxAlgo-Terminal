@@ -158,6 +158,40 @@ public sealed class TrajectoryLogTests : IDisposable
     }
 
     [Fact]
+    public void ACallThatNeverAnsweredIsKeptUnderAStableCodeWithWhatItCost()
+    {
+        var log = Log();
+        log.Append("Signal", "t2", new VerificationReport([]), new CodegenUsage(3_000, 75_000), answered: false);
+        log.Append("Maths", "t1", Report(), new CodegenUsage(2_700, 44_000), files: 1);
+        log.Append(TrajectoryLog.GateRole, null, Report(VerificationRung.Shape), null);
+
+        var silent = log.Read()[0];
+        silent.Unanswered.Should().BeTrue();
+        silent.Codes.Should().Equal(TrajectoryLog.NoAnswer);
+
+        var cost = log.Cost();
+        cost.Turns.Should().Be(3);
+        cost.ModelCalls.Should().Be(2, "a gate verdict is a row but not a model call");
+        cost.Unanswered.Should().Be(1);
+        cost.UnansweredOutputTokens.Should().Be(75_000);
+    }
+
+    [Fact]
+    public void ALogWrittenBeforeUnansweredCallsWereRecordedStillReads()
+    {
+        // The comparison baselines on disk predate the flag; they must read as answered calls, not fail.
+        var log = Log();
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(log.Path,
+            """{"At":"2026-09-12T20:00:00Z","Role":"Maths","TaskId":"t1","Reward":0,"RungsCleared":0,"Codes":[],"InputTokens":40000,"CachedInputTokens":0,"OutputTokens":9000,"Files":1}"""
+            + Environment.NewLine);
+
+        var entry = log.Read().Should().ContainSingle().Subject;
+        entry.IsModelCall.Should().BeTrue();
+        entry.Unanswered.Should().BeFalse();
+    }
+
+    [Fact]
     public void AProviderThatReportsNoUsageIsNotCountedAsFree()
     {
         // A CLI that reports nothing is unknown, not zero. Zero would make the cached share look perfect.

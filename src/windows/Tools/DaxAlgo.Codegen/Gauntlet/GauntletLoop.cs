@@ -23,6 +23,9 @@ public sealed record GauntletResult(IReadOnlyList<CriticVerdict> Verdicts, bool 
     /// <summary>Critics that could not run at all. Never counted as passes.</summary>
     public int Unavailable => Verdicts.Count(v => !v.Ran);
 
+    /// <summary>What the critics' model calls were billed, together.</summary>
+    public CodegenUsage Usage => Verdicts.Aggregate(CodegenUsage.None, (sum, v) => sum.Add(v.Usage));
+
     /// <summary>Nothing to fix. <b>Not the same as "no findings"</b>: a pass in which every critic was
     /// unavailable found nothing and checked nothing, and the cheapest way to satisfy any quality gate
     /// is to arrange that none of it runs.</summary>

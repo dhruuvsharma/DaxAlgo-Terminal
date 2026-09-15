@@ -91,6 +91,20 @@ public sealed class CodegenFailureHintTests
         hint.Should().NotContain("API key", "a 504 is not a credential problem and must not send the user to one");
     }
 
+    [Fact]
+    public void A_gateway_with_no_channel_for_the_model_says_so_rather_than_blaming_the_prompt()
+    {
+        // Measured on TokenRouter: every request, a one-line brief included, came back like this, and the
+        // hint said the prompt was too large for the model.
+        const string body =
+            """{"error":{"code":"model_not_found","message":"No available channel for model z-ai/glm-5.3-free under group default (distributor)","type":"api_error"}}""";
+
+        var hint = OpenAiCompatibleCodegenClient.Hint(503, body, "z-ai/glm-5.3-free");
+
+        hint.Should().Contain("no capacity serving \"z-ai/glm-5.3-free\"").And.Contain("try again later");
+        hint.Should().NotContain("timed out").And.NotContain("faster one").And.NotContain("bare id");
+    }
+
     [Theory]
     [InlineData(400)]
     [InlineData(401)]

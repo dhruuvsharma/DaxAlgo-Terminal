@@ -100,5 +100,78 @@ public sealed class RateLimitRetryTests
         OpenAiCompatibleCodegenClient.RetryAfter(response, attempt: 0).Should().Be(TimeSpan.Zero);
     }
 
+    // ── a gateway's upstream failure, reported as a 500 ─────────────────────────────────────────
+
+    private const string UpstreamFailed =
+        """{"error":{"message":"upstream error: do request failed (request id: 1)","type":"api_error","param":"","code":"do_request_failed"},"id":202847,"org_id":"","role":1}""";
+
+    [Theory]
+    [InlineData(UpstreamFailed, true)]
+    [InlineData("""{"error":{"message":"internal server error","type":"server_error"}}""", false)]
+    [InlineData("", false)]
+    public void OnlyAGatewaysUpstreamFailureIsTreatedAsTransient(string body, bool upstream)
+    {
+        // A plain 500 is the model's server failing on THIS request; resending it unchanged fixes nothing.
+        OpenAiCompatibleCodegenClient.IsUpstreamFailure(body).Should().Be(upstream);
+    }
+
+    [Fact]
+    public async Task AnUpstreamFailureIsSentAgainAndTheAnswerArrives()
+    {
+        // Measured on TokenRouter: half the calls of an evening came back like this in under a second, and
+        // one of them on the planner was a whole run lost.
+        var handler = new Replies(
+            () => Reply((HttpStatusCode)500, UpstreamFailed),
+            () => Reply(HttpStatusCode.OK, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\ndata: [DONE]\n\n"));
+
+        var response = await Drain(handler);
+
+        response.Success.Should().BeTrue();
+        response.RawText.Should().Be("hello");
+        handler.Sent.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task APlainServerErrorIsNotSentAgain()
+    {
+        var handler = new Replies(
+            () => Reply((HttpStatusCode)500, """{"error":{"message":"internal server error"}}"""),
+            () => Reply(HttpStatusCode.OK, "data: [DONE]\n\n"));
+
+        var response = await Drain(handler);
+
+        response.Success.Should().BeFalse();
+        response.Error.Should().Contain("500").And.Contain("internal server error", "the body is still reported, read once");
+        handler.Sent.Should().Be(1);
+    }
+
+    private static async Task<TradingTerminal.Core.Strategies.Authoring.StrategyCodegenResponse> Drain(HttpMessageHandler handler)
+    {
+        using var http = new HttpClient(handler);
+        var client = new OpenAiCompatibleCodegenClient(http, "gateway", "Gateway", "https://example.invalid/v1", "m", "k");
+
+        TradingTerminal.Core.Strategies.Authoring.StrategyCodegenResponse? completed = null;
+        await foreach (var evt in client.StreamAsync(new TradingTerminal.Core.Strategies.Authoring.StrategyCodegenRequest("ctx", [])))
+            if (evt is TradingTerminal.Core.Strategies.Authoring.CodegenEvent.Completed done) completed = done.Response;
+
+        return completed!;
+    }
+
+    private static HttpResponseMessage Reply(HttpStatusCode status, string body) =>
+        new(status) { Content = new StringContent(body) };
+
+    /// <summary>Answers each request with the next reply in order, repeating the last.</summary>
+    private sealed class Replies(params Func<HttpResponseMessage>[] replies) : HttpMessageHandler
+    {
+        public int Sent { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var reply = replies[Math.Min(Sent, replies.Length - 1)];
+            Sent++;
+            return Task.FromResult(reply());
+        }
+    }
+
     private static HttpResponseMessage Limited() => new((HttpStatusCode)429);
 }

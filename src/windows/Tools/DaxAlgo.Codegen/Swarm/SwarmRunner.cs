@@ -170,7 +170,6 @@ public sealed class SwarmRunner(
             }
 
             progress?.Report(new SwarmEvent.Planned(plan, origin));
-            Record("Planner", null, usage);
 
             // ── build ───────────────────────────────────────────────────────────────────────────────
             foreach (var milestone in plan.Milestones)
@@ -252,24 +251,39 @@ public sealed class SwarmRunner(
                     verdict = lighter;
 
                 progress?.Report(new SwarmEvent.Gated(verdict.Report, round));
-                Record("Gate", null, CodegenUsage.None, verdict.Report);
+                Record(TrajectoryLog.GateRole, null, CodegenUsage.None, verdict.Report);
 
                 // THE LADDER FIRST, ALWAYS. It is deterministic and free; a critic costs a model call. A
                 // unit that does not compile is never shown to one.
                 var findings = verdict.Report.Findings;
                 GauntletResult? review = null;
 
-                if (verdict.Passed)
+                // A PLANNED PAGE THAT WAS NEVER WRITTEN IS NOT DELIVERED, whatever the gate says.
+                //
+                // The gate judges the files it is given, and a unit with no page is a legitimate unit —
+                // so it passes, and it skips the page probe. Measured on a Blocks run: the page builder
+                // ran out of budget every round, the unit cleared the ladder alone, and the run was
+                // delivered as a visualizer with nothing to look at. The missing task is already a
+                // repair target every round; this only stops a pass from ending the run first.
+                //
+                // The page only. A missing C# helper the unit calls is a compile error the gate already
+                // reports; one the unit does not call leaves a unit that genuinely works without it.
+                var unfinished = plan.Tasks
+                    .Where(t => t.OwnsPage && context.File(t.OwnedFile) is null)
+                    .Select(t => t.OwnedFile)
+                    .ToArray();
+
+                var subject = verdict.Passed && _gauntlet is not null
+                    ? await _dialect.SubjectAsync(verdict, context.Files, request.Kind, _rasterizer, ct)
+                        .ConfigureAwait(false)
+                    : null;
+
+                if (verdict.Passed && subject is null && unfinished.Length == 0)
+                    return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
+                        $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) cleared.");
+
+                if (subject is not null)
                 {
-                    var subject = _gauntlet is null
-                        ? null
-                        : await _dialect.SubjectAsync(verdict, context.Files, request.Kind, _rasterizer, ct)
-                            .ConfigureAwait(false);
-
-                    if (_gauntlet is null || subject is null)
-                        return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
-                            $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) cleared.");
-
                     // The bar the planner wrote, unless the caller supplied a stronger one. A rubric
                     // written from the brief at plan time beats one invented after the fact by whoever is
                     // now defending what got built.
@@ -277,8 +291,14 @@ public sealed class SwarmRunner(
                         ? request.Bar
                         : ReferenceBar.FromRubric(plan.Rubric);
 
-                    review = await _gauntlet.RunAsync(
+                    review = await _gauntlet!.RunAsync(
                         subject, bar, request.Budget.MaxParallel, progress: null, ct).ConfigureAwait(false);
+
+                    // Each critic that asked a model is a call the run paid for, and is counted as one —
+                    // before a skipped pass is swapped for the standing one below, which cost nothing now.
+                    usage = usage.Add(review.Usage);
+                    foreach (var judged in review.Verdicts.Where(v => v.CalledModel))
+                        Record(judged.CriticId, null, judged.Usage!, answered: judged.Ran);
 
                     // A SKIPPED REVIEW IS NOT AN APPROVAL. The pass was skipped because the artifact has
                     // not changed since the last one — so the last one's findings are still true, and
@@ -289,9 +309,9 @@ public sealed class SwarmRunner(
                     else if (!review.Skipped) lastReview = review;
 
                     progress?.Report(new SwarmEvent.Reviewed(review, round));
-                    Record("Gauntlet", null, CodegenUsage.None, verdict.Report);
+                    Record(TrajectoryLog.GauntletRole, null, CodegenUsage.None, verdict.Report);
 
-                    if (review.Findings.Count == 0)
+                    if (review.Findings.Count == 0 && unfinished.Length == 0)
                         return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
                             $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) "
                             + $"cleared, {review.Summary}.");
@@ -301,7 +321,8 @@ public sealed class SwarmRunner(
 
                 // Ground gained: rungs cleared, then findings removed at the same height — and a critic's
                 // findings count, or a run could clear the ladder and then circle a picture forever.
-                var height = LadderScore.HeightOf(verdict.Report) - (review?.Findings.Count ?? 0);
+                // A file written since the last round is ground too, so a missing file arriving is progress.
+                var height = LadderScore.HeightOf(verdict.Report) - (review?.Findings.Count ?? 0) - unfinished.Length;
                 if (height > best)
                 {
                     best = height;
@@ -314,19 +335,23 @@ public sealed class SwarmRunner(
                     stalled++;
                 }
 
+                var neverWritten = unfinished.Length == 0
+                    ? string.Empty
+                    : $" Never written: {string.Join(", ", unfinished)}.";
+
                 if (stalled >= request.Budget.StallLimit)
                     return Done(SwarmOutcome.Stalled, plan, origin, Rewind(context, bestFiles),
                         bestVerdict ?? verdict, usage, note: note, summary:
                         $"Stopped after {round} repair round(s): the last {request.Budget.StallLimit} bought no "
                         + "further ground. Read the diagnostics and say what to change — repeating the same "
-                        + "round will not.");
+                        + "round will not." + neverWritten);
 
                 // Out of rounds with a unit that builds and was only criticised: that is delivered with
                 // notes, not a failure. Saying otherwise would send a user to the diagnostics list to look
-                // for an error that is not there.
+                // for an error that is not there. A unit missing a planned file was not only criticised.
                 if (round == request.Budget.MaxRounds)
                 {
-                    if (verdict.Passed)
+                    if (verdict.Passed && unfinished.Length == 0)
                         return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
                             $"Delivered with {findings.Count} open review note(s) — the repair budget ran out "
                             + "before they were addressed. " + (review?.Summary ?? string.Empty));
@@ -374,7 +399,9 @@ public sealed class SwarmRunner(
                 $"Stopped at the {request.Budget.MaxRounds}-round repair budget. "
                 + $"Furthest it got: {(delivered?.Compiled == true ? "it compiles" : "it does not compile")}"
                 + (ReferenceEquals(delivered, verdict) ? string.Empty : ", and that is the version kept")
-                + ".");
+                + "."
+                + (plan.Tasks.Where(t => !t.OwnsAllFiles && context.File(t.OwnedFile) is null).Select(t => t.OwnedFile).ToArray()
+                    is { Length: > 0 } missingAtEnd ? $" Never written: {string.Join(", ", missingAtEnd)}." : string.Empty));
         }
         catch (OperationCanceledException)
         {
@@ -426,6 +453,10 @@ public sealed class SwarmRunner(
                 ct).ConfigureAwait(false);
 
             usage = usage.Add(reported);
+
+            // One row per attempt: a planner asked twice is two calls, and a planner that failed is still
+            // one — neither was visible when the row was written once, after planning had succeeded.
+            Record("Planner", null, reported, answered: response.Success);
 
             if (!response.Success)
                 return new Planned(
@@ -589,8 +620,14 @@ public sealed class SwarmRunner(
             beat,
             ct).ConfigureAwait(false);
 
+        // RECORDED BEFORE IT RETURNS. This row used to be written only for a reply that came back, so a
+        // builder that reasoned through its whole budget — the costliest turn a run has — left no trace
+        // in the log that exists to find exactly that.
         if (!response.Success)
+        {
+            Record(task.Kind.ToString(), task.Id, reported, answered: false);
             return new TaskResult([], reported, response.Error ?? "The provider returned nothing.");
+        }
 
         // Which parts of the reply are files is the dialect's call: prose in a fence is never code, and a
         // Blocks unit's page is code that is not C#.
@@ -654,7 +691,7 @@ public sealed class SwarmRunner(
             $"{(dead.Length == 1 ? "It was" : "They were")} already in the editor, no task in this plan "
             + "wrote or owns it, and the unit compiles without it."));
 
-        Record("Shed", null, CodegenUsage.None, retry.Report);
+        Record(TrajectoryLog.ShedRole, null, CodegenUsage.None, retry.Report);
         return retry;
     }
 
@@ -702,9 +739,27 @@ public sealed class SwarmRunner(
             .Select(t => t!)
             .ToArray();
 
-        if (named.Length > 0 || missing.Length > 0)
-            return [.. missing.Concat(named).DistinctBy(t => t.Id, StringComparer.OrdinalIgnoreCase)];
+        // A FINDING THAT NAMES NO FILE STILL HAS AN OWNER, even when another task is missing its file.
+        //
+        // This used to return the missing and the named tasks alone, which dropped every file-less
+        // finding the moment any file was absent. Measured on a Blocks run: the unit compiled and its
+        // StartAsync threw (start.threw names no file) while the page builder had written nothing, and
+        // four rounds rebuilt the page and never once asked the unit to fix the exception.
+        var unnamed = all.Where(f => f.File is not { Length: > 0 }).ToArray();
 
+        if (named.Length > 0 || missing.Length > 0)
+        {
+            var owners = unnamed.Length > 0 ? BehaviourOwners(unnamed, tasks) : [];
+            return [.. missing.Concat(named).Concat(owners).DistinctBy(t => t.Id, StringComparer.OrdinalIgnoreCase)];
+        }
+
+        return BehaviourOwners(all, tasks);
+    }
+
+    /// <summary>Who answers for findings that name no file: whoever paints, for a picture fault; the
+    /// hostable class otherwise.</summary>
+    private static IReadOnlyList<BuildTask> BehaviourOwners(IReadOnlyList<VerificationFinding> all, IReadOnlyList<BuildTask> tasks)
+    {
         // A picture failure names no file — it is about behaviour, not a line — so it belongs to
         // whoever paints. Critic codes are prefixed by critic id, so the picture panel's two are
         // recognised the same way the draw probe's are.
@@ -846,11 +901,13 @@ public sealed class SwarmRunner(
         });
 
     /// <summary>A logging fault is not worth a run: the user came for a strategy.</summary>
-    private void Record(string role, string? taskId, CodegenUsage usage, VerificationReport? report = null, int files = 0)
+    private void Record(
+        string role, string? taskId, CodegenUsage usage, VerificationReport? report = null, int files = 0,
+        bool answered = true)
     {
         try
         {
-            trajectory?.Append(role, taskId, report ?? new VerificationReport([]), usage, files);
+            trajectory?.Append(role, taskId, report ?? new VerificationReport([]), usage, files, answered: answered);
         }
         catch (Exception)
         {

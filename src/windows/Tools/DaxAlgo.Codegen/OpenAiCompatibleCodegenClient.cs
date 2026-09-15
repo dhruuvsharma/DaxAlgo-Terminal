@@ -145,12 +145,21 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         // on a free tier spent thirty-four minutes on the first and then failed the remaining five in
         // UNDER HALF A SECOND EACH, producing nothing, because the first run had used the quota. A
         // rate limit is the most retryable failure there is.
+        //
+        // A third kind is a gateway saying its OWN upstream request failed, and saying it as a 500. See
+        // IsUpstreamFailure: it is a 502 in everything but the status code, and it is retried like one,
+        // after a short pause rather than at once.
         HttpResponseMessage? resp = null;
         string? failure = null;
+
+        // The body of a 500 that had to be read to classify it. A streamed body can be read once, so
+        // the final failure message reuses it rather than reading it again.
+        string? refusal = null;
 
         for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {
             resp?.Dispose();
+            refusal = null;
 
             using (var httpReq = BuildRequest(request, stream: true))
             {
@@ -160,14 +169,21 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             if (failure is not null || resp is null) break;
 
             var status = (int)resp.StatusCode;
-            if (!IsTransientGatewayFailure(status) && !IsRateLimited(status)) break;
+            var upstream = false;
+            if (status == 500)
+            {
+                refusal = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                upstream = IsUpstreamFailure(refusal);
+            }
+
+            if (!upstream && !IsTransientGatewayFailure(status) && !IsRateLimited(status)) break;
             if (attempt == MaxAttempts - 1) break;
 
             yield return new CodegenEvent.TextDelta(string.Empty);   // keeps the turn visibly alive
 
             // Cancellable, because the Stop button has to work during the wait as much as during the
             // generation — a minute of un-cancellable sleep is a hung application.
-            var wait = RetryAfter(resp, attempt);
+            var wait = upstream ? UpstreamBackoff(attempt) : RetryAfter(resp, attempt);
             if (wait > TimeSpan.Zero) await Task.Delay(wait, ct).ConfigureAwait(false);
         }
 
@@ -181,7 +197,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         {
             if (!resp.IsSuccessStatusCode)
             {
-                var payload = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                var payload = refusal ?? await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
                 yield return new CodegenEvent.Completed(
                     StrategyCodegenResponse.Fail(
                         $"{DisplayName} returned {(int)resp.StatusCode}: {Trim(payload)}"
@@ -192,6 +208,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             var text = new System.Text.StringBuilder();
             var usage = CodegenUsage.None;
             var reasoningCharacters = 0;
+            var cutOff = false;
             await using var body = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 
             // Driven by hand rather than with `await foreach`, for the reason TrySendAsync exists: an
@@ -262,11 +279,47 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                         Int(reported, "completion_tokens"));
                     yield return new CodegenEvent.UsageUpdate(usage);
                 }
+
+                if (choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0 &&
+                    choices[0].TryGetProperty("finish_reason", out var finish) &&
+                    finish.ValueKind == JsonValueKind.String &&
+                    finish.GetString() == "length")
+                {
+                    cutOff = true;
+                }
+            }
+
+            // CUT OFF MID-FILE. Measured on Token Harbor's DeepSeek V4.1 Flash, 2026-09-15: a page builder
+            // billed exactly 32,000 output tokens four times running — the endpoint's ceiling — and its
+            // reply ended inside an unclosed ```html fence. That fence parses as nothing, so the swarm
+            // said "returned no file", a sentence that sends a user looking at the brief rather than at
+            // the limit that actually stopped it.
+            if (cutOff && IsCutMidBlock(text.ToString()))
+            {
+                yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
+                    $"{DisplayName} reached its output limit ({usage.OutputTokens:N0} tokens) in the middle of "
+                    + "writing a file, so the reply was cut off and nothing partial is kept. Most of that limit "
+                    + "usually goes on reasoning: lower the reasoning effort, or split what this file has to do.")
+                    with { Usage = usage });
+                yield break;
             }
 
             yield return new CodegenEvent.Completed(
                 Assemble(text.ToString(), usage, reasoningCharacters));
         }
+    }
+
+    /// <summary>
+    /// Whether a reply that stopped at the output limit stopped INSIDE a fenced block. A reply cut off
+    /// in its closing prose still carries every file it wrote, whole, and is kept.
+    /// </summary>
+    internal static bool IsCutMidBlock(string text)
+    {
+        var fences = 0;
+        for (var at = text.IndexOf("```", StringComparison.Ordinal); at >= 0; at = text.IndexOf("```", at + 3, StringComparison.Ordinal))
+            fences++;
+
+        return fences % 2 == 1;
     }
 
     private static int Int(JsonElement element, string name) =>
@@ -486,6 +539,27 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// <summary>The provider is asking for a pause rather than reporting a fault.</summary>
     internal static bool IsRateLimited(int status) => status is 429;
 
+    /// <summary>
+    /// Whether the body of a 500 is a gateway reporting that its own request to the model failed.
+    ///
+    /// <para><b>Measured on TokenRouter, 2026-09-15:</b> <c>500 {"error":{"message":"upstream error: do
+    /// request failed","code":"do_request_failed"}}</c>, arriving in under a second, on 10 of 20 calls in
+    /// one evening — and on a one-line brief as readily as on a long one, so it says nothing
+    /// about the request. Unretried, one of them on the planner ended the run before a plan existed, and
+    /// two at once on the builders ended it with nothing written.</para>
+    ///
+    /// <para>Matched on the gateway's error code and message, never on the status alone: a plain 500 is
+    /// the model's server failing on this request, and sending it again unchanged is not a fix.</para>
+    /// </summary>
+    internal static bool IsUpstreamFailure(string? body) =>
+        body is not null
+        && (body.Contains("do_request_failed", StringComparison.Ordinal)
+            || body.Contains("upstream error", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The pause before resending after an upstream failure: long enough to step past a blip,
+    /// short enough not to be noticed. 2 seconds, then 4.</summary>
+    internal static TimeSpan UpstreamBackoff(int attempt) => TimeSpan.FromSeconds(Math.Pow(2d, attempt + 1));
+
     /// <summary>Attempts before giving up. Three rather than two because two of them can now be spent
     /// waiting out a rate limit, and a limit that clears in a minute should not cost the generation.</summary>
     internal const int MaxAttempts = 3;
@@ -534,6 +608,17 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     internal static string Hint(int status, string payload, string model)
     {
         var body = payload ?? string.Empty;
+
+        // A GATEWAY WITH NOTHING TO ROUTE TO. Measured on TokenRouter, 2026-09-15: 503 with
+        // "model_not_found" and "No available channel for model z-ai/glm-5.3-free", for every request
+        // including a one-line brief. It fell through to the gateway-timeout sentence below and told the
+        // user their prompt was too large — the one thing it certainly was not.
+        if (body.Contains("No available channel", StringComparison.OrdinalIgnoreCase)
+            || (status == 503 && body.Contains("model_not_found", StringComparison.OrdinalIgnoreCase)))
+        {
+            return $" — the provider has no capacity serving \"{model}\" right now. Nothing is wrong with the "
+                 + "request, the key or the model id: try again later, or pick another model.";
+        }
 
         var unknownModel =
             body.Contains("model", StringComparison.OrdinalIgnoreCase)
