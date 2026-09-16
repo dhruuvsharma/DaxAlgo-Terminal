@@ -348,6 +348,7 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
                     PluginLoadOutcome.Revoked => "Blocked — revoked",
                     PluginLoadOutcome.IncompatibleSdk => "Incompatible SDK",
                     PluginLoadOutcome.ManifestInvalid => "Bad manifest",
+                    PluginLoadOutcome.NoPage => "Not shown — no page of its own",
                     _ => "Failed to load",
                 };
                 isProblem = problem.Outcome is not PluginLoadOutcome.Disabled;

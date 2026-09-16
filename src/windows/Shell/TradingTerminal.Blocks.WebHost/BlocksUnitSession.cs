@@ -44,6 +44,9 @@ public sealed class BlocksUnitSession : IAsyncDisposable
     /// <summary>The unit's page, or null when it has none or WebView2 is not installed.</summary>
     public WebUnitView? Page { get; }
 
+    /// <summary>The terminal's settings panel beside it, or null when the unit declares nothing to set.</summary>
+    public SettingsPanelView? Settings { get; private init; }
+
     /// <summary>Builds the session. Nothing runs until <see cref="StartAsync"/>.</summary>
     /// <param name="registration">The unit.</param>
     /// <param name="host">What the terminal lends it: data, clock, log, feeds, state.</param>
@@ -82,16 +85,31 @@ public sealed class BlocksUnitSession : IAsyncDisposable
             clock: () => host.Clock.UtcNow,
             instruments: instruments);
 
+        // The settings are the TERMINAL'S page, beside the unit's own: same presenter, same validation,
+        // same Apply — drawn where every unit's settings look alike and no author can get the instrument
+        // picker wrong. Only when there is a page at all; a headless unit keeps the WPF expander.
+        SettingsPanelView? settings = null;
+        if (page is not null && schema.Parameters.Count + unit.Presenter.Actions.Count > 0)
+        {
+            settings = new SettingsPanelView(unit.Presenter, viewOptions);
+            unit.Presenter.SetupDrawnByPage = true;
+        }
+
         // The page replaces the drawing; a unit without one still gets its chrome and says why the
         // middle is empty.
-        unit.Presenter.PageContent = page ?? (object)Notice(registration.PageFiles.Count == 0
-            ? "This unit has no page. It runs headless; its alerts and log lines appear below."
-            : "This unit's page needs the Microsoft Edge WebView2 Runtime, which is not installed.");
+        unit.Presenter.PageContent = page is null
+            ? Notice(registration.PageFiles.Count == 0
+                ? "This unit has no page. It runs headless; its alerts and log lines appear below."
+                : "This unit's page needs the Microsoft Edge WebView2 Runtime, which is not installed.")
+            : settings is null ? page : Split(settings, page);
 
         // Nothing is drawn through the render surface, so there are no frames to pace.
         unit.Freeze();
 
-        var session = new BlocksUnitSession(registration, runtime, unit, page, pageRoot ?? UnitPageFolder.DefaultRoot);
+        var session = new BlocksUnitSession(registration, runtime, unit, page, pageRoot ?? UnitPageFolder.DefaultRoot)
+        {
+            Settings = settings,
+        };
         if (registration.IsStrategy) runtime.PortfolioChanged += session.PushBook;
         return session;
     }
@@ -104,6 +122,8 @@ public sealed class BlocksUnitSession : IAsyncDisposable
     {
         try
         {
+            if (Settings is not null) await Settings.LoadAsync(_pageRoot, _registration.Id, ct);
+
             if (Page is not null)
                 await Page.LoadAsync(UnitPageFolder.Write(_pageRoot, _registration.Id, _registration.PageFiles), ct);
 
@@ -132,6 +152,7 @@ public sealed class BlocksUnitSession : IAsyncDisposable
         }
         finally
         {
+            Settings?.Dispose();
             Page?.Dispose();
             Unit.Dispose();
         }
@@ -227,6 +248,38 @@ public sealed class BlocksUnitSession : IAsyncDisposable
         {
             return null;
         }
+    }
+
+    /// <summary>The settings panel and the unit's page, side by side, with a grip between them: the
+    /// settings are reference material and the picture is the point, so the picture takes the room.</summary>
+    private static System.Windows.Controls.Grid Split(SettingsPanelView settings, WebUnitView page)
+    {
+        var grid = new System.Windows.Controls.Grid();
+        grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+        {
+            Width = new System.Windows.GridLength(296),
+            MinWidth = 180,
+            MaxWidth = 520,
+        });
+        grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
+        grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
+
+        var grip = new System.Windows.Controls.GridSplitter
+        {
+            Width = 4,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Background = System.Windows.Media.Brushes.Transparent,
+        };
+
+        System.Windows.Controls.Grid.SetColumn(settings, 0);
+        System.Windows.Controls.Grid.SetColumn(grip, 1);
+        System.Windows.Controls.Grid.SetColumn(page, 2);
+
+        grid.Children.Add(settings);
+        grid.Children.Add(grip);
+        grid.Children.Add(page);
+        return grid;
     }
 
     private static System.Windows.Controls.TextBlock Notice(string text) => new()

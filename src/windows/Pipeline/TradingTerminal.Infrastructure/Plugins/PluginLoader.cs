@@ -125,7 +125,7 @@ public static class PluginLoader
         ArgumentNullException.ThrowIfNull(state);
         return LoadWithReport(
             services, pluginsRoot, hostSdkVersion, policy, DefaultInspector, state, PluginScanMode.Enforce,
-            consent, onError, protectedStrategyEngine, PluginScanProfile.Sandbox);
+            consent, onError, protectedStrategyEngine, PluginScanProfile.Sandbox, requirePage: true);
     }
 
     /// <summary>Core scan: registers every loadable plugin and classifies every one that did NOT load
@@ -158,7 +158,8 @@ public static class PluginLoader
         IPluginConsentPrompt? consent,
         Action<string, Exception>? onError,
         IProtectedStrategyEngine? protectedStrategyEngine,
-        PluginScanProfile scanProfile)
+        PluginScanProfile scanProfile,
+        bool requirePage = false)
     {
         var loaded = new List<LoadedPlugin>();
         var problems = new List<PluginLoadProblem>();
@@ -199,6 +200,7 @@ public static class PluginLoader
                 }
             }
 
+
             try
             {
                 // ── Integrity / trust gates (all decided BEFORE loading any code) ─────────────────
@@ -237,6 +239,19 @@ public static class PluginLoader
                         : PluginPolicyScanner.Scan(pluginDir, manifest?.Permissions, scanProfile);
                 if (scan.Verdict == PluginScanSeverity.Block && scanMode == PluginScanMode.Enforce)
                     throw new PluginBlockedException(dll, scan);
+
+                // 4b. AUTHORED UNITS DRAW THEIR OWN PAGE. The units root holds nothing else the terminal
+                //     shows any more, so a widget-SDK unit or a Blocks unit with no page is skipped —
+                //     from metadata and the file system, with no code loaded — and said so in the Plugin
+                //     Manager rather than quarantined, because nothing about it is unsafe. See UnitPageRule.
+                //
+                //     AFTER the scan on purpose: unsafe code in the units folder must still be caught and
+                //     quarantined, not waved past as merely unshowable.
+                if (requirePage && Strategies.Authoring.Blocks.UnitPageRule.RefuseFolder(pluginDir, dll) is { } noPage)
+                {
+                    problems.Add(new PluginLoadProblem(folder, dll, PluginLoadOutcome.NoPage, noPage));
+                    continue;
+                }
 
                 // 5. Trust. A pinned first-party plugin IS the trust anchor (that's what hash-pinning
                 //    buys us: a shipped catalogue that loads under Curated without a code-signing

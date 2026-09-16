@@ -290,6 +290,11 @@ public static class PluginInstaller
         if (!File.Exists(mainDll))
             return new(false, $"The package does not contain {dllName}.dll.");
 
+        // Only units that draw their own page, before trust and scan: a unit that could never be shown
+        // is refused for that reason, not for whichever check would have run first.
+        if (Strategies.Authoring.Blocks.UnitPageRule.RefuseFolder(sourceDir, mainDll) is { } noPage)
+            return new(false, noPage);
+
         var signature = policy.RequireSignature ? inspector.Inspect(mainDll) : PluginSignature.Unsigned;
         if (!policy.Allows(signature, manifest is not null, out var reason))
             return new(false, $"Rejected by the plugin trust policy: {reason}.");

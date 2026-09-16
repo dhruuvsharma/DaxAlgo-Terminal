@@ -77,7 +77,16 @@ public sealed class TheUnitWindowHostsThePageTests
                 throw new TimeoutException(state);
             }
 
-            session.Unit.Presenter.PageContent.Should().BeSameAs(session.Page);
+            // The frame holds the terminal's settings panel and the unit's page, side by side; the WPF
+            // expander stands aside because the panel draws the same rows.
+            session.Settings.Should().NotBeNull();
+            session.Unit.Presenter.SetupDrawnByPage.Should().BeTrue();
+            session.Unit.Presenter.HasSetup.Should().BeFalse();
+            var framed = await sta.InvokeAsync(() => Task.FromResult(
+                session.Unit.Presenter.PageContent is System.Windows.Controls.Grid grid
+                && grid.Children.Cast<object>().Contains(session.Page!)
+                && grid.Children.Cast<object>().Contains(session.Settings!)));
+            framed.Should().BeTrue("the frame holds the settings panel and the page side by side");
             session.Unit.Presenter.HasBook.Should().BeTrue();
             session.Unit.Presenter.Parameters.Select(p => p.Key).Should().Equal("instrument");
             feeds.Should().Contain("1:Quotes", "the unit's subscription started the venue stream behind it");

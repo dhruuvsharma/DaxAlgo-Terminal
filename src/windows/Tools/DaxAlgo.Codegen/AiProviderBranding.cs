@@ -44,6 +44,8 @@ public static class AiProviderBranding
             ["moonshot"] = new("K", "#16162B", "The Kimi family, from Moonshot directly."),
             ["openrouter"] = new("OR", "#6467F2", "One key in front of many vendors' models."),
             ["tokenrouter"] = new("TR", "#7C5CFF", "A gateway in front of many models."),
+            ["tokenharbor"] = new("TH", "#0E7C86",
+                "One OpenAI-compatible key for GPT, Claude, Gemini, DeepSeek and more; some models have a free weekly allowance."),
             ["deepseek"] = new("DS", "#4D6BFE", "DeepSeek's own API."),
             ["xai"] = new("X", "#111111", "Grok, from xAI."),
 

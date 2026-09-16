@@ -5,6 +5,7 @@ using FluentAssertions;
 using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure.Plugins;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Blocks;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
 
@@ -194,13 +195,16 @@ public sealed class AuthoredArtifactTests : IDisposable
     // ── it installs ─────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void TheArtifactInstallsThroughTheOrdinaryPluginInstaller()
+    public void AWidgetSdkArtifactIsPackagedButNoLongerInstallable()
     {
-        // The capstone. Real source, the real compiler, the real package writer, the real reader, and the
-        // installer a user drives from the Plugin Manager — the whole chain #44 phase 6 asks for, in one
-        // pass, with nothing stubbed.
+        // Writing a package and installing one are different questions, and the answers now differ. A
+        // widget-SDK unit still packages — the format is unchanged, and a package is how anything leaves
+        // this machine — but only a unit that draws its own HTML/CSS page is accepted on the way in.
+        // The Blocks end of the same chain is ABlocksUnitSurvivesARestartTests.
         var result = Package("packaged.kernel", Kernel);
         var plugins = Path.Combine(_root, "plugins");
+
+        result.Success.Should().BeTrue(result.Message);
 
         var install = PluginInstaller.InstallFromArtifact(
             result.Path!,
@@ -209,9 +213,9 @@ public sealed class AuthoredArtifactTests : IDisposable
             NoSignature.Instance,
             scanMode: PluginScanMode.Enforce);
 
-        install.Success.Should().BeTrue(install.Message);
-        Directory.EnumerateFiles(plugins, "*.dll", SearchOption.AllDirectories)
-            .Should().NotBeEmpty("the installed plugin folder must contain the assembly the host loads");
+        install.Success.Should().BeFalse("a unit drawn through the terminal's controls is no longer accepted");
+        install.Message.Should().Contain("widget SDK").And.Contain(UnitPageRule.Entry);
+        Directory.Exists(plugins).Should().BeFalse("nothing is written for a package that was refused");
     }
 
     [Fact]

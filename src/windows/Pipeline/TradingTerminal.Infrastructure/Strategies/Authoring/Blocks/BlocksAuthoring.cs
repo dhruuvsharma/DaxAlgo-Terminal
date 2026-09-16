@@ -57,6 +57,14 @@ public sealed partial class BlocksAuthoring(
     /// <summary>True when <paramref name="content"/> is one of the starters, untouched.</summary>
     public static bool IsStarter(string? content) => BlockStarters.IsStarter(content);
 
+    /// <summary>The page the Code tab opens on beside the unit. A unit with no page cannot be registered
+    /// (see <see cref="UnitPageRule"/>), so a starter without one would be a session that starts at a dead
+    /// end.</summary>
+    public static string StarterPage => BlockStarters.Page;
+
+    /// <summary>True when <paramref name="content"/> is the starter page, untouched.</summary>
+    public static bool IsStarterPage(string? content) => content == BlockStarters.Page;
+
     /// <summary>
     /// Puts a compiled unit in the catalog, replacing any card with the same id.
     /// </summary>

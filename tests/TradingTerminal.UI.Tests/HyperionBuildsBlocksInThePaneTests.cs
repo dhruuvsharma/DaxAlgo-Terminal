@@ -45,7 +45,12 @@ public sealed class HyperionBuildsBlocksInThePaneTests : IDisposable
         var pane = Pane(new ScriptedBuilder(), registry);
 
         Assert.True(pane.BuildsBlocks);
-        Assert.True(BlocksAuthoring.IsStarter(Assert.Single(pane.Files).Content));
+
+        // The unit AND its page: a unit with no page cannot be registered at all, so the starter is both.
+        Assert.Equal(2, pane.Files.Count);
+        Assert.True(BlocksAuthoring.IsStarter(pane.Files[0].Content));
+        Assert.Equal(UnitPageRule.Entry, pane.Files[1].Name);
+        Assert.True(BlocksAuthoring.IsStarterPage(pane.Files[1].Content));
 
         pane.CompileCommand.Execute(null);
         Assert.True(pane.ReviewOpen, pane.Status);

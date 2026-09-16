@@ -47,6 +47,12 @@ public enum PluginLoadOutcome
     /// <summary>The assembly failed to load or threw inside <c>IStrategyPlugin.Register</c>.
     /// Auto-quarantined so a crash-looping plugin runs once, not at every startup.</summary>
     Faulted,
+
+    /// <summary>An authored unit with no HTML/CSS page of its own — a widget-SDK unit, or a Blocks unit
+    /// without <c>ui/index.html</c>. Skipped before any code loads, and not quarantined: nothing is wrong
+    /// with it except that the terminal no longer shows units like it. Appended last, so a persisted
+    /// outcome keeps its number.</summary>
+    NoPage,
 }
 
 /// <summary>One plugin folder that did NOT load, with the classified reason. <paramref name="PluginFolderName"/>

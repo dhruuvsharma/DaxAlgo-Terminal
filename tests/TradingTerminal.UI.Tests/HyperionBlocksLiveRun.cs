@@ -31,17 +31,21 @@ namespace TradingTerminal.UI.Tests;
 public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
 {
     /// <summary><c>HYPERION_PROVIDER</c> and <c>HYPERION_BASE_URL</c> point the run at any OpenAI-compatible
-    /// endpoint; TokenRouter when unset.</summary>
-    private static string ProviderId => Env("HYPERION_PROVIDER") ?? "tokenrouter";
+    /// endpoint. Token Harbor when unset: TokenRouter's free GLM channel closed on 2026-09-15, and Token
+    /// Harbor's free DeepSeek V4 Flash is the model the first delivered V4 was built on.</summary>
+    private static string ProviderId => Env("HYPERION_PROVIDER") ?? "tokenharbor";
 
-    private static string BaseUrl => Env("HYPERION_BASE_URL") ?? "https://api.tokenrouter.com/v1";
+    private static string ProviderName => ProviderId == "tokenharbor" ? "Token Harbor" : ProviderId;
+
+    private static string BaseUrl => Env("HYPERION_BASE_URL")
+        ?? (ProviderId == "tokenharbor" ? "https://tokenharbor.ai/v1" : "https://api.tokenrouter.com/v1");
 
     private static string? Env(string name) =>
         Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : null;
-    /// <summary><c>HYPERION_MODEL</c>, or the free GLM the comparison runs were measured on.</summary>
-    private static string Model => Environment.GetEnvironmentVariable("HYPERION_MODEL") is { Length: > 0 } chosen
-        ? chosen
-        : "z-ai/glm-5.3-free";
+
+    /// <summary><c>HYPERION_MODEL</c>, or the provider's free model.</summary>
+    private static string Model => Env("HYPERION_MODEL")
+        ?? (ProviderId == "tokenharbor" ? "deepseek-v4-flash:free" : "z-ai/glm-5.3-free");
 
     /// <summary>The widget-SDK run this one is compared with, when its trajectory is on disk.</summary>
     private const string BaselineRun = "volume.graph.v3";
@@ -152,11 +156,24 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
 
         Say($"{name} ({kind}) — Blocks SDK");
 
-        // HYPERION_API_KEY_FILE names a file holding the key, for a provider the app has no settings row
-        // for. Never the key itself in a variable: a command line is logged far more readily than a file.
+        // HYPERION_API_KEY_FILE names a file holding the key; otherwise it comes from the app's key store,
+        // where Settings → AI providers saves it. Never the key itself in a variable: a command line is
+        // logged far more readily than a file. With HYPERION_SAVE_KEY=1 the file's key is saved to the
+        // store (encrypted for this Windows user) and the run ends there.
+        var keys = new AiKeyStore(NullLogger<AiKeyStore>.Instance);
         var key = Env("HYPERION_API_KEY_FILE") is { } keyFile
             ? File.ReadAllText(keyFile).Trim()
-            : new AiKeyStore(NullLogger<AiKeyStore>.Instance).Get(ProviderId);
+            : keys.Get(ProviderId);
+
+        if (Env("HYPERION_SAVE_KEY") == "1")
+        {
+            Assert.False(string.IsNullOrWhiteSpace(key), "HYPERION_SAVE_KEY needs HYPERION_API_KEY_FILE.");
+            keys.Set(ProviderId, key!);
+            Assert.True(keys.HasKey(ProviderId), $"The key for '{ProviderId}' did not persist.");
+            Say($"key saved for '{ProviderId}'");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(key))
         {
             Say($"NO KEY for '{ProviderId}'. Add it in Settings → AI providers and run again.");
@@ -164,16 +181,18 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
             return;
         }
 
-        // HYPERION_REASONING puts a reasoning_effort on the wire that the product never sends for this
-        // provider (AiModelCatalog.SupportsEffort). An experiment, kept out of the client on purpose: the
-        // catalog only learns a setting once a run shows the model still answers at it.
-        var reasoning = Environment.GetEnvironmentVariable("HYPERION_REASONING") is { Length: > 0 } asked ? asked : null;
-        using var http = reasoning is null
-            ? new HttpClient { Timeout = Timeout.InfiniteTimeSpan }
-            : new HttpClient(new WithReasoningEffort(reasoning)) { Timeout = Timeout.InfiniteTimeSpan };
+        // The effort the product sends for this provider and model — what Research resolves to. Where the
+        // catalog knows the provider takes one, it goes through the client; HYPERION_REASONING overrides it,
+        // and on a provider the catalog does not trust with one it is injected on the wire as an experiment.
+        var reasoning = Env("HYPERION_REASONING");
+        var effort = reasoning is not null ? CodegenEfforts.Parse(reasoning) : AiModelCatalog.ResearchEffort(ProviderId, Model);
+        var inject = reasoning is not null && !AiModelCatalog.SupportsEffort(ProviderId);
+        using var http = inject
+            ? new HttpClient(new WithReasoningEffort(reasoning!)) { Timeout = Timeout.InfiniteTimeSpan }
+            : new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         IStrategyCodegenClient client = new KeepsReplies(
             new OpenAiCompatibleCodegenClient(
-                http, ProviderId, Env("HYPERION_PROVIDER_NAME") ?? "TokenRouter", BaseUrl, Model, key, effort: CodegenEffort.Default),
+                http, ProviderId, Env("HYPERION_PROVIDER_NAME") ?? ProviderName, BaseUrl, Model, key, effort: effort),
             Path.Combine(directory, "replies"));
 
         // What this key can use, and nothing else: no model is called, so it costs nothing.
@@ -185,7 +204,7 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
             return;
         }
 
-        Say($"provider: {client.ProviderId} · {client.Model}" + (reasoning is null ? string.Empty : $" · reasoning_effort={reasoning}"));
+        Say($"provider: {client.ProviderId} · {client.Model}" + (effort == CodegenEffort.Default ? string.Empty : $" · reasoning_effort={effort.ToString().ToLowerInvariant()}"));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(Count(Environment.GetEnvironmentVariable("HYPERION_MINUTES")) ?? 120));
 

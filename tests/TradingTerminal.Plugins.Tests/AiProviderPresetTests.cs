@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using FluentAssertions;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Strategies.Authoring;
 using TradingTerminal.Infrastructure.Strategies.Authoring;
 using Xunit;
 
@@ -194,6 +195,23 @@ public sealed class AiProviderPresetTests
         AiModelCatalog.For("tokenrouter").Should().BeEmpty();
         AiModelCatalog.Offer("tokenrouter", "z-ai/glm-5.3-free").Should().ContainSingle()
             .Which.Should().Be("z-ai/glm-5.3-free");
+    }
+
+    [Fact]
+    public void TokenHarbor_is_shipped_on_its_free_deepseek_at_low_effort()
+    {
+        // Measured, not read off a page: DeepSeek V4 Flash behind Token Harbor caps output at 32,000
+        // tokens, and at the provider's default reasoning the Volume Graph V4 page builder spent all of it
+        // thinking seven times out of seven. At low the same brief delivered its unit and page.
+        var row = ShippedConfiguration().Providers.Should().ContainSingle(p => p.Id == "tokenharbor").Subject;
+        row.BaseUrl.Should().Be("https://tokenharbor.ai/v1");
+
+        AiModelCatalog.SupportsEffort("tokenharbor").Should().BeTrue("low is what makes the page get written");
+        AiModelCatalog.ResearchEffort("tokenharbor", "deepseek-v4-flash:free").Should().Be(CodegenEffort.Low);
+        AiModelCatalog.ResearchEffort("tokenharbor", "deepseek-v4.1-flash").Should().Be(CodegenEffort.Low);
+
+        // The measurement is of this gateway's cap, not of the model everywhere it is served.
+        AiModelCatalog.ResearchEffort("nvidia", "deepseek-v4-flash").Should().Be(CodegenEffort.Default);
     }
 
     // -- the OTHER table of the same facts ------------------------------------------------------

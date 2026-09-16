@@ -387,7 +387,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             ?? AiProviders.FirstOrDefault(p => p.IsAvailable)
             ?? AiProviders.FirstOrDefault();
 
-        SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
+        SetFiles(TemplateFiles);
         _filesEditedByUser = false;
         _ready = true;
 
@@ -878,7 +878,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         // touched is theirs and is never replaced.
         if (FilesAreUntouchedTemplate)
         {
-            SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
+            SetFiles(TemplateFiles);
             _filesEditedByUser = false;
         }
 
@@ -2180,7 +2180,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             _registeredBaseline.Clear();
             RefreshWorkStatus();
             Parameters = null;
-            SetFiles([new StrategyFile(StrategyFile.DefaultName, TemplateSource)]);
+            SetFiles(TemplateFiles);
             _filesEditedByUser = false;
             AiStatus = null;
 
@@ -2542,6 +2542,15 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (result.Option is { HasParameters: true })
             Parameters = StrategyParametersViewModel.FromSchema(result.Option.Schema);
 
+        // It compiles, and it still cannot be registered: only units with their own HTML/CSS page are
+        // accepted now, and a widget-SDK unit draws through the terminal's controls. Said here, before the
+        // review, rather than after the user has read every file and pressed Register.
+        if (UnitPageRule.RefuseFiles(script.Files, isBlocksUnit: false) is { } widget)
+        {
+            Status = "Compiled clean, but it cannot be registered. " + widget;
+            return;
+        }
+
         ReviewFiles.Clear();
         foreach (var file in script.Files)
         {
@@ -2591,6 +2600,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
 
         CompiledOk = true;
 
+        if (UnitPageRule.RefuseFiles(script.Files, isBlocksUnit: true) is { } noPage)
+        {
+            Status = "Compiled clean, but it cannot be registered. " + noPage;
+            return;
+        }
+
         ReviewFiles.Clear();
         foreach (var file in script.Files)
         {
@@ -2604,8 +2619,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         ReviewSummary =
             $"{script.Files.Count} file(s), compiled clean"
             + (warnings > 0 ? $" with {warnings} warning(s)" : string.Empty)
-            + $" — a {(result.UsesOrders ? "strategy" : "visualizer")}"
-            + ((result.PageFiles?.Count ?? 0) > 0 ? " with its own page" : " with no page")
+            + $" — a {(result.UsesOrders ? "strategy" : "visualizer")} with its own page"
             + ". It runs in-process once registered and may use the network — read it first.";
 
         _pendingBlocks = result;
@@ -3394,6 +3408,19 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         _blocks is not null ? BlocksAuthoring.Starter(AuthoringKind)
         : AuthoringKind == AuthoringKind.Visualizer ? VisualizerTemplate : StrategyTemplate;
 
+    /// <summary>
+    /// What a new session opens on: the unit, and — for a Blocks session — its page.
+    ///
+    /// <para>The page is part of the starter because a unit without one cannot be registered at all
+    /// (<see cref="UnitPageRule"/>). Opening on the C# alone would put every new session one file short
+    /// of anything it could keep, and the pane would only say so after a clean compile.</para>
+    /// </summary>
+    private IReadOnlyList<StrategyFile> TemplateFiles =>
+        _blocks is null
+            ? [new StrategyFile(StrategyFile.DefaultName, TemplateSource)]
+            : [new StrategyFile(StrategyFile.DefaultName, TemplateSource),
+               new StrategyFile(UnitPageRule.Entry, BlocksAuthoring.StarterPage)];
+
     private const string StrategyTemplate = """
         // Authored strategy. These namespaces are imported for you:
         //   System, System.Collections.Generic, System.Linq, System.Threading(.Tasks),
@@ -3533,9 +3560,11 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     /// task owned — unremovable by any repair, and compiled alongside the real unit for ever.</para>
     /// </summary>
     public bool FilesAreUntouchedTemplate =>
-        Files.Count == 1
+        Files.Count is 1 or 2
         && (Files[0].Content == StrategyTemplate || Files[0].Content == VisualizerTemplate
-            || BlocksAuthoring.IsStarter(Files[0].Content));
+            || BlocksAuthoring.IsStarter(Files[0].Content))
+        // A Blocks session opens on the unit AND its starter page; both untouched is still a scaffold.
+        && (Files.Count == 1 || BlocksAuthoring.IsStarterPage(Files[1].Content));
 
     /// <summary>
     /// True when this pane builds a Blocks unit: the edition composes the Blocks SDK, and the editor holds
@@ -3544,7 +3573,12 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
     public bool BuildsBlocks =>
         _blocks is not null
         && (Files.Count == 0 || FilesAreUntouchedTemplate
-            || BlocksAuthoring.IsBlocksUnit(Files.Select(f => new StrategyFile(f.Name, f.Content))));
+            // The scaffold's own page does not decide this. Every Blocks session now opens with the
+            // starter page beside the unit, so counting it would make "paste widget-SDK code over the
+            // starter" a Blocks session — and compile the paste with the wrong compiler.
+            || BlocksAuthoring.IsBlocksUnit(Files
+                .Where(f => !BlocksAuthoring.IsStarterPage(f.Content))
+                .Select(f => new StrategyFile(f.Name, f.Content))));
 }
 
 /// <summary>One source file in the builder's Code tab — editable, and observed so a hand-edit is fed

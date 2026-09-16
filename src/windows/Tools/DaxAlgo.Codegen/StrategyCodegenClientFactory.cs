@@ -240,6 +240,7 @@ public sealed class StrategyCodegenClientFactory
         "xai" => "xAI / Grok (API key)",
         "openrouter" => "OpenRouter (API key)",
         "tokenrouter" => "TokenRouter (API key)",
+        "tokenharbor" => "Token Harbor (API key)",
         "ollama" => "Ollama (local)",
         _ => $"{id} (API key)",
     };

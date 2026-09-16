@@ -4,6 +4,7 @@ using DaxAlgo.Package;
 using FluentAssertions;
 using TradingTerminal.Core.Configuration;
 using TradingTerminal.Infrastructure.Plugins;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Blocks;
 using Xunit;
 
 namespace TradingTerminal.Plugins.Tests;
@@ -96,6 +97,20 @@ public sealed class PluginInstallerArtifactTests : IDisposable
     }
 
     [Fact]
+    public void APackageWithNoPageOfItsOwnIsRefused()
+    {
+        // The rule the terminal now runs on: a strategy or visualizer is accepted only when it draws its
+        // own HTML/CSS page. Refused before trust and before the scan, and nothing reaches the folder.
+        var path = WritePackage("Pageless", includeAssembly: true, page: false);
+
+        var result = Install(path);
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("no page").And.Contain(UnitPageRule.Entry);
+        Directory.GetFileSystemEntries(PluginsRoot).Should().BeEmpty();
+    }
+
+    [Fact]
     public void ATamperedPayloadIsRefusedAndNothingIsWritten()
     {
         // The digest check lives in DaxPackage.Read, which runs before staging. This pins the ORDER:
@@ -131,7 +146,13 @@ public sealed class PluginInstallerArtifactTests : IDisposable
             state: null,
             scanMode: PluginScanMode.Off);
 
-    private string WritePackage(string name, bool includeAssembly, bool extras = false)
+    /// <summary>A real assembly that REFERENCES DaxAlgo.Blocks, which is how the installer recognises a
+    /// unit it is allowed to accept at all. Any managed file would satisfy the hash and the scan; only
+    /// this satisfies UnitPageRule.</summary>
+    private static byte[] BlocksAssembly() =>
+        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "TradingTerminal.Blocks.Runtime.dll"));
+
+    private string WritePackage(string name, bool includeAssembly, bool extras = false, bool page = true)
     {
         var payloads = new List<DaxPayloadSource>();
 
@@ -139,8 +160,14 @@ public sealed class PluginInstallerArtifactTests : IDisposable
         {
             // A real managed assembly: the installer hashes it and the policy scan reads it, so random
             // bytes would fail for the wrong reason.
-            var self = File.ReadAllBytes(GetType().Assembly.Location);
-            payloads.Add(DaxPayloadSource.FromBytes($"payload/{name}.dll", DaxPayloadRole.Assembly, self));
+            payloads.Add(DaxPayloadSource.FromBytes($"payload/{name}.dll", DaxPayloadRole.Assembly, BlocksAssembly()));
+        }
+
+        // Only units that draw their own page are installable, so the ordinary package carries one.
+        if (page)
+        {
+            payloads.Add(DaxPayloadSource.FromBytes(
+                "payload/ui/index.html", DaxPayloadRole.Ui, Encoding.UTF8.GetBytes("<!doctype html><title>x</title>")));
         }
 
         payloads.Add(DaxPayloadSource.FromBytes(

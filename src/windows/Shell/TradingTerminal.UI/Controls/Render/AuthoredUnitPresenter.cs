@@ -276,7 +276,19 @@ public sealed partial class AuthoredUnitPresenter : ObservableObject
     /// "clear the tape" on a picture with nothing to tune — would have had its button built, bound and
     /// never shown, which is the defect this whole area keeps producing.</para>
     /// </summary>
-    public bool HasSetup => HasParameters || HasActions;
+    public bool HasSetup => (HasParameters || HasActions) && !SetupDrawnByPage;
+
+    /// <summary>
+    /// True when the host draws the settings itself, as a page, and the WPF expander must stand aside.
+    ///
+    /// <para>A Blocks unit's window is pages: the author's picture, and the terminal's own settings panel
+    /// beside it (<c>SettingsPanelView</c>). Both surfaces bind THIS presenter, so the rows, the
+    /// validation and Apply are the same either way — what changes is which one is on screen, and showing
+    /// both would be two Apply buttons over one set of values.</para>
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSetup))]
+    private bool _setupDrawnByPage;
 
     /// <summary>
     /// Raised when the user presses one, carrying its id.

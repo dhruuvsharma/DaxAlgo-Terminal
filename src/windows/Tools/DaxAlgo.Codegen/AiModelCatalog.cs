@@ -67,6 +67,10 @@ public static class AiModelCatalog
     {
         "anthropic" or "claude-cli" or "openai" or "xai" or "openrouter" => true,
 
+        // Token Harbor passes reasoning_effort through, and for DeepSeek V4 Flash it is the difference
+        // between a page and no page: see ResearchEffort. Measured 2026-09-15.
+        "tokenharbor" => true,
+
         // TOKENROUTER IS DELIBERATELY NOT HERE, and the reason corrects my own earlier claim.
         //
         // I added it after measuring that reasoning_effort=low and =high were both ACCEPTED -- no
@@ -112,6 +116,13 @@ public static class AiModelCatalog
     /// several vendors.</param>
     public static CodegenEffort ResearchEffort(string providerId, string? model)
     {
+        // DeepSeek V4 Flash on Token Harbor ANSWERS AT LOW AND AT NOTHING ELSE MEASURED. 2026-09-15, the
+        // Volume Graph V4 brief: at the provider's default the page builder reasoned through the
+        // endpoint's 32,000-token output cap seven times out of seven and never wrote the page; at low
+        // the same brief delivered the unit and its page in one round. Pinned to this gateway because
+        // the measurement is of this endpoint's cap — the same model elsewhere has a different one.
+        if (IsTokenHarbor(providerId) && IsDeepSeekV4Flash(model)) return CodegenEffort.Low;
+
         // Model first: a gateway's ceiling is a property of what is behind it, not of the gateway.
         if (Measured(model) is { } measured) return measured;
 
@@ -214,6 +225,16 @@ public static class AiModelCatalog
     /// without it on another — <c>z-ai/glm-5.3-free</c> and <c>glm-5.3</c> are the same model and the
     /// same measurement.</para>
     /// </summary>
+    private static bool IsTokenHarbor(string providerId) =>
+        providerId.Equals("tokenharbor", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary><c>deepseek-v4-flash</c>, <c>deepseek-v4.1-flash</c>, with or without <c>:free</c>. Token
+    /// Harbor serves the v4 id with V4.1 Flash since the older model retired.</summary>
+    private static bool IsDeepSeekV4Flash(string? model) =>
+        model is not null
+        && model.Contains("deepseek-v4", StringComparison.OrdinalIgnoreCase)
+        && model.Contains("flash", StringComparison.OrdinalIgnoreCase);
+
     private static CodegenEffort? Measured(string? model)
     {
         if (string.IsNullOrWhiteSpace(model)) return null;
