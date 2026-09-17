@@ -111,6 +111,22 @@ public sealed class PluginInstallerArtifactTests : IDisposable
     }
 
     [Fact]
+    public void APackageWithNoPageIsRefusedFromItsManifestBeforeAnythingIsStaged()
+    {
+        // Decided from the manifest, so a package with nothing to draw never becomes files on disk — and
+        // the Plugin Manager can say which half is missing rather than reporting a folder that was cleaned
+        // up behind it. The staged-folder rule still runs after it: only the assembly says whether a unit
+        // is Blocks or widget SDK.
+        var path = WritePackage("NoPageAtAll", includeAssembly: true, page: false);
+
+        var result = Install(path);
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("carries no page").And.Contain(UnitPageRule.Entry);
+        Directory.GetFileSystemEntries(PluginsRoot).Should().BeEmpty();
+    }
+
+    [Fact]
     public void ATamperedPayloadIsRefusedAndNothingIsWritten()
     {
         // The digest check lives in DaxPackage.Read, which runs before staging. This pins the ORDER:

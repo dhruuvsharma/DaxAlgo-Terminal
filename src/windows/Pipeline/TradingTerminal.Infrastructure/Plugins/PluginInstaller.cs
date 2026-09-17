@@ -169,6 +169,14 @@ public static class PluginInstaller
             if (string.IsNullOrWhiteSpace(assemblyName))
                 return new(false, "The package's assembly payload has no file name.");
 
+            // Only units that draw their own page, decided from the manifest before a payload is written.
+            // The same rule is asked again of the staged folder below — that one reads the assembly, which
+            // is the only way to tell a Blocks unit from a widget-SDK one — but a package with no page at
+            // all can be refused while it is still a file.
+            if (Strategies.Authoring.Blocks.UnitPageRule.RefusePayloads(
+                    contents.Manifest.Payloads.Select(p => p.Path)) is { } pageless)
+                return new(false, pageless);
+
             var staging = Path.Combine(Path.GetTempPath(), "daxalgo-install-" + Guid.NewGuid().ToString("N"));
             try
             {

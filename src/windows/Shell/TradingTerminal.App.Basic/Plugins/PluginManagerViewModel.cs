@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 using DaxAlgo.Package;
 using Microsoft.Win32;
 using TradingTerminal.Infrastructure.Plugins;
+using TradingTerminal.Infrastructure.Strategies.Authoring.Blocks;
 using TradingTerminal.Infrastructure.Plugins.Feed;
 using TradingTerminal.UI;
 
@@ -109,9 +110,14 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
     partial void OnCatalogSearchChanged(string value) => ApplySearch();
 
     /// <summary>
-    /// Pick a DaxAlgo artifact and verify it. The accepted set is exactly
+    /// Pick a DaxAlgo artifact and install it. The accepted set is exactly
     /// <see cref="DaxPackage.AcceptedExtensions"/> — <c>.daxalgostrategy</c> and
     /// <c>.daxalgovisualizer</c> — and it is defined in the package library so every edition agrees.
+    ///
+    /// <para><b>And only units that draw their own page.</b> A unit written against the widget SDK, or a
+    /// Blocks unit with no <c>ui/index.html</c>, is refused by <see cref="UnitPageRule"/> — from the
+    /// manifest before anything is written, and again from the staged assembly. The title says so before
+    /// the picker opens, because being told after choosing a file is being told twice.</para>
     ///
     /// <para>Raw <c>.dll</c> and the retired <c>.daxplugin</c> are refused, and refused BY NAME so the
     /// user is told why rather than watching their file fail to appear in the picker. Assembly loading
@@ -122,7 +128,7 @@ public sealed partial class PluginManagerViewModel : ViewModelBase
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Select a DaxAlgo artifact",
+            Title = "Select a unit package — a strategy or visualizer with its own page",
             Filter = DaxPackage.OpenFileFilter,
             CheckFileExists = true,
         };

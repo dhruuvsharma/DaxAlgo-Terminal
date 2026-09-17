@@ -100,7 +100,9 @@ public sealed class AUnitWithoutItsOwnPageIsNotAcceptedTests : IDisposable
             artifact.Path!, Units, PluginTrustPolicy.Permissive, NoSignature.Instance, scanMode: PluginScanMode.Enforce);
 
         Assert.False(install.Success);
-        Assert.Contains("widget SDK", install.Message, StringComparison.Ordinal);
+        // The manifest has no page payload, so it is refused before the assembly is read; the widget-SDK
+        // wording belongs to the staged-folder rule, which only a package WITH a page ever reaches.
+        Assert.Contains("no page", install.Message, StringComparison.Ordinal);
         Assert.Contains(UnitPageRule.Entry, install.Message, StringComparison.Ordinal);
         Assert.False(Directory.Exists(Path.Combine(Units, "widget.unit")), "nothing is written for a refused unit");
     }

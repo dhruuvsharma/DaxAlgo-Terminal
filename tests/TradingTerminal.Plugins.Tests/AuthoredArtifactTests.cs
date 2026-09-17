@@ -214,7 +214,9 @@ public sealed class AuthoredArtifactTests : IDisposable
             scanMode: PluginScanMode.Enforce);
 
         install.Success.Should().BeFalse("a unit drawn through the terminal's controls is no longer accepted");
-        install.Message.Should().Contain("widget SDK").And.Contain(UnitPageRule.Entry);
+        // Refused at the manifest, before the assembly is read: the package carries no page at all, which
+        // is a cheaper "no" than the widget-SDK one and the only one available before staging.
+        install.Message.Should().Contain("no page").And.Contain(UnitPageRule.Entry);
         Directory.Exists(plugins).Should().BeFalse("nothing is written for a package that was refused");
     }
 

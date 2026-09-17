@@ -41,6 +41,24 @@ public static class UnitPageRule
             : $"This unit has no page — {Entry} is missing or empty. " + Accepted;
     }
 
+    /// <summary>
+    /// Why a package cannot be accepted, read from its manifest alone, or null when it can.
+    ///
+    /// <para>Asked before a single payload is written: a package with nothing to draw is refused while it
+    /// is still a file, and the Plugin Manager can say which half is missing rather than reporting a
+    /// staging folder that was cleaned up behind it.</para>
+    /// </summary>
+    /// <param name="payloads">The manifest's payload paths, as declared (<c>payload/…</c>).</param>
+    public static string? RefusePayloads(IEnumerable<string> payloads)
+    {
+        ArgumentNullException.ThrowIfNull(payloads);
+
+        var wanted = "payload/" + Entry;
+        return payloads.Any(p => string.Equals(p?.Replace('\\', '/'), wanted, StringComparison.OrdinalIgnoreCase))
+            ? null
+            : $"This package carries no page — {Entry} is not in it. " + Accepted;
+    }
+
     /// <summary>Why an installed or staged unit folder cannot be accepted, or null when it can.</summary>
     /// <param name="folder">The unit's folder.</param>
     /// <param name="mainAssembly">Its entry assembly.</param>
