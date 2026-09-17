@@ -208,6 +208,22 @@ public static class PluginPolicyScanner
     private static readonly HashSet<string> SandboxContractTypes =
     [
         "TradingTerminal.Core.Strategies.StrategyDataRequirement",
+
+        // A PROVENANCE TAG ON EVERY RECORD THE SANDBOX HANDS OVER, and therefore impossible to avoid.
+        //
+        // Quote, TradePrint and OhlcvBar each carry a BrokerKind Source. Reading one is ordinary; so is
+        // CONSTRUCTING one, which a unit does to feed a widget — TimeAxis.Draw takes bars, and making
+        // bars means naming the constructor's parameter types. The library's own widget requires the
+        // record; the record requires the enum; the enum was banned. A closed loop.
+        //
+        // Found on a generated unit that had gone out of its way NOT to name a broker — it passed
+        // `default` and left a comment saying an authored unit has no business naming one — and was
+        // refused anyway, because the reference is in the IL whether or not the word is in the source.
+        // A diagnostic naming a type the author never wrote is one nobody can act on.
+        //
+        // The enum is a label with no behaviour. TradingTerminal.Core.Brokers stays denied as a
+        // namespace: IBrokerClient and the selection surface are exactly what that rule is for.
+        "TradingTerminal.Core.Brokers.BrokerKind",
     ];
 
     /// <summary>True when this type is part of the sandbox contract despite sitting under a namespace

@@ -168,21 +168,32 @@ public sealed class AiProviderPresetTests
     }
 
     [Fact]
-    public void TokenRouter_is_shipped_named_and_offers_the_effort_dial()
+    public void The_testing_gateways_do_not_ship()
     {
-        // Pinned by name, because the sweeps above check the SHAPE of whatever is in the table and
-        // would stay green if this row were deleted. What is asserted here is that it is there.
+        // NVIDIA NIM, OpenRouter, TokenRouter, Token Harbor and a local Ollama were in this table to
+        // test and debug Hyperion against free and cheap models, and none of them belongs in the
+        // distributed edition. A shipped row cannot be deleted from the settings pane, so every row
+        // here is one every user meets. Anyone who wants one of these adds it through Add a provider.
+        var shipped = ShippedConfiguration().Providers.Select(p => p.Id).ToList();
+
+        foreach (var id in (string[])["nvidia", "openrouter", "tokenrouter", "tokenharbor", "ollama"])
+        {
+            shipped.Should().NotContain(
+                key => key.Equals(id, StringComparison.OrdinalIgnoreCase),
+                "{0} was added for testing and does not ship", id);
+        }
+    }
+
+    [Fact]
+    public void TokenRouter_offers_no_effort_dial_and_no_guessed_models()
+    {
+        // No longer shipped, but still a provider a user can add, and the catalog still knows it.
         //
         // Every fact was measured against the live endpoint rather than read off a page. GET /v1/models
         // returns exactly one model, z-ai/glm-5.3-free. reasoning_effort=low and =high were both
-        // accepted. That last one is why it is in SupportsEffort while the other multi-vendor gateways
-        // are not -- and it matters more here than elsewhere, because GLM 5.3 emits nothing but
+        // accepted -- and it matters more here than elsewhere, because GLM 5.3 emits nothing but
         // reasoning_content until it has finished thinking.
-        var shipped = ShippedConfiguration().Providers;
-
-        var row = shipped.Should().ContainSingle(p => p.Id == "tokenrouter").Subject;
-        row.BaseUrl.Should().Be("https://api.tokenrouter.com/v1");
-
+        //
         // NOT offered, and the correction is the point. It was added on the strength of both
         // efforts being ACCEPTED, then measured on a real brief: at "high" this model reasons until
         // the budget is gone and never answers -- 1,088 seconds and 95,763 output tokens for no code,
@@ -198,14 +209,13 @@ public sealed class AiProviderPresetTests
     }
 
     [Fact]
-    public void TokenHarbor_is_shipped_on_its_free_deepseek_at_low_effort()
+    public void TokenHarbor_runs_its_free_deepseek_at_low_effort()
     {
+        // No longer shipped, but still a provider a user can add, and the catalog still knows it.
+        //
         // Measured, not read off a page: DeepSeek V4 Flash behind Token Harbor caps output at 32,000
         // tokens, and at the provider's default reasoning the Volume Graph V4 page builder spent all of it
         // thinking seven times out of seven. At low the same brief delivered its unit and page.
-        var row = ShippedConfiguration().Providers.Should().ContainSingle(p => p.Id == "tokenharbor").Subject;
-        row.BaseUrl.Should().Be("https://tokenharbor.ai/v1");
-
         AiModelCatalog.SupportsEffort("tokenharbor").Should().BeTrue("low is what makes the page get written");
         AiModelCatalog.ResearchEffort("tokenharbor", "deepseek-v4-flash:free").Should().Be(CodegenEffort.Low);
         AiModelCatalog.ResearchEffort("tokenharbor", "deepseek-v4.1-flash").Should().Be(CodegenEffort.Low);

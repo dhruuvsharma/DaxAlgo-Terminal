@@ -38,14 +38,23 @@ public sealed class InstallAHandWrittenUnit(ITestOutputHelper output)
         var source = Environment.GetEnvironmentVariable("UNIT_SOURCE");
         if (string.IsNullOrWhiteSpace(source)) return;
 
-        Assert.True(File.Exists(source), $"No source at {source}");
+        // A FILE OR A WHOLE DIRECTORY. A unit written by hand is usually one file; one a swarm built is
+        // four or five, and comparing them means putting both through the same gate rather than through
+        // whichever harness happened to fit.
+        var sources = Directory.Exists(source)
+            ? Directory.GetFiles(source, "*.cs").OrderBy(f => f, StringComparer.Ordinal).ToArray()
+            : File.Exists(source) ? [source] : [];
+
+        Assert.True(sources.Length > 0, $"No .cs source at {source}");
 
         var id = Environment.GetEnvironmentVariable("UNIT_ID")
-            ?? Path.GetFileNameWithoutExtension(source).ToLowerInvariant();
+            ?? Path.GetFileNameWithoutExtension(sources[0]).ToLowerInvariant();
         var name = Environment.GetEnvironmentVariable("UNIT_NAME")
-            ?? Path.GetFileNameWithoutExtension(source);
+            ?? Path.GetFileNameWithoutExtension(sources[0]);
 
-        var files = new[] { new StrategyFile(Path.GetFileName(source), File.ReadAllText(source)) };
+        var files = sources
+            .Select(f => new StrategyFile(Path.GetFileName(f), File.ReadAllText(f)))
+            .ToArray();
         var script = new StrategyScript(id, name, files);
 
         var compiler = new RoslynStrategyCompiler();
@@ -104,10 +113,13 @@ public sealed class InstallAHandWrittenUnit(ITestOutputHelper output)
             "DaxAlgo Terminal", "hyperion-runs", id);
 
         Directory.CreateDirectory(kept);
-        File.WriteAllText(
-            Path.Combine(kept, Path.GetFileName(source)),
-            File.ReadAllText(source),
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        foreach (var file in files)
+        {
+            File.WriteAllText(
+                Path.Combine(kept, file.Name),
+                file.Content,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
 
         // AND A PICTURE OF IT, because the ladder answers "does it draw" and the question here is
         // "does it look right". Every rung can pass over a panel nobody would want to look at, and the

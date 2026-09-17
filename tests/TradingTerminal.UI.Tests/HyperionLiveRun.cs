@@ -77,6 +77,12 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
         if (Environment.GetEnvironmentVariable("HYPERION_NAME") is { Length: > 0 } renamed)
             brief = brief with { DisplayName = renamed };
 
+        // Its own id, so two variants of one brief get two run folders, two saved sessions and two
+        // catalogue entries instead of the second quietly overwriting the first — which is the whole
+        // point when the two are being compared.
+        if (Environment.GetEnvironmentVariable("HYPERION_ID") is { Length: > 0 } reidentified)
+            brief = brief with { Id = reidentified };
+
         // EMPTIED, not just created. A re-run plans differently — the same brief produced a five-task
         // plan once and a three-task plan the next time — so leaving the previous attempt's files in
         // place hands somebody a directory holding two different units and no way to tell which source
@@ -113,25 +119,56 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
             }
         }
 
-        Say($"{brief.DisplayName} ({brief.Kind}) · {ProviderId} · {Model}");
+        Say($"{brief.DisplayName} ({brief.Kind})");
         Say($"brief: {brief.Text}");
 
-        // The key never leaves the process: it is read from the same DPAPI store the app reads, decrypted
-        // here, and handed to the client. Nothing prints it and nothing writes it to the run directory.
-        var key = new AiKeyStore(NullLogger<AiKeyStore>.Instance).Get(ProviderId);
-        if (string.IsNullOrWhiteSpace(key))
+        // No client-side deadline. A reasoning model streams its thinking for minutes before its first
+        // output character, and an HttpClient timeout would cut a working generation off at the knees;
+        // the run's own token below is the one control, and it is the one a user's Stop button is.
+        using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+
+        var onClaude = string.Equals(
+            Environment.GetEnvironmentVariable("HYPERION_PROVIDER"), "claude-cli", StringComparison.OrdinalIgnoreCase);
+
+        IStrategyCodegenClient client;
+
+        if (onClaude)
         {
-            Say($"NO KEY for '{ProviderId}'. Add it in Settings → AI providers and run again.");
-            Assert.Fail($"No stored key for '{ProviderId}'.");
-            return;
+            // THE SUBSCRIPTION PATH, and the only one there is. AnthropicOAuthCli says so in its own
+            // documentation: a signed-in token is billed per token like any key, and a Claude plan
+            // reaches this application only through the installed Claude Code CLI.
+            var cli = new AgentCliCodegenClient(
+                AgentCliAdapter.ClaudeCode, timeout: TimeSpan.FromMinutes(30));
+
+            if (!cli.IsAvailable)
+            {
+                Say("Claude Code is not on PATH. Install it, or drop HYPERION_PROVIDER to use TokenRouter.");
+                Assert.Fail("claude is not on PATH.");
+                return;
+            }
+
+            // A plan is metered per WINDOW, not per token, so a four-hour swarm will meet a closed one.
+            // Waiting for it to reopen and sending the same request again is the difference between a
+            // long build and no build.
+            client = new WaitsOutTheUsageLimit(cli, Say);
+        }
+        else
+        {
+            // The key never leaves the process: read from the same DPAPI store the app reads, decrypted
+            // here, handed to the client. Nothing prints it and nothing writes it to the run directory.
+            var key = new AiKeyStore(NullLogger<AiKeyStore>.Instance).Get(ProviderId);
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                Say($"NO KEY for '{ProviderId}'. Add it in Settings → AI providers and run again.");
+                Assert.Fail($"No stored key for '{ProviderId}'.");
+                return;
+            }
+
+            client = new OpenAiCompatibleCodegenClient(
+                http, ProviderId, "TokenRouter", BaseUrl, Model, key, effort: CodegenEffort.Default);
         }
 
-        // No client-side deadline. This model streams its thinking for minutes before its first output
-        // character, and an HttpClient timeout would cut a working generation off at the knees; the run's
-        // own token below is the one control, and it is the one a user's Stop button is.
-        using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-        var client = new OpenAiCompatibleCodegenClient(
-            http, ProviderId, "TokenRouter", BaseUrl, Model, key, effort: CodegenEffort.Default);
+        Say($"provider: {client.ProviderId} · {(client.Model.Length == 0 ? "(the CLI's own model)" : client.Model)}");
 
         using var cts = new CancellationTokenSource(Minutes(
             Environment.GetEnvironmentVariable("HYPERION_MINUTES"), fallback: 90));
@@ -158,7 +195,9 @@ public sealed class HyperionLiveRun(ITestOutputHelper output)
         // watched: a free-tier endpoint rate-limits a four-way fan-out, and six repair rounds each
         // carrying a six-critic panel is a bill worth being able to cap while the pipeline is still
         // being fixed. Unset, they are exactly what the app would use.
-        var budget = SwarmBudget.For(profile, isAgentCli: false) with { };
+        // One process per call for an agent CLI: each is a subprocess with its own workspace, and four
+        // of them is four checkouts of the same unit.
+        var budget = SwarmBudget.For(profile, isAgentCli: onClaude) with { };
         if (Count(Environment.GetEnvironmentVariable("HYPERION_ROUNDS")) is { } rounds)
             budget = budget with { MaxRounds = rounds };
         if (Count(Environment.GetEnvironmentVariable("HYPERION_PARALLEL")) is { } parallel)

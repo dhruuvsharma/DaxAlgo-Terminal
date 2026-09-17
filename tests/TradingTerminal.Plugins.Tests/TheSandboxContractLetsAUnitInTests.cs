@@ -58,6 +58,7 @@ public sealed class TheSandboxContractLetsAUnitInTests(ITestOutputHelper output)
     [InlineData("TradingTerminal.Core.Strategies.Parameters.StrategyParameterSchema")]
     [InlineData("TradingTerminal.Core.Strategies.Parameters.StrategyParameter")]
     [InlineData("TradingTerminal.Core.Strategies.StrategyDataRequirement")]
+    [InlineData("TradingTerminal.Core.Brokers.BrokerKind")]
     public void The_types_the_contract_makes_mandatory_are_not_host_surface(string type)
     {
         // These are not "access to host services" in any sense a user could act on: they are the return
@@ -70,6 +71,7 @@ public sealed class TheSandboxContractLetsAUnitInTests(ITestOutputHelper output)
     [InlineData("TradingTerminal.Core.Strategies.IStrategyRegistry")]
     [InlineData("TradingTerminal.Core.Strategies.StrategyCatalogEntry")]
     [InlineData("TradingTerminal.Core.Strategies.Authoring.IStrategyCompiler")]
+    [InlineData("TradingTerminal.Core.Brokers.IBrokerClient")]
     public void The_rest_of_that_namespace_is_still_host_surface(string type)
     {
         // The guard against over-reading the fix. TradingTerminal.Core.Strategies also holds the
