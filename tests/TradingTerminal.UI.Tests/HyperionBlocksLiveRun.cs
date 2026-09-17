@@ -30,22 +30,40 @@ namespace TradingTerminal.UI.Tests;
 /// </summary>
 public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
 {
-    /// <summary><c>HYPERION_PROVIDER</c> and <c>HYPERION_BASE_URL</c> point the run at any OpenAI-compatible
-    /// endpoint. Token Harbor when unset: TokenRouter's free GLM channel closed on 2026-09-15, and Token
-    /// Harbor's free DeepSeek V4 Flash is the model the first delivered V4 was built on.</summary>
-    private static string ProviderId => Env("HYPERION_PROVIDER") ?? "tokenharbor";
+    /// <summary>
+    /// <c>HYPERION_PROVIDER</c>, <c>HYPERION_BASE_URL</c> and <c>HYPERION_MODEL</c> point the run at any
+    /// OpenAI-compatible endpoint. Unset is OpenCode Zen on <c>union-alpha</c> — the owner's choice for
+    /// testing from 2026-09-17. The two before it are kept as named rows because the comparison runs on
+    /// disk were measured against them: Token Harbor's free DeepSeek V4 Flash built the first delivered
+    /// V4, and TokenRouter's free GLM (whose channel closed on 2026-09-15) built none.
+    /// </summary>
+    private static string ProviderId => Env("HYPERION_PROVIDER") ?? "opencode";
 
-    private static string ProviderName => ProviderId == "tokenharbor" ? "Token Harbor" : ProviderId;
+    private static string ProviderName => ProviderId switch
+    {
+        "opencode" => "OpenCode Zen",
+        "tokenharbor" => "Token Harbor",
+        "tokenrouter" => "TokenRouter",
+        _ => ProviderId,
+    };
 
-    private static string BaseUrl => Env("HYPERION_BASE_URL")
-        ?? (ProviderId == "tokenharbor" ? "https://tokenharbor.ai/v1" : "https://api.tokenrouter.com/v1");
+    private static string BaseUrl => Env("HYPERION_BASE_URL") ?? ProviderId switch
+    {
+        "opencode" => "https://opencode.ai/zen/v1",
+        "tokenharbor" => "https://tokenharbor.ai/v1",
+        _ => "https://api.tokenrouter.com/v1",
+    };
 
     private static string? Env(string name) =>
         Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : null;
 
-    /// <summary><c>HYPERION_MODEL</c>, or the provider's free model.</summary>
-    private static string Model => Env("HYPERION_MODEL")
-        ?? (ProviderId == "tokenharbor" ? "deepseek-v4-flash:free" : "z-ai/glm-5.3-free");
+    /// <summary><c>HYPERION_MODEL</c>, or what the provider is being tested on.</summary>
+    private static string Model => Env("HYPERION_MODEL") ?? ProviderId switch
+    {
+        "opencode" => "union-alpha",
+        "tokenharbor" => "deepseek-v4-flash:free",
+        _ => "z-ai/glm-5.3-free",
+    };
 
     /// <summary>The widget-SDK run this one is compared with, when its trajectory is on disk.</summary>
     private const string BaselineRun = "volume.graph.v3";
@@ -185,10 +203,11 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
         // catalog knows the provider takes one, it goes through the client; HYPERION_REASONING overrides it,
         // and on a provider the catalog does not trust with one it is injected on the wire as an experiment.
         var reasoning = Env("HYPERION_REASONING");
+        var drop = Env("HYPERION_DROP");
         var effort = reasoning is not null ? CodegenEfforts.Parse(reasoning) : AiModelCatalog.ResearchEffort(ProviderId, Model);
         var inject = reasoning is not null && !AiModelCatalog.SupportsEffort(ProviderId);
-        using var http = inject
-            ? new HttpClient(new WithReasoningEffort(reasoning!)) { Timeout = Timeout.InfiniteTimeSpan }
+        using var http = inject || drop is not null
+            ? new HttpClient(new WithReasoningEffort(inject ? reasoning : null, drop)) { Timeout = Timeout.InfiniteTimeSpan }
             : new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         IStrategyCodegenClient client = new KeepsReplies(
             new OpenAiCompatibleCodegenClient(
@@ -465,8 +484,15 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
         }
     }
 
-    /// <summary>Adds <c>reasoning_effort</c> to every chat-completions body on its way out.</summary>
-    private sealed class WithReasoningEffort(string effort) : DelegatingHandler(new HttpClientHandler())
+    /// <summary>
+    /// Rewrites every chat-completions body on its way out: adds <c>reasoning_effort</c>
+    /// (<c>HYPERION_REASONING</c>), and removes the fields named in <c>HYPERION_DROP</c>.
+    ///
+    /// <para>Dropping is a diagnostic. A gateway that answers <c>500 Internal server error</c> says nothing
+    /// about which field it choked on, and the way to find out is to send the same brief without one —
+    /// <c>temperature</c> and <c>stream_options</c> are the usual suspects on a new model.</para>
+    /// </summary>
+    private sealed class WithReasoningEffort(string? effort, string? drop = null) : DelegatingHandler(new HttpClientHandler())
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -475,7 +501,10 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
                 var body = System.Text.Json.Nodes.JsonNode.Parse(await request.Content.ReadAsStringAsync(ct));
                 if (body is System.Text.Json.Nodes.JsonObject json)
                 {
-                    json["reasoning_effort"] = effort;
+                    if (effort is { Length: > 0 }) json["reasoning_effort"] = effort;
+                    foreach (var field in (drop ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        json.Remove(field);
+
                     request.Content = new StringContent(json.ToJsonString(), Encoding.UTF8, "application/json");
                 }
             }

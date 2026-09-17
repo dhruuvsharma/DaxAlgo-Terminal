@@ -620,6 +620,23 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                  + "request, the key or the model id: try again later, or pick another model.";
         }
 
+        // AN ACCOUNT ANSWER, NOT A KEY ANSWER. Measured on OpenCode Zen, 2026-09-17: a valid key returns
+        // 401 CreditsError ("No payment method") for every paid model and 403 FreeTierError ("can only be
+        // used from within OpenCode") for the free ones. Both used to end in "check the API key", which
+        // sends the user to replace a key that was never the problem.
+        if (body.Contains("CreditsError", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("no payment method", StringComparison.OrdinalIgnoreCase))
+        {
+            return " — the key is fine; the ACCOUNT has no credit or payment method for this model. Add one "
+                 + "with the provider, or pick a model your plan covers.";
+        }
+
+        if (body.Contains("FreeTierError", StringComparison.OrdinalIgnoreCase))
+        {
+            return " — the key is fine; this provider's FREE tier is restricted to its own app and cannot be "
+                 + "used from here. Use a model your account pays for, or another provider.";
+        }
+
         var unknownModel =
             body.Contains("model", StringComparison.OrdinalIgnoreCase)
             && (body.Contains("not found", StringComparison.OrdinalIgnoreCase)

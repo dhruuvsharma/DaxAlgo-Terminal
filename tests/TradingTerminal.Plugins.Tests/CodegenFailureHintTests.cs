@@ -92,6 +92,24 @@ public sealed class CodegenFailureHintTests
     }
 
     [Fact]
+    public void An_account_with_no_credit_is_not_reported_as_a_bad_key()
+    {
+        // Measured on OpenCode Zen: a perfectly good key answers 401 CreditsError for every paid model and
+        // 403 FreeTierError for the free ones. "Check the API key" sends the user to replace the one thing
+        // that was working.
+        var credits = OpenAiCompatibleCodegenClient.Hint(
+            401, """{"type":"error","error":{"type":"CreditsError","message":"No payment method. Add a payment method"}}""", "gpt-5.4-mini");
+
+        credits.Should().Contain("key is fine").And.Contain("payment method");
+        credits.Should().NotContain("check the API key");
+
+        var free = OpenAiCompatibleCodegenClient.Hint(
+            403, """{"type":"error","error":{"type":"FreeTierError","message":"OpenCode's free tier can only be used from within OpenCode"}}""", "big-pickle");
+
+        free.Should().Contain("FREE tier").And.Contain("restricted to its own app");
+    }
+
+    [Fact]
     public void A_gateway_with_no_channel_for_the_model_says_so_rather_than_blaming_the_prompt()
     {
         // Measured on TokenRouter: every request, a one-line brief included, came back like this, and the
