@@ -241,6 +241,7 @@ public sealed class StrategyCodegenClientFactory
         "openrouter" => "OpenRouter (API key)",
         "tokenrouter" => "TokenRouter (API key)",
         "tokenharbor" => "Token Harbor (API key)",
+        "opencode-cli" => "OpenCode (installed CLI)",
         "ollama" => "Ollama (local)",
         _ => $"{id} (API key)",
     };

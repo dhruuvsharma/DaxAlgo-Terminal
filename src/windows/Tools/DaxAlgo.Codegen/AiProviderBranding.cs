@@ -46,6 +46,8 @@ public static class AiProviderBranding
             ["tokenrouter"] = new("TR", "#7C5CFF", "A gateway in front of many models."),
             ["tokenharbor"] = new("TH", "#0E7C86",
                 "One OpenAI-compatible key for GPT, Claude, Gemini, DeepSeek and more; some models have a free weekly allowance."),
+            ["opencode-cli"] = new("OC", "#0B0B0B",
+                "The OpenCode CLI on this machine, signed in as you — the only way to reach its free models."),
             ["deepseek"] = new("DS", "#4D6BFE", "DeepSeek's own API."),
             ["xai"] = new("X", "#111111", "Grok, from xAI."),
 

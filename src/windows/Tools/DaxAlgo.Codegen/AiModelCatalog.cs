@@ -56,7 +56,7 @@ public static class AiModelCatalog
     /// the workspace. So a swarm running against one is capped at a single builder in flight.</para>
     /// </summary>
     public static bool IsAgentCli(string providerId) =>
-        providerId.ToLowerInvariant() is "claude-cli" or "codex-cli";
+        providerId.ToLowerInvariant() is "claude-cli" or "codex-cli" or "opencode-cli";
 
     /// <summary>
     /// Whether the provider takes a reasoning-effort setting at all. Agent CLIs and the Anthropic /

@@ -7,6 +7,18 @@ using TradingTerminal.Core.Strategies.Authoring;
 
 namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 
+/// <summary>The JSONL shape a CLI streams, since no two vendors agree on one.</summary>
+public enum AgentCliEvents
+{
+    /// <summary>Claude Code: <c>{"type":"stream_event","event":{…}}</c> wrapping Anthropic's own SSE
+    /// events, plus a final <c>result</c> line.</summary>
+    Anthropic,
+
+    /// <summary>OpenCode: <c>{"type":"text","part":{"id":…,"text":…}}</c> parts that are rewritten as they
+    /// grow, and a <c>step_finish</c> carrying the token counts.</summary>
+    OpenCode,
+}
+
 /// <summary>Per-CLI details, isolated so one vendor's output-format drift doesn't touch the others.</summary>
 public sealed record AgentCliAdapter(
     string ProviderId,
@@ -72,7 +84,80 @@ public sealed record AgentCliAdapter(
             PromptOnlyFlags = ["--ephemeral"],
         };
 
-    public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex];
+    /// <summary>
+    /// The OpenCode CLI: <c>opencode run</c> answers a prompt read from stdin and prints its events as
+    /// JSONL with <c>--format json</c>.
+    ///
+    /// <para><b>It is the only way to reach that account's free models.</b> Zen's HTTP gateway refuses
+    /// them from anywhere else — measured 2026-09-17: every free model answers <c>403 FreeTierError</c>
+    /// ("can only be used from within OpenCode") and <c>union-alpha</c> answers 500 — while the same
+    /// model through this CLI answers, and reports cost 0. So the provider's own client is what runs it,
+    /// which is the arrangement the free tier is offered under.</para>
+    ///
+    /// <para><c>-m</c> takes <c>provider/model</c> (<c>opencode/union-alpha</c>); <c>--variant</c> is its
+    /// reasoning effort; <c>--pure</c> drops the user's plugins from a call that only needs a prompt
+    /// answered. It runs in the same empty scratch workspace as the others.</para>
+    /// </summary>
+    public static AgentCliAdapter OpenCode { get; } =
+        new("opencode-cli", "OpenCode (installed CLI)", "opencode", ["run", "--pure", "--agent", HyperionAgent],
+            ModelFlag: "-m", EffortFlag: "--variant")
+        {
+            StreamFlags = ["--format", "json"],
+            OneShotFlags = ["--format", "json"],
+            Events = AgentCliEvents.OpenCode,
+
+            // WITHOUT THIS IT BUILDS INSTEAD OF ANSWERING. `opencode run` is an agent: handed the Volume
+            // Graph brief it began calling tools — measured 2026-09-17, three steps of tool calls and no
+            // reply — because that is what it is for. Hyperion wants the code IN the reply, so the agent
+            // it runs under is told so, and left with nothing worth calling a tool for.
+            //
+            // BOTH keys, and `permission` is the half that bites: with `tools` alone, `opencode agent list`
+            // still resolved this agent to allow-all and the model went on calling them. Plain JSON, no
+            // comments — the file is read as JSON and a comment in it is a parse error.
+            //
+            // THE EMPTY-STEP LOOP IS NOT THIS CONFIG. Worth writing down, because it looks exactly like a
+            // permissions problem and is not: a run can emit `step_finish` after `step_finish` with reason
+            // "unknown", zero tokens and no text, forever. Measured on union-alpha, 2026-09-17, and what it
+            // tracks is the length of the ANSWER, not the prompt and not the tools — a 2-character reply
+            // took 6 seconds and one step; 1,470 characters took 259 seconds and seven, six of them empty;
+            // the 10.7 KB planner prompt, whose answer is a whole unit, never finished at all. Loosening
+            // this agent to read-only tools changed none of it. It is the account's free tier rationing
+            // output, so the model to pick for a Hyperion run is one that can sustain a long reply.
+            WorkspaceFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["opencode.json"] = """
+                    {
+                      "$schema": "https://opencode.ai/config.json",
+                      "agent": {
+                        "hyperion": {
+                          "description": "Answers one prompt with one reply.",
+                          "mode": "primary",
+                          "prompt": "You are answering a single prompt with a single reply. The folder you are running in is an empty scratch directory: there is no repository, no source tree, and no file worth opening, and nothing written to disk here is kept or read by anyone. Everything you need is in the prompt itself, and the whole of your answer - every file it asks for, in full - belongs in the reply text.",
+                          "permission": { "*": "deny", "read": "allow", "grep": "allow", "glob": "allow", "list": "allow" },
+                          "tools": {
+                            "write": false, "edit": false, "patch": false, "bash": false, "read": true,
+                            "grep": true, "glob": true, "list": true, "webfetch": false, "task": false,
+                            "todowrite": false, "todoread": false
+                          }
+                        }
+                      }
+                    }
+                    """,
+            },
+        };
+
+    /// <summary>The answer-only agent OpenCode runs under; defined in the workspace config above.</summary>
+    private const string HyperionAgent = "hyperion";
+
+    public static IReadOnlyList<AgentCliAdapter> All { get; } = [ClaudeCode, Codex, OpenCode];
+
+    /// <summary>Which event shape this CLI's JSONL carries — the one thing that cannot be shared.</summary>
+    public AgentCliEvents Events { get; init; } = AgentCliEvents.Anthropic;
+
+    /// <summary>Files written into the empty working folder before every run — a CLI's project
+    /// configuration, where it has one. Empty for a CLI that needs none.</summary>
+    public IReadOnlyDictionary<string, string> WorkspaceFiles { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>Flags that make the CLI emit its events as JSONL instead of plain text. Claude Code wraps
     /// the very same Anthropic stream events (<c>{"type":"stream_event","event":{…}}</c>), so the API's
@@ -247,6 +332,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         process.StandardInput.Close();
 
         var accumulator = new AnthropicEventAccumulator();
+        var openCode = new OpenCodeEventAccumulator();
         string? finalText = null;
         string? cliError = null;
 
@@ -272,6 +358,13 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             }
 
             if (!message.TryGetProperty("type", out var type)) continue;
+
+            if (_adapter.Events == AgentCliEvents.OpenCode)
+            {
+                foreach (var streamed in openCode.Consume(message)) yield return streamed;
+                if (openCode.Error is { Length: > 0 } failed) cliError = failed;
+                continue;
+            }
 
             switch (type.GetString())
             {
@@ -307,14 +400,17 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         // A process that exited non-zero without ever writing a result line did not answer. It used to
         // arrive as an empty reply — a turn with no code, which the pane reads as the model asking a
         // question — when what actually happened was the CLI refusing its arguments.
-        if (finalText is null && accumulator.Text.Length == 0 && process.ExitCode != 0)
+        var streamedText = _adapter.Events == AgentCliEvents.OpenCode ? openCode.Text : accumulator.Text;
+        var streamedUsage = _adapter.Events == AgentCliEvents.OpenCode ? openCode.Usage : accumulator.Usage;
+
+        if (finalText is null && streamedText.Length == 0 && process.ExitCode != 0)
         {
             yield return new CodegenEvent.Completed(
                 StrategyCodegenResponse.Fail(ExitFailure(process.ExitCode, await DrainAsync(stderr).ConfigureAwait(false))));
             yield break;
         }
 
-        yield return new CodegenEvent.Completed(Assemble(finalText ?? accumulator.Text, accumulator.Usage));
+        yield return new CodegenEvent.Completed(Assemble(finalText ?? streamedText, streamedUsage));
     }
 
     /// <summary>Reads one line, turning a timeout into a message rather than an exception — an iterator
@@ -451,6 +547,12 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         try
         {
             Directory.CreateDirectory(WorkingDirectory);
+
+            // A CLI that reads project configuration gets ours, in the empty folder it runs in. OpenCode's
+            // is what turns `opencode run` from an AGENT into an answer: given a brief, the stock agent
+            // starts calling tools and tries to build the thing, and Hyperion wants the code in the reply.
+            foreach (var (name, content) in _adapter.WorkspaceFiles)
+                File.WriteAllText(Path.Combine(WorkingDirectory, name), content, new UTF8Encoding(false));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

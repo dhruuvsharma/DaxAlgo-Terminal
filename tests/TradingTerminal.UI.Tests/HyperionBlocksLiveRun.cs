@@ -60,6 +60,7 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
     /// <summary><c>HYPERION_MODEL</c>, or what the provider is being tested on.</summary>
     private static string Model => Env("HYPERION_MODEL") ?? ProviderId switch
     {
+        "opencode-cli" => "opencode/union-alpha",
         "opencode" => "union-alpha",
         "tokenharbor" => "deepseek-v4-flash:free",
         _ => "z-ai/glm-5.3-free",
@@ -178,6 +179,9 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
         // where Settings → AI providers saves it. Never the key itself in a variable: a command line is
         // logged far more readily than a file. With HYPERION_SAVE_KEY=1 the file's key is saved to the
         // store (encrypted for this Windows user) and the run ends there.
+        // An installed agent CLI carries its own sign-in, so it needs neither key nor base URL.
+        var cli = AgentCliAdapter.All.FirstOrDefault(a => a.ProviderId == ProviderId);
+
         var keys = new AiKeyStore(NullLogger<AiKeyStore>.Instance);
         var key = Env("HYPERION_API_KEY_FILE") is { } keyFile
             ? File.ReadAllText(keyFile).Trim()
@@ -192,7 +196,7 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(key))
+        if (cli is null && string.IsNullOrWhiteSpace(key))
         {
             Say($"NO KEY for '{ProviderId}'. Add it in Settings → AI providers and run again.");
             Assert.Fail($"No stored key for '{ProviderId}'.");
@@ -204,14 +208,23 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
         // and on a provider the catalog does not trust with one it is injected on the wire as an experiment.
         var reasoning = Env("HYPERION_REASONING");
         var drop = Env("HYPERION_DROP");
+
         var effort = reasoning is not null ? CodegenEfforts.Parse(reasoning) : AiModelCatalog.ResearchEffort(ProviderId, Model);
         var inject = reasoning is not null && !AiModelCatalog.SupportsEffort(ProviderId);
         using var http = inject || drop is not null
             ? new HttpClient(new WithReasoningEffort(inject ? reasoning : null, drop)) { Timeout = Timeout.InfiniteTimeSpan }
             : new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         IStrategyCodegenClient client = new KeepsReplies(
-            new OpenAiCompatibleCodegenClient(
-                http, ProviderId, Env("HYPERION_PROVIDER_NAME") ?? ProviderName, BaseUrl, Model, key, effort: effort),
+            cli is not null
+                // The vendor's own program answers the prompt, with the sign-in it already holds. For
+                // OpenCode's free models it is the only client their gateway serves at all.
+                ? new AgentCliCodegenClient(
+                    cli,
+                    model: Model,
+                    effort: effort,
+                    timeout: TimeSpan.FromMinutes(Count(Env("HYPERION_CALL_MINUTES")) ?? 30))
+                : new OpenAiCompatibleCodegenClient(
+                    http, ProviderId, Env("HYPERION_PROVIDER_NAME") ?? ProviderName, BaseUrl, Model, key, effort: effort),
             Path.Combine(directory, "replies"));
 
         // What this key can use, and nothing else: no model is called, so it costs nothing.
