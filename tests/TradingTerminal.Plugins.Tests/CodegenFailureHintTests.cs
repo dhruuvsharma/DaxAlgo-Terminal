@@ -61,9 +61,10 @@ public sealed class CodegenFailureHintTests
     public void A_rate_limit_is_not_mistaken_for_a_key_problem()
     {
         // 429 bodies routinely mention the key or the account; sending the user to re-check a working
-        // key while they are merely being throttled wastes the one thing they are short of.
+        // key while they are merely being throttled wastes the one thing they are short of. Since
+        // 2026-09-18 a 429 that survived the long wait says so — and still never blames the key.
         OpenAiCompatibleCodegenClient.Hint(429, """{"error":"rate limit exceeded"}""", "big-pickle")
-            .Should().BeEmpty();
+            .Should().Contain("rate-limited").And.NotContain("key", "being throttled is not a key problem");
     }
 
     [Fact]

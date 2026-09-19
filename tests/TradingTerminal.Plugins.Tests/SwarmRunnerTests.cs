@@ -155,6 +155,29 @@ public sealed class SwarmRunnerTests
     }
 
     [Fact]
+    public async Task WhatAPlannerWroteInsteadOfAPlanIsTheFirstDraftNotAnotherBuild()
+    {
+        // Measured 2026-09-18: a free model given a detailed brief answered the planner with the whole
+        // unit, twice, and both were thrown away while the fallback builder started again from nothing.
+        // The draft goes to the gate as a builder's reply would; nobody is asked to write it a second time.
+        var client = new Scripted((role, _) => Planner(role)
+            ? File("Drafted.cs", "public sealed class Drafted { }")
+            : File("Rebuilt.cs", "public sealed class Rebuilt { }"));
+        var judged = new ConcurrentQueue<string>();
+
+        var run = await Runner(client, new StubCompiler(script =>
+        {
+            foreach (var file in script.Files) judged.Enqueue(file.Name);
+            return Broken("Drafted.cs");
+        })).RunAsync(Request() with { MayAsk = false });
+
+        run.Origin.Should().Be(PlanOrigin.Unparsed);
+        client.Calls.Count(c => !Planner(c.Role) && !Fixer(c.Role)).Should().Be(0, "the planner's draft is the build");
+        judged.First().Should().Be("Drafted.cs", "round 0 judges the draft itself");
+        client.Calls.Should().Contain(c => Fixer(c.Role), "what the gate rejects still goes to repair");
+    }
+
+    [Fact]
     public async Task ProseFromThePlannerIsAQuestionAndTheRunWaits()
     {
         // THE INTERVIEW, and the line the committee died on. A model replying "which instrument?" to a

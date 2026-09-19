@@ -293,7 +293,7 @@ public sealed class AnthropicCodegenClient : IStrategyCodegenClient
         // Effort + adaptive thinking are sent ONLY when the user asked for an effort level. They are
         // rejected by models that predate them (Haiku 4.5 and older), so "Default" has to mean "send
         // neither" — that is what keeps an older model usable in the picker.
-        var effort = _effort.Wire();
+        var effort = (request.Effort ?? _effort).Wire();
         var body = new MessagesRequest(
             _model, MaxTokens: 16384,
             // Two system blocks, and the ORDER is the point: the shared pack carries the breakpoint, so

@@ -36,13 +36,33 @@ public sealed partial class BlockCatalog
     [GeneratedRegex(@"^- `(?<id>[\w.]+)`", RegexOptions.Multiline)]
     private static partial Regex IndexEntry();
 
+    /// <summary>The interface a card's calls are on: <c>Calls on `IMarketData`:</c>.</summary>
+    [GeneratedRegex(@"^Calls on `(?<name>\w+)`", RegexOptions.Multiline)]
+    private static partial Regex CallsOn();
+
+    /// <summary>A top-level entry under a card's <c>Types:</c> — a type, record, enum or constructor. Nested
+    /// (indented) lines are its members, and a member's return type is not a name the card declares.</summary>
+    [GeneratedRegex(@"^- `(?:new\s+)?(?<name>[A-Z]\w*)", RegexOptions.Multiline)]
+    private static partial Regex DeclaredType();
+
     private readonly Dictionary<string, string> _cards;
+
+    /// <summary>Per block, the interface and type names its card declares.</summary>
+    private readonly Dictionary<string, string[]> _names;
 
     private BlockCatalog(string conventions, string index, Dictionary<string, string> cards)
     {
         Conventions = conventions.Trim();
         Index = GeneratedBanner().Replace(index, string.Empty).Trim();
         _cards = cards;
+        _names = cards.ToDictionary(
+            c => c.Key,
+            c => CallsOn().Matches(c.Value)
+                .Concat(DeclaredType().Matches(c.Value.Split("Types:", 2) is [_, var types] ? types : string.Empty))
+                .Select(m => m.Groups["name"].Value)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray(),
+            StringComparer.OrdinalIgnoreCase);
 
         // Index order is the catalog's order — unit first, maths near the end — and it is the order
         // cards are sent in, so two tasks naming the same blocks send byte-identical text.
@@ -86,6 +106,23 @@ public sealed partial class BlockCatalog
         ArgumentNullException.ThrowIfNull(ids);
         var wanted = new HashSet<string>(ids.Select(i => i.Trim()), StringComparer.OrdinalIgnoreCase);
         return [.. Ids.Where(wanted.Contains)];
+    }
+
+    /// <summary>
+    /// The blocks <paramref name="text"/> names — by id (<c>math.orderflow</c>), or by an interface or type
+    /// its card declares (<c>FootprintTimeBucketer</c>, <c>IInstruments</c>) — in catalog order.
+    ///
+    /// <para>For a task nobody planned. A brief that says "use TradeClassifier and read the tick size from
+    /// the instruments block" has named its cards; a builder sent the five everyday ones instead guesses
+    /// those two APIs from their names.</para>
+    /// </summary>
+    public IReadOnlyList<string> Mentioned(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+
+        return [.. Ids.Where(id =>
+            Regex.IsMatch(text, $@"(?<![\w.]){Regex.Escape(id)}(?![\w.])", RegexOptions.IgnoreCase)
+            || _names[id].Any(name => Regex.IsMatch(text, $@"\b{Regex.Escape(name)}\b")))];
     }
 
     /// <summary>The cards for <paramref name="ids"/>, joined, in catalog order.</summary>

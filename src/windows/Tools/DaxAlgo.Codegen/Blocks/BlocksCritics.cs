@@ -27,7 +27,30 @@ public static class BlocksCritics
             Judge: does it read as a professional trading panel at a glance; is every number legible and
             labelled; is anything empty, cramped, overlapping, cut off or showing "undefined", "NaN" or a
             waiting message after data arrived; do colours carry meaning (up/down, bid/ask); does a chart
-            have axes a trader can read. Findings about the page name the file "ui/index.html".
+            have axes a trader can read; is a 3D scene lit, framed and legible rather than a dark void.
+            Findings name the page file responsible: "ui/index.html" for layout and the page as a whole,
+            the module that draws it ("ui/scene.js", "ui/depth.js" …) when one part is at fault.
+            """,
+            SourceInstruction: """
+            YOUR ROLE: Page critic, READING THE SOURCE. No model that can see was available, so judge the
+            page from its code — ui/index.html and every ui/*.js and ui/*.css file below — and from what
+            the unit sends it. Say what the viewer WILL see when it runs.
+
+            Look for:
+            - A file the page loads (a script src, a stylesheet href, an ES-module import) that is not
+              among the files below. The page breaks, or draws unstyled.
+            - Elements that start empty or hidden and are never filled from a topic the unit sends; a
+              waiting message that is never replaced once data arrives.
+            - A payload field the page reads that the unit never sends, or spells differently.
+            - A 3D scene with no light, a camera that does not frame the content, a renderer never sized
+              to its container or never re-rendered, colours that will be black on black.
+            - Text that will be unreadable: dark on dark, tiny fonts, absolutely-positioned panels that
+              cover each other or the scene.
+            - Numbers without labels or units; colour that carries no meaning (bull/bear, bid/ask).
+            - Work per animation frame that allocates, arrays that grow for ever, listeners never removed.
+
+            Findings name the page file responsible — "ui/index.html", "ui/scene.js", "ui/style.css" …
+            Report only what will visibly go wrong; a matter of taste is not a finding.
             """),
 
         new(Critics.MarketLogic, CriticPanel.Quant, NeedsPicture: false, AppliesTo: null,

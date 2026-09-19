@@ -220,18 +220,35 @@ public static class BlocksDrive
             // Levels close together and a wobble out of phase per instrument, so two instruments move
             // together but not in lockstep. A feed where every instrument walks the identical path never
             // opens a spread, and a drive that can never trigger an arbitrage has not driven one.
-            var level = 100d + instrument.Value % 5;
-            var price = level * Path(step) * (1d + 0.02 * Math.Sin(step / 7d + instrument.Value * 1.9));
-            var tick = Math.Max(0.01, Math.Round(level * 0.0005, 2));
-            var bid = Math.Round(price - tick, 2);
-            var ask = Math.Round(price + tick, 2);
+            //
+            // AT A PRICE AND A DEPTH A REAL BOOK HAS. Until 2026-09-19 this was a market at 100 with five
+            // levels of ten lots, and the gate photographed every page against it: a BTC battlefield
+            // showed "$0.0M" walls and a round running from -395 to 605, and a critic judging that picture
+            // was judging the feed. A level near 64,000, a 0.1 tick, twenty levels a side with one wall
+            // each, and a block print now and then read like the book most units are written for.
+            const double tick = 0.1;
+            var level = 64_000d * (1d + (instrument.Value % 5) * 0.0004);
+            var price = level * Path(step) * (1d + 0.004 * Math.Sin(step / 7d + instrument.Value * 1.9));
+            var spread = tick * (1 + step % 3);
+            var bid = Math.Round(price - spread / 2, 1);
+            var ask = Math.Round(bid + spread, 1);
 
-            PublishQuote(new Quote(instrument, now, now, bid, ask, 5 + step % 7, 4 + step % 5, BrokerKind.Simulated, step, false));
-            PublishTrade(new TradePrint(instrument, now, now, step % 2 == 0 ? ask : bid, 1 + step % 9,
-                step % 2 == 0 ? AggressorSide.Buy : AggressorSide.Sell, BrokerKind.Simulated, step, false));
+            PublishQuote(new Quote(instrument, now, now, bid, ask, 2 + step % 11, 1 + step % 13, BrokerKind.Simulated, step, false));
+
+            // Mostly small prints, a block every seventh step, and the aggressor leaning with the path.
+            var rising = Path(step + 1) >= Path(step);
+            var buyer = step % 3 == 0 ? !rising : rising;
+            var size = step % 7 == 6 ? 18 + step % 23 : 1 + (step * 7) % 6;
+            PublishTrade(new TradePrint(instrument, now, now, buyer ? ask : bid, size,
+                buyer ? AggressorSide.Buy : AggressorSide.Sell, BrokerKind.Simulated, step, false));
+
+            var bidWall = 6 + step % 5;
+            var askWall = 9 + (step / 3) % 6;
             PublishDepth(instrument, new DepthSnapshot(now,
-                [.. Enumerable.Range(0, 5).Select(i => new DepthLevel(Math.Round(bid - i * tick, 2), 10 + i * 3))],
-                [.. Enumerable.Range(0, 5).Select(i => new DepthLevel(Math.Round(ask + i * tick, 2), 8 + i * 4))]));
+                [.. Enumerable.Range(0, 20).Select(i => new DepthLevel(Math.Round(bid - i * tick * 5, 1),
+                    i == bidWall ? 220 + step % 90 : 3 + (i * 7 + step) % 38))],
+                [.. Enumerable.Range(0, 20).Select(i => new DepthLevel(Math.Round(ask + i * tick * 5, 1),
+                    i == askWall ? 180 + step % 110 : 2 + (i * 5 + step) % 41))]));
 
             (double Open, double High, double Low, long Volume, DateTime Start) bar = _forming.TryGetValue(instrument, out var f)
                 ? (f.Open, Math.Max(f.High, price), Math.Min(f.Low, price), f.Volume + 1 + step % 9, f.Start)

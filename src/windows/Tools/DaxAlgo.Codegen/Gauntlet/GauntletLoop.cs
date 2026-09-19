@@ -148,11 +148,15 @@ public sealed class GauntletLoop(IReadOnlyList<IUnitCritic> critics, ILogger? lo
 
         var panel = (definitions ?? CriticPrompts.For(kind)).Select(IUnitCritic (definition) =>
         {
+            // THE CRITIC THAT LOOKS OR THE CRITIC THAT READS, by what is available: the build model when
+            // it sees, a borrowed vision model when it does not, and — when neither sees, or the borrowed
+            // one fails — the build model reading the page's source (a definition's SourceInstruction).
             var useVision = definition.NeedsPicture && !buildSees && visionSees;
             var client = useVision ? vision! : build;
             return new ModelCritic(
                 client, definition, sharedContext,
-                canSeeImages: AiModelCatalog.SupportsVision(client.ProviderId, client.Model));
+                canSeeImages: AiModelCatalog.SupportsVision(client.ProviderId, client.Model),
+                reader: useVision ? build : null);
         });
 
         return new GauntletLoop([.. panel], logger);

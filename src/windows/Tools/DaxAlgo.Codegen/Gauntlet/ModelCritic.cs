@@ -19,11 +19,14 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
 /// <param name="sharedContext">The system pack, so the critic knows the SDK the unit is written
 /// against. Same prefix as every other call in the run, so it stays cached.</param>
 /// <param name="canSeeImages">Whether this client's model can be shown the render.</param>
+/// <param name="reader">Who reads the page's source when the picture cannot be looked at — the build
+/// model, when <paramref name="client"/> is a borrowed vision model. Null reads with the client itself.</param>
 public sealed class ModelCritic(
     IStrategyCodegenClient client,
     CriticDefinition definition,
     string sharedContext,
-    bool canSeeImages) : IUnitCritic
+    bool canSeeImages,
+    IStrategyCodegenClient? reader = null) : IUnitCritic
 {
     public string Id => definition.Id;
 
@@ -51,10 +54,12 @@ public sealed class ModelCritic(
             return CriticVerdict.Skipped(
                 Id, Panel, $"Not applicable to a {subject.Kind.ToString().ToLowerInvariant()}.");
 
-        // A picture critic without a picture is not a degraded picture critic — it is a different
-        // critic, judging different evidence, and one of the other five already reads the commands.
-        // Saying so beats running it and reporting whatever it makes of a text dump.
-        if (NeedsPicture && (subject.Raster is null || !canSeeImages))
+        var looking = !NeedsPicture || (subject.Raster is not null && canSeeImages);
+
+        // A PICTURE CRITIC THAT CANNOT LOOK READS INSTEAD — when its definition says how. Without a
+        // reading instruction the old rule stands: a picture critic without a picture is a different
+        // critic, and saying so beats reporting whatever it makes of a text dump.
+        if (!looking && definition.SourceInstruction is null)
             return CriticVerdict.Skipped(
                 Id,
                 Panel,
@@ -62,6 +67,9 @@ public sealed class ModelCritic(
                     ? "No render was available on this host, so nothing could look at the picture."
                     : $"{client.DisplayName} cannot be shown images, so the picture was not reviewed. "
                       + "The drawing commands were still judged.");
+
+        if (!looking)
+            return await ReadSourceAsync(subject, bar, CodegenUsage.None, ct).ConfigureAwait(false);
 
         var images = new List<CodegenImage>();
         if (canSeeImages)
@@ -73,24 +81,72 @@ public sealed class ModelCritic(
                 images.Add(new CodegenImage(UnitRaster.MediaType, raster.Png, "OUR UNIT, as it renders"));
         }
 
-        var message = new CodegenMessage(CodegenRole.User, Compose(subject, bar), images.Count > 0 ? images : null);
-
-        var (response, reported) = await CodegenStream.DrainAsync(
-            client,
-            new StrategyCodegenRequest(sharedContext, [message], definition.Instruction + CriticPrompts.OutputContract),
-            events: null,
-            ct).ConfigureAwait(false);
+        var message = new CodegenMessage(CodegenRole.User, Compose(subject, bar, source: false), images.Count > 0 ? images : null);
+        var (response, reported) = await AskAsync(client, message, definition.Instruction, ct).ConfigureAwait(false);
 
         // The usage rides on the verdict either way. Critic calls used to be read and thrown away, so a
         // run's total never included them and a run that reached the gauntlet looked cheaper than it was.
         if (!response.Success)
+        {
+            // THE MODEL THAT LOOKS WAS NOT THERE. A picture critic routed to a borrowed vision model that
+            // failed still has the page's source to read, so it reads rather than reporting nothing.
+            if (NeedsPicture && definition.SourceInstruction is not null)
+                return await ReadSourceAsync(subject, bar, reported, ct).ConfigureAwait(false);
+
             return CriticVerdict.Skipped(Id, Panel, $"{client.DisplayName} failed: {response.Error}") with { Usage = reported };
+        }
 
         return Read(response.RawText) with { Usage = reported };
     }
 
+    /// <summary>The picture critic's reading mode: the page's source, judged for what it will look like.</summary>
+    private async Task<CriticVerdict> ReadSourceAsync(
+        GauntletSubject subject, ReferenceBar bar, CodegenUsage spent, CancellationToken ct)
+    {
+        var who = reader ?? client;
+        var message = new CodegenMessage(CodegenRole.User, Compose(subject, bar, source: true));
+        var (response, reported) = await AskAsync(who, message, definition.SourceInstruction!, ct).ConfigureAwait(false);
+        var usage = spent.Add(reported);
+
+        if (!response.Success)
+            return CriticVerdict.Skipped(Id, Panel, $"{who.DisplayName} failed reading the page: {response.Error}") with { Usage = usage };
+
+        var verdict = Read(response.RawText);
+        return verdict with { Verdict = "(read from the source — nothing that sees was available) " + verdict.Verdict, Usage = usage };
+    }
+
+    /// <summary>
+    /// One critic call, and — when it reasoned through its whole budget without answering — one more at
+    /// a medium effort.
+    ///
+    /// <para><b>The run's own effort first, as the owner asked.</b> Measured 2026-09-19 on NVIDIA NIM's
+    /// DeepSeek V4 Flash at a high effort: two critics each reasoned through all 131,072 output tokens,
+    /// about fifty-five minutes apiece, and returned nothing — so a unit that passed the gate was never
+    /// reviewed. A critic's answer is a few lines of JSON; the retry is what makes sure there is one.</para>
+    /// </summary>
+    private async Task<(StrategyCodegenResponse Response, CodegenUsage Usage)> AskAsync(
+        IStrategyCodegenClient who, CodegenMessage message, string instruction, CancellationToken ct)
+    {
+        var request = new StrategyCodegenRequest(sharedContext, [message], instruction + CriticPrompts.OutputContract);
+        var (response, reported) = await CodegenStream.DrainAsync(who, request, events: null, ct).ConfigureAwait(false);
+
+        if (response.Success || !ThoughtWithoutAnswering(response.Error)) return (response, reported);
+        if (!AiModelCatalog.SupportsEffort(who.ProviderId, who.Model)) return (response, reported);
+        if (who.Effort is CodegenEffort.Low or CodegenEffort.Medium) return (response, reported);
+
+        var (retried, again) = await CodegenStream.DrainAsync(
+            who, request with { Effort = CodegenEffort.Medium }, events: null, ct).ConfigureAwait(false);
+        return (retried, reported.Add(again));
+    }
+
+    /// <summary>A failure that is the model thinking past its budget rather than the provider refusing.</summary>
+    internal static bool ThoughtWithoutAnswering(string? error) =>
+        error is not null
+        && (error.Contains("never started an answer", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("reached its output limit", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>What this critic is shown, in the order it should read it.</summary>
-    private string Compose(GauntletSubject subject, ReferenceBar bar)
+    private string Compose(GauntletSubject subject, ReferenceBar bar, bool source)
     {
         var text = new StringBuilder();
 
@@ -108,11 +164,17 @@ public sealed class ModelCritic(
                         + (subject.Ladder.FailedAt is { } failed ? $", stopped at {failed}" : ", nothing failed"));
         text.AppendLine();
 
-        if (Panel == CriticPanel.Quant || !canSeeImages)
+        if (source || Panel == CriticPanel.Quant || !canSeeImages)
         {
             text.AppendLine("THE SOURCE");
             var budget = MaximumSourceCharacters;
-            foreach (var file in subject.Files)
+            // A picture critic reading the source reads the PAGE first: the budget is shared, and the C#
+            // is what the other critics already read.
+            var ordered = source && NeedsPicture
+                ? subject.Files.OrderBy(f => CodegenCodeExtractor.IsPageFile(f.Name) ? 0 : 1).ToArray()
+                : subject.Files;
+
+            foreach (var file in ordered)
             {
                 if (budget <= 0) break;
                 var body = file.Content.Length <= budget ? file.Content : file.Content[..budget];

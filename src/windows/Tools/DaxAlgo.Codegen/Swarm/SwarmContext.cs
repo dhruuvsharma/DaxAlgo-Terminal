@@ -108,9 +108,20 @@ public sealed class SwarmContext
         // The page is a folder: every page file the page's builder wrote is its own, and nothing else is.
         if (task.OwnsPage)
         {
-            var page = produced
+            var written = produced
                 .Where(f => CodegenCodeExtractor.IsPageFile(f.Name) && !string.IsNullOrWhiteSpace(f.Content))
                 .ToArray();
+
+            // Only the page files this task owns: the shell cannot overwrite a module, and a module
+            // cannot overwrite the shell or another module — they are being written at the same time.
+            var page = written.Where(f => task.Owns(f.Name)).ToArray();
+
+            // A module that answered with one file under another name has still answered with its file,
+            // the same rule a C# task already follows.
+            if (page.Length == 0 && task.PageModuleOnly && written.Length == 1
+                && string.Equals(System.IO.Path.GetExtension(written[0].Name), System.IO.Path.GetExtension(task.OwnedFile), StringComparison.OrdinalIgnoreCase))
+                page = [new StrategyFile(task.OwnedFile, written[0].Content)];
+
             if (page.Length == 0) return false;
 
             foreach (var file in page) _files[file.Name] = file;
@@ -192,6 +203,31 @@ public sealed class SwarmContext
                 + Environment.NewLine
                 + "Each of those files declares its own type. Yours declares only what its task asks "
                 + "for.");
+        }
+
+        // A PAGE SPLIT ACROSS BUILDERS: the other page files are being written right now by somebody else.
+        // Named with their exports, so the shell loads and calls them, and a module neither rewrites nor
+        // re-implements its neighbours.
+        if (task.OwnsPage && !task.OwnsAllFiles)
+        {
+            var neighbours = plan.Tasks
+                .Where(t => t.OwnsPage && !t.OwnsAllFiles && !string.Equals(t.OwnedFile, task.OwnedFile, StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.OwnedFile)
+                .ToArray();
+
+            if (neighbours.Length > 0)
+            {
+                var exports = plan.Contract.PageModules.ToDictionary(m => m.File, m => m.Exports, StringComparer.OrdinalIgnoreCase);
+                Section(
+                    text,
+                    "OTHER PAGE FILES — written by other builders at the same time, not by you",
+                    string.Join(Environment.NewLine, neighbours.Select(f =>
+                        exports.TryGetValue(f, out var e) && e.Length > 0 ? $"- {f}: {e}" : $"- {f}"))
+                    + Environment.NewLine
+                    + (task.OwnsPageShell
+                        ? "Load each of them from index.html (or your own script) and call them exactly through those exports."
+                        : "Do not write them and do not re-implement them: use only what their exports promise."));
+            }
         }
 
         // Its own previous attempt, when there is one. A second round on the same task is a revision,

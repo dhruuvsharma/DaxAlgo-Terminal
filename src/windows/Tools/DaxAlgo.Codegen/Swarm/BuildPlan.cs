@@ -69,6 +69,19 @@ public sealed record ParameterSpec(string Name, string Label, string Type, strin
 /// </param>
 public sealed record PanelSpec(string Id, string Title, string Shows, string TypeName, string Widget = "");
 
+/// <summary>
+/// One file of a page that several builders write at once, and exactly how the others use it.
+/// </summary>
+/// <param name="File">The page file, under <c>ui/</c> — <c>ui/scene.js</c>, <c>ui/style.css</c>.</param>
+/// <param name="Purpose">What it draws or does, in one line.</param>
+/// <param name="Exports">
+/// For a module, its exports written out as the others will call them —
+/// <c>export function mountScene(el: HTMLElement): { update(state: Battle): void; dispose(): void }</c>.
+/// For a stylesheet, the classes and ids it styles. <b>Fixed before anybody writes a line</b>, for the
+/// same reason a C# helper's signature is: builders working at the same time cannot discover each other.
+/// </param>
+public sealed record PageModuleSpec(string File, string Purpose, string Exports);
+
 /// <summary>A helper type, and the exact signature everything else will call it through.</summary>
 /// <param name="TypeName">Its name.</param>
 /// <param name="Purpose">What it computes or paints.</param>
@@ -87,6 +100,8 @@ public sealed record HelperSpec(string TypeName, string Purpose, string Signatur
 /// against the files that honoured it, and the repair is routed to whoever owns the file.</para>
 /// </summary>
 /// <param name="Topics">A Blocks unit's messages to and from its page. Empty for a widget-SDK unit.</param>
+/// <param name="Modules">The files of a page split across several builders, with their exports. Empty
+/// when one builder writes the whole page.</param>
 public sealed record UnitContract(
     string TypeName,
     AuthoringKind Kind,
@@ -94,10 +109,14 @@ public sealed record UnitContract(
     IReadOnlyList<ParameterSpec> Parameters,
     IReadOnlyList<PanelSpec> Panels,
     IReadOnlyList<HelperSpec> Helpers,
-    IReadOnlyList<TopicSpec>? Topics = null)
+    IReadOnlyList<TopicSpec>? Topics = null,
+    IReadOnlyList<PageModuleSpec>? Modules = null)
 {
     /// <summary>The page messages, never null.</summary>
     public IReadOnlyList<TopicSpec> PageTopics => Topics ?? [];
+
+    /// <summary>The page's modules, never null.</summary>
+    public IReadOnlyList<PageModuleSpec> PageModules => Modules ?? [];
 
     public static UnitContract Minimal(string typeName, AuthoringKind kind) =>
         new(typeName, kind, "Bars", [], [], []);
@@ -134,6 +153,11 @@ public sealed record UnitContract(
 /// thousand tokens and a task rarely needs more than four of its twenty-two cards; the planner already
 /// knows which, because deciding what a file does is deciding what it calls.</para>
 /// </param>
+/// <param name="PageModuleOnly">A page task that owns its one page file and nothing else — one module of
+/// a page split across several builders. Set by <see cref="BuildPlan.WithPageOwnership"/>, never by a
+/// model.</param>
+/// <param name="PageFilesElsewhere">For the page's shell (the task owning <c>ui/index.html</c>, or the
+/// first page task): the page files other page tasks own, which it therefore does not.</param>
 public sealed record BuildTask(
     string Id,
     string Title,
@@ -142,26 +166,36 @@ public sealed record BuildTask(
     string Intent,
     IReadOnlyList<string> DependsOn,
     bool OwnsAllFiles = false,
-    IReadOnlyList<string>? Blocks = null)
+    IReadOnlyList<string>? Blocks = null,
+    bool PageModuleOnly = false,
+    IReadOnlyList<string>? PageFilesElsewhere = null)
 {
     /// <summary>The blocks this task names, never null.</summary>
     public IReadOnlyList<string> Cards => Blocks ?? [];
 
-    /// <summary>True when this task writes a unit's page, which is a folder rather than one file.</summary>
+    /// <summary>True when this task writes a unit's page — the whole folder, or one module of it.</summary>
     public bool OwnsPage => CodegenCodeExtractor.IsPageFile(OwnedFile);
+
+    /// <summary>True when this task writes the page's shell: <c>index.html</c> and every page file no
+    /// other page task owns.</summary>
+    public bool OwnsPageShell => OwnsPage && !PageModuleOnly;
 
     /// <summary>
     /// Whether this task may write <paramref name="file"/>: its own file, every file for the fallback
-    /// task, and every page file for the task that owns the page.
+    /// task, and — for the page's shell — every page file no other page task owns.
     ///
-    /// <para>The page is the one place the one-file rule is widened, and deliberately: an HTML file and
-    /// the script and stylesheet beside it are one piece of work that no second builder shares, so
-    /// splitting it would buy nothing but a contract between three files nobody else reads.</para>
+    /// <para>The page is the one place the one-file rule is widened. With ONE page task it owns the whole
+    /// folder: an HTML file and the script and stylesheet beside it are one piece of work. A rich page —
+    /// a 3D scene, a depth chart, a feed, a HUD — is too much for one reply (measured 2026-09-19: a page
+    /// reply cut off in its stylesheet, its script never started), so it can be split: each module is its
+    /// own task and owns exactly its file, and the shell owns what is left.</para>
     /// </summary>
     public bool Owns(string file) =>
         OwnsAllFiles
         || string.Equals(file, OwnedFile, StringComparison.OrdinalIgnoreCase)
-        || (OwnsPage && CodegenCodeExtractor.IsPageFile(file));
+        || (OwnsPageShell
+            && CodegenCodeExtractor.IsPageFile(file)
+            && !(PageFilesElsewhere ?? []).Contains(file, StringComparer.OrdinalIgnoreCase));
 }
 
 /// <summary>A group of tasks that finish together and are worth reporting as one step.</summary>
@@ -184,6 +218,39 @@ public sealed record BuildPlan(
 {
     /// <summary>Every task, in milestone order.</summary>
     public IReadOnlyList<BuildTask> Tasks => [.. Milestones.SelectMany(m => m.Tasks)];
+
+    /// <summary>
+    /// Settles who writes which page file. With one page task it owns the whole <c>ui/</c> folder. With
+    /// several, the one owning <c>ui/index.html</c> — or else the first — is the shell and owns every page
+    /// file the others do not; each other page task owns exactly its own file.
+    ///
+    /// <para>Computed from the plan rather than taken from the model, and computed again whenever tasks
+    /// are cut: a module trimmed out of the budget hands its file back to the shell instead of leaving a
+    /// file nobody may write.</para>
+    /// </summary>
+    public BuildPlan WithPageOwnership()
+    {
+        var pages = Tasks.Where(t => t.OwnsPage && !t.OwnsAllFiles).ToArray();
+
+        if (pages.Length <= 1)
+            return Map(t => t.OwnsPage ? t with { PageModuleOnly = false, PageFilesElsewhere = null } : t);
+
+        var shell = pages.FirstOrDefault(t => string.Equals(t.OwnedFile, "ui/index.html", StringComparison.OrdinalIgnoreCase))
+                    ?? pages[0];
+        var modules = pages
+            .Where(t => !ReferenceEquals(t, shell))
+            .Select(t => t.OwnedFile)
+            .Where(f => !string.Equals(f, shell.OwnedFile, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return Map(t => !t.OwnsPage || t.OwnsAllFiles ? t
+            : ReferenceEquals(t, shell) ? t with { PageModuleOnly = false, PageFilesElsewhere = modules }
+            : t with { PageModuleOnly = true, PageFilesElsewhere = null });
+    }
+
+    private BuildPlan Map(Func<BuildTask, BuildTask> change) =>
+        this with { Milestones = [.. Milestones.Select(m => m with { Tasks = [.. m.Tasks.Select(change)] })] };
 
     /// <summary>
     /// The plan a brief gets when the planner could not produce one: build the whole thing in one file,
@@ -325,7 +392,7 @@ public static class BuildPlanReader
 
             var contract = Contract?.ToContract(kind) ?? UnitContract.Minimal("AuthoredUnit", kind);
 
-            return new BuildPlan(contract, milestones, Rubric ?? [], OpenQuestions ?? []);
+            return new BuildPlan(contract, milestones, Rubric ?? [], OpenQuestions ?? []).WithPageOwnership();
         }
     }
 
@@ -335,7 +402,8 @@ public static class BuildPlanReader
         IReadOnlyList<ParameterSpec>? Parameters,
         IReadOnlyList<PanelSpec>? Panels,
         IReadOnlyList<HelperSpec>? Helpers,
-        IReadOnlyList<TopicSpec>? Topics = null)
+        IReadOnlyList<TopicSpec>? Topics = null,
+        IReadOnlyList<PageModuleSpec>? PageModules = null)
     {
         public UnitContract ToContract(AuthoringKind kind) => new(
             string.IsNullOrWhiteSpace(TypeName) ? "AuthoredUnit" : TypeName.Trim(),
@@ -344,7 +412,17 @@ public static class BuildPlanReader
             Parameters ?? [],
             Panels ?? [],
             Helpers ?? [],
-            Topics is null ? null : [.. Topics.Where(t => !string.IsNullOrWhiteSpace(t?.Name))]);
+            Topics is null ? null : [.. Topics.Where(t => !string.IsNullOrWhiteSpace(t?.Name))],
+            PageModules is null
+                ? null
+                : [.. PageModules
+                    .Where(m => !string.IsNullOrWhiteSpace(m?.File) && SafeFileName(m.File) is { } safe && CodegenCodeExtractor.IsPageFile(safe))
+                    .Select(m => m with
+                    {
+                        File = SafeFileName(m.File)!,
+                        Purpose = m.Purpose?.Trim() ?? string.Empty,
+                        Exports = m.Exports?.Trim() ?? string.Empty,
+                    })]);
     }
 
     private sealed record MilestoneWire(string? Id, string? Title, IReadOnlyList<TaskWire>? Tasks)

@@ -8,12 +8,21 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring.Gauntlet;
 /// <param name="NeedsPicture">True when reading the drawing commands is not a substitute for looking.</param>
 /// <param name="AppliesTo">Null for both kinds; otherwise the one kind this critic is about.</param>
 /// <param name="Instruction">What it looks for, in its own words.</param>
+/// <param name="SourceInstruction">
+/// For a picture critic: what it is told when NO model that can see is available, or the one that can
+/// fails — it then reads the page's source instead. Null keeps the old rule, skipping it.
+///
+/// <para>The owner's call, 2026-09-19: switch between the critic that looks and the critic that reads
+/// according to what is available, rather than leave the look unreviewed. Every NIM run that day
+/// delivered a page nothing had judged, because no model on that gateway was counted as seeing.</para>
+/// </param>
 public sealed record CriticDefinition(
     string Id,
     CriticPanel Panel,
     bool NeedsPicture,
     AuthoringKind? AppliesTo,
-    string Instruction);
+    string Instruction,
+    string? SourceInstruction = null);
 
 /// <summary>
 /// What each critic is told.

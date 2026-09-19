@@ -44,10 +44,19 @@ public sealed class SpreadWatch : IUnit
   reflection emit, loading assemblies. Use `state`, `schedule` and `network` instead.
 - **Settings change while running.** Handle `context.Settings.OnChanged` and rebuild what depends on
   the changed key.
-- **Already imported:** `System`, `System.Collections.Generic`, `System.Linq`, `System.Net.Http`,
-  `System.Text.Json`, `System.Threading`, `System.Threading.Tasks`, `DaxAlgo.Blocks`, `DaxAlgo.Sdk.Quant`,
-  `TradingTerminal.Core.Domain`, `TradingTerminal.Core.MarketData`,
-  `TradingTerminal.Core.Strategies.Parameters`. Write `using` directives only for anything else.
+- **Already imported:** `System`, `System.Collections.Generic`, `System.Globalization`, `System.Linq`,
+  `System.Net.Http`, `System.Net.WebSockets`, `System.Text`, `System.Text.Json`, `System.Threading`,
+  `System.Threading.Tasks`, `DaxAlgo.Blocks`, `DaxAlgo.Sdk.Quant`, `TradingTerminal.Core.Domain`,
+  `TradingTerminal.Core.MarketData`, `TradingTerminal.Core.Strategies.Parameters`. Write `using`
+  directives only for anything else.
+- **Block ids are not namespaces.** `market`, `math.orderflow`, `ui` name cards. Every type a card lists
+  is already imported, so never write `using DaxAlgo.Blocks.Math` or anything like it — call
+  `TradeClassifier`, `FootprintTimeBucketer`, `Quote` directly.
+- **Read settings by kind:** `Int`, `Number`, `Bool`, `Instrument`, and `Text` for Text, Choice and
+  Enum settings. There is no `Choice()` or `Enum()` reader.
+- **Small types stay inside your class.** A record or enum only your file needs is declared NESTED in
+  your own class, never at the top level: several builders write files at once, and two top-level types
+  with one name break the whole unit.
 
 ## The page
 
@@ -66,6 +75,24 @@ Plain HTML/CSS/JS, or libraries loaded from an https CDN.
   the page, so never send deltas that must all arrive.
 - The page sends intents back (`dax.send`), and the unit handles them with `context.Ui.On`.
 - Call `dax.ready()` after the listeners are attached. The unit's `OnOpened` fires then.
+- **A page can be several files**, all under `ui/`: `index.html` plus any `.js`, `.css` or `.svg`
+  beside it. Load them with relative paths (`<script type="module" src="app.js">`,
+  `<link rel="stylesheet" href="style.css">`, `import { mountScene } from "./scene.js"`). Every file
+  the page loads must be one of the unit's files — a missing one fails the gate.
+- **3D:** three.js from the CDN through an import map, then plain module imports:
+
+  ```html
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+                 "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+  </script>
+  <script type="module" src="app.js"></script>
+  ```
+
+  ```js
+  import * as THREE from "three";
+  import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+  ```
 
 ## Output
 
@@ -73,7 +100,8 @@ Return every file in its own fenced block with its path on the first line:
 
 - C#: a ```csharp block starting `// file: SpreadWatch.cs`
 - Page: a ```html block starting `<!-- file: ui/index.html -->`, and optionally ```js
-  (`// file: ui/app.js`) and ```css (`/* file: ui/style.css */`) blocks
+  (`// file: ui/app.js`) and ```css (`/* file: ui/style.css */`) blocks — one block per file, each
+  complete and closed
 
 If the brief is ambiguous about the instrument, timeframe, position sizing or risk, ask instead of
 guessing.

@@ -209,10 +209,18 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
         var reasoning = Env("HYPERION_REASONING");
         var drop = Env("HYPERION_DROP");
 
+        // HYPERION_MAX_TOKENS sets max_tokens on every call. Hyperion sends none, so a gateway applies its
+        // own default cap — and at a maximum reasoning effort that cap can be spent on thinking before
+        // the answer starts (measured on NVIDIA NIM's DeepSeek V4 Flash, 2026-09-19, in under four minutes).
+        var maxTokens = Count(Env("HYPERION_MAX_TOKENS"));
+
         var effort = reasoning is not null ? CodegenEfforts.Parse(reasoning) : AiModelCatalog.ResearchEffort(ProviderId, Model);
-        var inject = reasoning is not null && !AiModelCatalog.SupportsEffort(ProviderId);
-        using var http = inject || drop is not null
-            ? new HttpClient(new WithReasoningEffort(inject ? reasoning : null, drop)) { Timeout = Timeout.InfiniteTimeSpan }
+        // Sent by the client itself wherever the catalog knows the model reads it (NIM's DeepSeek V4, Nemotron
+        // 3 and GLM 5.3 since 2026-09-19), so a per-call effort — the critic's retry — reaches the model;
+        // injected on the wire only as an experiment on a model the catalog does not trust with one.
+        var inject = reasoning is not null && !AiModelCatalog.SupportsEffort(ProviderId, Model);
+        using var http = inject || drop is not null || maxTokens is not null
+            ? new HttpClient(new WithReasoningEffort(inject ? reasoning : null, drop, maxTokens)) { Timeout = Timeout.InfiniteTimeSpan }
             : new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         IStrategyCodegenClient client = new KeepsReplies(
             cli is not null
@@ -251,7 +259,7 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
         var budget = SwarmBudget.For(profile) with
         {
             MaxParallel = Count(Environment.GetEnvironmentVariable("HYPERION_PARALLEL")) ?? 2,
-            MaxTasks = Math.Max(2, Count(Environment.GetEnvironmentVariable("HYPERION_TASKS")) ?? 4),
+            MaxTasks = Math.Max(2, Count(Environment.GetEnvironmentVariable("HYPERION_TASKS")) ?? 8),
         };
         if (Count(Environment.GetEnvironmentVariable("HYPERION_ROUNDS")) is { } rounds) budget = budget with { MaxRounds = rounds };
         Say($"budget: {budget.MaxParallel} parallel · {budget.MaxRounds} round(s) · {budget.MaxTasks} task(s) max");
@@ -270,7 +278,7 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
                     gate,
                     new TrajectoryLog(trajectory),
                     logger: null,
-                    gauntlet: GauntletLoop.For(client, vision: null, session.SystemContext, kind, definitions: BlocksAuthoring.Critics(kind)),
+                    gauntlet: GauntletLoop.For(client, Vision(client, http, key), session.SystemContext, kind, definitions: BlocksAuthoring.Critics(kind)),
                     rasterizer: null,
                     dialect: blocks.Dialect),
                 budget,
@@ -505,7 +513,7 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
     /// about which field it choked on, and the way to find out is to send the same brief without one —
     /// <c>temperature</c> and <c>stream_options</c> are the usual suspects on a new model.</para>
     /// </summary>
-    private sealed class WithReasoningEffort(string? effort, string? drop = null) : DelegatingHandler(new HttpClientHandler())
+    private sealed class WithReasoningEffort(string? effort, string? drop = null, int? maxTokens = null) : DelegatingHandler(new HttpClientHandler())
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -515,6 +523,7 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
                 if (body is System.Text.Json.Nodes.JsonObject json)
                 {
                     if (effort is { Length: > 0 }) json["reasoning_effort"] = effort;
+                    if (maxTokens is { } cap) json["max_tokens"] = cap;
                     foreach (var field in (drop ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                         json.Remove(field);
 
@@ -524,6 +533,28 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
 
             return await base.SendAsync(request, ct);
         }
+    }
+
+    /// <summary>
+    /// The model the picture critic LOOKS with, by availability: none when the build model sees; otherwise
+    /// <c>HYPERION_VISION_MODEL</c>, or a vision model on the same provider. If it cannot be reached the
+    /// critic reads the page's source instead (ModelCritic), so choosing one is never what fails a run.
+    /// </summary>
+    private static IStrategyCodegenClient? Vision(IStrategyCodegenClient build, HttpClient http, string? key)
+    {
+        if (AiModelCatalog.SupportsVision(build.ProviderId, build.Model)) return null;
+        if (AgentCliAdapter.All.Any(a => a.ProviderId == ProviderId)) return null;
+
+        var model = Env("HYPERION_VISION_MODEL") ?? ProviderId switch
+        {
+            "nvidia" => "meta/llama-3.2-90b-vision-instruct",
+            "openrouter" or "openrouter-raw" => "google/gemma-4-31b-it:free",
+            _ => null,
+        };
+
+        return model is null || string.IsNullOrWhiteSpace(key)
+            ? null
+            : new OpenAiCompatibleCodegenClient(http, ProviderId, (Env("HYPERION_PROVIDER_NAME") ?? ProviderName) + " (vision)", BaseUrl, model, key);
     }
 
     private static int? Count(string? value) => int.TryParse(value, out var parsed) && parsed > 0 ? parsed : null;

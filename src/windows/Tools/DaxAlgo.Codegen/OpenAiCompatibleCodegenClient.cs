@@ -152,11 +152,11 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         HttpResponseMessage? resp = null;
         string? failure = null;
 
-        // The body of a 500 that had to be read to classify it. A streamed body can be read once, so
-        // the final failure message reuses it rather than reading it again.
+        // The body of a 500 or a 429 that had to be read to classify it. A streamed body can be read
+        // once, so the final failure message reuses it rather than reading it again.
         string? refusal = null;
 
-        for (var attempt = 0; attempt < MaxAttempts; attempt++)
+        for (var attempt = 0; attempt < MaxRateLimitAttempts; attempt++)
         {
             resp?.Dispose();
             refusal = null;
@@ -170,14 +170,18 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
             var status = (int)resp.StatusCode;
             var upstream = false;
-            if (status == 500)
+            if (status == 500 || IsRateLimited(status))
             {
                 refusal = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                upstream = IsUpstreamFailure(refusal);
+                upstream = status == 500 && IsUpstreamFailure(refusal);
             }
 
-            if (!upstream && !IsTransientGatewayFailure(status) && !IsRateLimited(status)) break;
-            if (attempt == MaxAttempts - 1) break;
+            // A rate limit is waited out on its own, longer budget; a spent DAILY quota is not a rate
+            // limit at all — no wait inside a generation refills it — so it fails at once and says so.
+            var limited = IsRateLimited(status) && !IsQuotaExhausted(refusal);
+
+            if (!upstream && !IsTransientGatewayFailure(status) && !limited) break;
+            if (attempt >= (limited ? MaxRateLimitAttempts : MaxAttempts) - 1) break;
 
             yield return new CodegenEvent.TextDelta(string.Empty);   // keeps the turn visibly alive
 
@@ -300,7 +304,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                     $"{DisplayName} reached its output limit ({usage.OutputTokens:N0} tokens) in the middle of "
                     + "writing a file, so the reply was cut off and nothing partial is kept. Most of that limit "
                     + "usually goes on reasoning: lower the reasoning effort, or split what this file has to do.")
-                    with { Usage = usage });
+                    with { Usage = usage, Partial = text.ToString() });
                 yield break;
             }
 
@@ -446,7 +450,8 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
             messages.Add(WireMessage.From(m));
 
         var body = new ChatRequest(
-            _model, messages, Temperature: 0.2, ReasoningEffort: ReasoningEffort(),
+            _model, messages, Temperature: 0.2, ReasoningEffort: ReasoningEffort(request.Effort ?? _effort),
+            MaxTokens: AiModelCatalog.MaxOutputTokens(ProviderId, _model),
             Stream: stream ? true : null,
             StreamOptions: stream ? new WireStreamOptions(true) : null);
 
@@ -560,9 +565,36 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// short enough not to be noticed. 2 seconds, then 4.</summary>
     internal static TimeSpan UpstreamBackoff(int attempt) => TimeSpan.FromSeconds(Math.Pow(2d, attempt + 1));
 
-    /// <summary>Attempts before giving up. Three rather than two because two of them can now be spent
-    /// waiting out a rate limit, and a limit that clears in a minute should not cost the generation.</summary>
+    /// <summary>Attempts before giving up on a dropped gateway connection or an upstream failure.</summary>
     internal const int MaxAttempts = 3;
+
+    /// <summary>
+    /// Attempts before giving up on a rate limit: seven waits, about four minutes without a
+    /// <c>Retry-After</c>.
+    ///
+    /// <para><b>A shared free pool is not cleared in six seconds.</b> Measured 2026-09-18 on OpenRouter's
+    /// free Qwen 3.8 27B: "temporarily rate-limited upstream" answered every request for minutes at a time,
+    /// then served one — and the run that met it gave up after its three attempts, 2 s and 4 s apart,
+    /// seven seconds after it started. The same budget as a dropped connection was the wrong budget.</para>
+    /// </summary>
+    internal const int MaxRateLimitAttempts = 8;
+
+    /// <summary>The wait before retrying a rate limit that named none: 5, 10, 20, 40, then 60 seconds.</summary>
+    internal static TimeSpan RateLimitBackoff(int attempt) =>
+        TimeSpan.FromSeconds(Math.Min(60d, 5d * Math.Pow(2d, attempt)));
+
+    /// <summary>
+    /// Whether a 429 says a quota is SPENT rather than that requests are too fast: OpenRouter's
+    /// <c>free-models-per-day</c>, OpenAI's <c>insufficient_quota</c>, Gemini's <c>…PerDay…</c> metrics.
+    /// Retrying those for minutes only delays the message the user needs.
+    /// </summary>
+    internal static bool IsQuotaExhausted(string? body) =>
+        body is not null
+        && (body.Contains("per-day", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("per day", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("PerDay", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("insufficient_quota", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("exceeded your current quota", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// How long to wait before trying again.
@@ -583,7 +615,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         var asked =
             after?.Delta
             ?? (after?.Date is { } date ? (TimeSpan?)(date - DateTimeOffset.UtcNow) : null)
-            ?? TimeSpan.FromSeconds(Math.Pow(2d, attempt + 1));   // 2s, then 4s
+            ?? RateLimitBackoff(attempt);
 
         return asked <= TimeSpan.Zero ? TimeSpan.Zero
             : asked > MaxRetryWait ? MaxRetryWait
@@ -591,7 +623,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     }
 
     /// <summary>The longest this will wait on one attempt.</summary>
-    internal static readonly TimeSpan MaxRetryWait = TimeSpan.FromSeconds(30d);
+    internal static readonly TimeSpan MaxRetryWait = TimeSpan.FromSeconds(90d);
 
     private static string Trim(string s) => s.Length <= 300 ? s : s[..300] + "…";
 
@@ -620,6 +652,17 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
                  + "request, the key or the model id: try again later, or pick another model.";
         }
 
+        // A SPENT QUOTA AND A BUSY POOL are both 429 and need opposite advice: one resets tomorrow, the
+        // other has already been waited on for minutes.
+        if (IsRateLimited(status))
+        {
+            return IsQuotaExhausted(body)
+                ? " — the key's DAILY quota for this model is used up; waiting will not help until it resets. "
+                  + "Use another key, a model outside the free tier, or come back after the reset."
+                : $" — still rate-limited after {MaxRateLimitAttempts - 1} waits (about four minutes). The "
+                  + "provider's pool for this model is saturated: try again later, or pick another model.";
+        }
+
         // AN ACCOUNT ANSWER, NOT A KEY ANSWER. Measured on OpenCode Zen, 2026-09-17: a valid key returns
         // 401 CreditsError ("No payment method") for every paid model and 403 FreeTierError ("can only be
         // used from within OpenCode") for the free ones. Both used to end in "check the API key", which
@@ -629,6 +672,17 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         {
             return " — the key is fine; the ACCOUNT has no credit or payment method for this model. Add one "
                  + "with the provider, or pick a model your plan covers.";
+        }
+
+        // A MODEL RESTRICTED TO SOMEBODY ELSE'S APPS. Measured on OpenRouter, 2026-09-19: 403 "…:free is
+        // only available on agentic harnesses. Try plugging it into a coding agent or productivity app
+        // listed on openrouter.ai/apps". It fell through to "check the API key" — for a key that had
+        // just served a different model.
+        if (body.Contains("only available on", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("agentic harness", StringComparison.OrdinalIgnoreCase))
+        {
+            return " — the key is fine; this model is restricted to the provider's own listed apps and "
+                 + "cannot be used from here. Pick another model.";
         }
 
         if (body.Contains("FreeTierError", StringComparison.OrdinalIgnoreCase))
@@ -669,11 +723,11 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// <summary>OpenAI's <c>reasoning_effort</c> takes low/medium/high only, so the two Anthropic-only
     /// levels clamp to high. Null (the "Default" pick, or a provider with no effort knob) omits the field
     /// entirely — a server that doesn't know it would reject the request.</summary>
-    private string? ReasoningEffort()
+    private string? ReasoningEffort(CodegenEffort effort)
     {
-        if (!AiModelCatalog.SupportsEffort(ProviderId)) return null;
+        if (!AiModelCatalog.SupportsEffort(ProviderId, _model)) return null;
 
-        return _effort switch
+        return effort switch
         {
             CodegenEffort.Low => "low",
             CodegenEffort.Medium => "medium",
@@ -730,6 +784,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         [property: JsonPropertyName("messages")] IReadOnlyList<WireMessage> Messages,
         [property: JsonPropertyName("temperature")] double Temperature,
         [property: JsonPropertyName("reasoning_effort"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReasoningEffort = null,
+        [property: JsonPropertyName("max_tokens"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? MaxTokens = null,
         [property: JsonPropertyName("stream"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Stream = null,
         [property: JsonPropertyName("stream_options"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WireStreamOptions? StreamOptions = null);
     private sealed record WireStreamOptions([property: JsonPropertyName("include_usage")] bool IncludeUsage);

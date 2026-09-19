@@ -63,6 +63,19 @@ public static class AiModelCatalog
     /// OpenAI-compatible APIs do; a provider that doesn't simply ignores the picker (we never send a
     /// parameter it would reject).
     /// </summary>
+    public static bool SupportsEffort(string providerId, string? model) =>
+        SupportsEffort(providerId)
+        || (providerId.Equals("nvidia", StringComparison.OrdinalIgnoreCase)
+            && NimEffortModels.Any(m => (model ?? string.Empty).Contains(m, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>
+    /// NVIDIA NIM models measured to take <c>reasoning_effort</c> and still answer — 2026-09-19, DeepSeek
+    /// V4 Flash, Nemotron 3 Ultra and GLM 5.3 / 5.3 Flash each took "low" and "high"; Kimi K3 takes it
+    /// too. The gateway as a whole stays off: whether the field is read depends on the model behind it.
+    /// </summary>
+    private static readonly string[] NimEffortModels = ["deepseek-v4", "nemotron-3", "glm-5.3", "kimi-k3"];
+
+    /// <summary>Whether the provider as a whole takes a reasoning-effort setting.</summary>
     public static bool SupportsEffort(string providerId) => providerId.ToLowerInvariant() switch
     {
         "anthropic" or "claude-cli" or "openai" or "xai" or "openrouter" => true,
@@ -180,6 +193,14 @@ public static class AiModelCatalog
     {
         var id = (model ?? string.Empty).ToLowerInvariant();
 
+        // A MODEL THAT SAYS IT SEES, on any gateway. Checked first, because the text-only families below
+        // ship vision variants ("deepseek-v4-flash-vision-exp") and a gateway that fronts several vendors
+        // is only text-only for the models that are. Measured 2026-09-19: NVIDIA NIM serves Llama 3.2
+        // Vision, Gemma 4 and Nemotron Omni, and every NIM run judged its picture with nothing because
+        // the whole gateway was ruled out.
+        if (VisionMarkers.Any(marker => id.Contains(marker, StringComparison.Ordinal)))
+            return true;
+
         // Text-only families, whichever gateway they arrive through. Named before the provider check
         // because a vision-capable provider can still be pointed at one of these.
         if (id.Contains("deepseek", StringComparison.Ordinal)
@@ -203,6 +224,29 @@ public static class AiModelCatalog
             _ => false,
         };
     }
+
+    /// <summary>Substrings that mark a model id as image-reading, whoever serves it.</summary>
+    private static readonly string[] VisionMarkers =
+    [
+        "vision", "-vl", "vl-", "omni", "gemma-3-4b", "gemma-3-12b", "gemma-3-27b", "gemma-4", "pixtral", "llava",
+        "neva-", "/vila", "kosmos",
+    ];
+
+    /// <summary>
+    /// The <c>max_tokens</c> to send, or null to leave the provider's own default.
+    ///
+    /// <para><b>A gateway's default can be too small to answer in.</b> Measured 2026-09-19 on NVIDIA NIM:
+    /// sent no cap, DeepSeek V4 Flash at a high effort spent the default on reasoning in under four minutes
+    /// and never began its plan, and Nemotron 3 Ultra's page builder came back empty five times. The same
+    /// calls with 131,072 answered. OpenRouter and the vendors' own APIs already default to the model's
+    /// maximum, so nothing is sent there — a number above a model's ceiling is a refusal.</para>
+    /// </summary>
+    public static int? MaxOutputTokens(string providerId, string? model) =>
+        providerId.ToLowerInvariant() switch
+        {
+            "nvidia" => 131_072,
+            _ => null,
+        };
 
     /// <summary>
     /// The sentence to show when a picture cannot be shown to the model that is selected, or null when

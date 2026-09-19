@@ -139,6 +139,7 @@ public sealed class SwarmRunner(
         // description of a run that never got as far as deciding anything else.
         var plan = BuildPlan.Single(request.Brief, request.Kind);
         var origin = PlanOrigin.Planned;
+        IReadOnlyList<StrategyFile> seed = [];
 
         try
         {
@@ -146,7 +147,7 @@ public sealed class SwarmRunner(
 
             if (request.Plan is { } resumed)
             {
-                (plan, origin) = (resumed, PlanOrigin.Planned);
+                (plan, origin) = (resumed.WithPageOwnership(), PlanOrigin.Planned);
             }
             else
             {
@@ -167,9 +168,20 @@ public sealed class SwarmRunner(
                         planned.Asked ?? string.Empty, PlannerNote: planned.Asked);
 
                 note = planned.Asked;
+                seed = planned.Seed ?? [];
             }
 
             progress?.Report(new SwarmEvent.Planned(plan, origin));
+
+            // The planner's own files, when it wrote the unit instead of planning it: the fallback task
+            // starts from them and is not asked again. See PlanAsync.
+            var seeded = new HashSet<string>(StringComparer.Ordinal);
+            if (seed.Count > 0 && plan.Tasks is [{ OwnsAllFiles: true } fallback] && context.Accept(fallback, seed))
+            {
+                seeded.Add(fallback.Id);
+                progress?.Report(new SwarmEvent.TaskFinished(
+                    fallback, true, CodegenUsage.None, "taken from the planner's reply", context.Files));
+            }
 
             // ── build ───────────────────────────────────────────────────────────────────────────────
             foreach (var milestone in plan.Milestones)
@@ -179,8 +191,11 @@ public sealed class SwarmRunner(
 
                 foreach (var layer in Layers(milestone.Tasks))
                 {
+                    var unbuilt = layer.Where(t => !seeded.Contains(t.Id)).ToArray();
+                    if (unbuilt.Length == 0) continue;
+
                     await FanOutAsync(
-                        layer,
+                        unbuilt,
                         task => BuildOneAsync(task, plan, context, request, isRepair: false, [], events, progress, ct),
                         request.Budget.MaxParallel,
                         ct,
@@ -423,8 +438,10 @@ public sealed class SwarmRunner(
 
     // ── the planner ─────────────────────────────────────────────────────────────────────────────
 
+    /// <param name="Seed">The files a planner wrote instead of a plan, which the fallback task starts from.</param>
     private sealed record Planned(
-        BuildPlan Plan, PlanOrigin Origin, CodegenUsage Usage, string? Error, string? Asked = null);
+        BuildPlan Plan, PlanOrigin Origin, CodegenUsage Usage, string? Error, string? Asked = null,
+        IReadOnlyList<StrategyFile>? Seed = null);
 
     /// <summary>
     /// Asks for a plan, and accepts a worse one rather than failing.
@@ -440,6 +457,9 @@ public sealed class SwarmRunner(
         var messages = request.Thread is { Count: > 0 } thread
             ? [.. thread]
             : new List<CodegenMessage> { new(CodegenRole.User, request.Brief) };
+
+        // The latest files a planner wrote in place of a plan. See the fallback at the end.
+        IReadOnlyList<StrategyFile> written = [];
 
         for (var attempt = 1; attempt <= 2; attempt++)
         {
@@ -479,6 +499,7 @@ public sealed class SwarmRunner(
             // failure rather than a question, so it earns one reminder and then the single-file plan —
             // which is the shape it was trying to produce anyway.
             var wroteCode = CodegenCodeExtractor.ExtractUnitFiles(response.RawText).Count > 0;
+            if (wroteCode && _dialect.FilesIn(response) is { Count: > 0 } files) written = files;
 
             if (!wroteCode && request.MayAsk)
                 return new Planned(
@@ -498,9 +519,16 @@ public sealed class SwarmRunner(
             }
         }
 
+        // WHAT THE PLANNER WROTE IS THE FIRST DRAFT, NOT WASTE. A planner that answers with the whole unit
+        // has already produced what the fallback task is about to be asked for. Measured 2026-09-18 on
+        // OpenRouter's free DeepSeek V4 Flash with a detailed footprint brief: both planner attempts
+        // returned the complete unit and page, 32 KB, and both were discarded — the fallback builder then
+        // started again from nothing, one call and ten minutes later. The gate judges the draft as it
+        // would a builder's reply, and the repair round, which carries the cards, fixes what it rejects.
         return new Planned(
             BuildPlan.Single(request.Brief, request.Kind), PlanOrigin.Unparsed, usage, null,
-            messages.LastOrDefault(m => m.Role == CodegenRole.Assistant)?.Content);
+            messages.LastOrDefault(m => m.Role == CodegenRole.Assistant)?.Content,
+            Seed: written);
     }
 
     /// <summary>
@@ -531,7 +559,8 @@ public sealed class SwarmRunner(
             .Where(m => m.Tasks.Count > 0)
             .ToArray();
 
-        return plan with { Milestones = kept };
+        // A page module cut from the budget hands its file back to the shell.
+        return (plan with { Milestones = kept }).WithPageOwnership();
     }
 
     // ── one builder turn ────────────────────────────────────────────────────────────────────────
@@ -611,14 +640,55 @@ public sealed class SwarmRunner(
             else if (evt is CodegenEvent.UsageUpdate) events?.Report(evt);
         });
 
+        var opening = new CodegenMessage(CodegenRole.User, message);
         var (response, reported) = await CodegenStream.DrainAsync(
             _client,
-            new StrategyCodegenRequest(
-                request.SharedContext,
-                [new CodegenMessage(CodegenRole.User, message)],
-                instruction),
+            new StrategyCodegenRequest(request.SharedContext, [opening], instruction),
             beat,
             ct).ConfigureAwait(false);
+
+        // CUT OFF MID-FILE: ASK FOR THE REST. Measured 2026-09-19 on NVIDIA NIM's GLM 5.3 Flash: a page
+        // reply stopped inside its stylesheet with no finish reason at all, the half-written block parsed
+        // as nothing, and the script it was about to write never existed. The text written so far is the
+        // expensive part; the model is shown it and asked to carry on from the last character.
+        var total = reported;
+        var partial = response.Success
+            ? (OpenAiCompatibleCodegenClient.IsCutMidBlock(response.RawText ?? string.Empty) ? response.RawText : null)
+            : response.Partial;
+
+        var lastRecorded = false;
+        for (var more = 0; partial is { Length: > 0 } && more < MaxContinuations; more++)
+        {
+            Record(task.Kind.ToString(), task.Id, reported, answered: response.Success);
+            progress?.Report(new SwarmEvent.TaskProgress(task, thinking, written, billed));
+
+            var continued = new StrategyCodegenRequest(
+                request.SharedContext,
+                [opening, new CodegenMessage(CodegenRole.Assistant, partial), new CodegenMessage(CodegenRole.User, ContinuePrompt)],
+                instruction);
+
+            (response, reported) = await CodegenStream.DrainAsync(_client, continued, beat, ct).ConfigureAwait(false);
+            total = total.Add(reported);
+
+            var piece = response.Success ? response.RawText : response.Partial;
+            if (string.IsNullOrEmpty(piece))
+            {
+                // The continuation itself failed. What was written before it still holds every file it
+                // finished, and those are kept rather than thrown away with the failure.
+                Record(task.Kind.ToString(), task.Id, reported, answered: false);
+                lastRecorded = true;
+                response = StrategyCodegenResponse.Ok(CodegenCodeExtractor.ExtractFiles(partial), partial, total);
+                break;
+            }
+
+            var stitched = Stitch(partial, piece);
+            var stillCut = response.Success ? OpenAiCompatibleCodegenClient.IsCutMidBlock(stitched) : response.Partial is not null;
+            response = StrategyCodegenResponse.Ok(CodegenCodeExtractor.ExtractFiles(stitched), stitched, total) with
+            {
+                Partial = stillCut ? stitched : null,
+            };
+            partial = stillCut ? stitched : null;
+        }
 
         // RECORDED BEFORE IT RETURNS. This row used to be written only for a reply that came back, so a
         // builder that reasoned through its whole budget — the costliest turn a run has — left no trace
@@ -626,15 +696,61 @@ public sealed class SwarmRunner(
         if (!response.Success)
         {
             Record(task.Kind.ToString(), task.Id, reported, answered: false);
-            return new TaskResult([], reported, response.Error ?? "The provider returned nothing.");
+            return new TaskResult([], total, response.Error ?? "The provider returned nothing.");
         }
 
         // Which parts of the reply are files is the dialect's call: prose in a fence is never code, and a
         // Blocks unit's page is code that is not C#.
         var files = _dialect.FilesIn(response);
 
-        Record(task.Kind.ToString(), task.Id, reported, files: files.Count);
-        return new TaskResult(files, reported, null);
+        if (!lastRecorded) Record(task.Kind.ToString(), task.Id, reported, files: files.Count);
+        return new TaskResult(files, total, null);
+    }
+
+    /// <summary>How many times one builder turn may be continued after being cut off.</summary>
+    internal const int MaxContinuations = 2;
+
+    private const string ContinuePrompt =
+        "Your reply was cut off by the output limit in the middle of a file. Continue EXACTLY from the "
+        + "last character you wrote: no preamble, no apology, nothing repeated, and do not reopen the code "
+        + "block — your next characters continue inside it. Finish that file, close its block, then write "
+        + "any of your files that are still missing, each in its own complete block.";
+
+    /// <summary>
+    /// Joins a cut-off reply and its continuation.
+    ///
+    /// <para>A model asked to carry on usually does — but sometimes it reopens the block, and sometimes it
+    /// starts the whole file again. A continuation that opens a fence naming the same file as the open one
+    /// is a restart, and replaces the half-written block; one that merely reopens a fence has that line
+    /// dropped; anything else is appended as it came.</para>
+    /// </summary>
+    internal static string Stitch(string partial, string continuation)
+    {
+        if (!OpenAiCompatibleCodegenClient.IsCutMidBlock(partial)) return partial + continuation;
+
+        var open = partial.LastIndexOf("```", StringComparison.Ordinal);
+        var lead = continuation.TrimStart();
+        if (!lead.StartsWith("```", StringComparison.Ordinal)) return partial + continuation;
+
+        var firstLineEnd = lead.IndexOf('\n');
+        var afterFence = firstLineEnd < 0 ? string.Empty : lead[(firstLineEnd + 1)..];
+
+        var openHeader = HeaderAfter(partial[open..]);
+        var newHeader = HeaderAfter(lead);
+
+        return openHeader is not null && string.Equals(openHeader, newHeader, StringComparison.OrdinalIgnoreCase)
+            ? partial[..open] + lead
+            : partial + afterFence;
+    }
+
+    /// <summary>The file a fenced block names on its first content line, or null.</summary>
+    private static string? HeaderAfter(string fenced)
+    {
+        var lines = fenced.Split('\n', 3);
+        if (lines.Length < 2) return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(lines[1], @"file:\s*([\w./\\-]+)");
+        return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 
     // ── a file nobody owns, that nobody can fix ─────────────────────────────────────────────────
@@ -727,14 +843,14 @@ public sealed class SwarmRunner(
             .ToArray();
 
         // By ownership rather than by exact name, so a finding in a page's script reaches whoever owns
-        // the page.
+        // that script — the module's own task when the page is split, the shell otherwise.
         var named = all
             .Select(f => f.File)
             .Where(f => f is { Length: > 0 })
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(file => tasks.FirstOrDefault(t =>
-                string.Equals(t.OwnedFile, file, StringComparison.OrdinalIgnoreCase)
-                || (t.OwnsPage && CodegenCodeExtractor.IsPageFile(file))))
+            .Select(file =>
+                tasks.FirstOrDefault(t => string.Equals(t.OwnedFile, file, StringComparison.OrdinalIgnoreCase))
+                ?? tasks.FirstOrDefault(t => t.Owns(file!)))
             .Where(t => t is not null)
             .Select(t => t!)
             .ToArray();
@@ -777,8 +893,12 @@ public sealed class SwarmRunner(
         // asked. Measured on the opening-range brief: three rounds against the same
         // "'130' and '130' are drawn on top of each other", the two panel builders rewriting
         // themselves each time, and the panel named in the finding belonging to the kernel.
-        if (drawing && tasks.Any(t => t.Kind is TaskKind.Panel or TaskKind.Signal or TaskKind.Ui))
-            return [.. tasks.Where(t => t.Kind is TaskKind.Panel or TaskKind.Signal or TaskKind.Ui)];
+        // A split page's modules are left out: a picture finding that names no file is about the page as
+        // a whole, which is the shell's, and a critic that meant one module names its file.
+        bool Paints(BuildTask t) => t.Kind is TaskKind.Panel or TaskKind.Signal || (t.Kind is TaskKind.Ui && !t.PageModuleOnly);
+
+        if (drawing && tasks.Any(Paints))
+            return [.. tasks.Where(Paints)];
 
         return [tasks.FirstOrDefault(t => t.Kind == TaskKind.Signal) ?? tasks[0]];
     }

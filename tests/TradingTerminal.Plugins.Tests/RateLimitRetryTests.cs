@@ -100,6 +100,61 @@ public sealed class RateLimitRetryTests
         OpenAiCompatibleCodegenClient.RetryAfter(response, attempt: 0).Should().Be(TimeSpan.Zero);
     }
 
+    // ── a shared free pool, and a spent daily quota ─────────────────────────────────────────────
+
+    private const string PoolBusy =
+        """{"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"qwen/qwen3.8-27b:free is temporarily rate-limited upstream. Please retry shortly"}}}""";
+
+    private const string DailyQuota =
+        """{"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day","code":429}}""";
+
+    [Fact]
+    public async Task ASaturatedPoolIsWaitedOutLongerThanADroppedConnection()
+    {
+        // Measured 2026-09-18: a free pool refused for minutes, and the run gave up after three attempts in
+        // seven seconds. Five refusals then an answer is now an answer. (Retry-After: 0 keeps the test fast.)
+        var handler = new Replies(
+            () => Busy(), () => Busy(), () => Busy(), () => Busy(), () => Busy(),
+            () => Reply(HttpStatusCode.OK, "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\ndata: [DONE]\n\n"));
+
+        var response = await Drain(handler);
+
+        response.Success.Should().BeTrue();
+        response.RawText.Should().Be("hello");
+        handler.Sent.Should().Be(6, "more than the three attempts a dropped connection gets");
+    }
+
+    [Fact]
+    public async Task ASpentDailyQuotaFailsAtOnceAndSaysSo()
+    {
+        var handler = new Replies(() => Reply((HttpStatusCode)429, DailyQuota));
+
+        var response = await Drain(handler);
+
+        response.Success.Should().BeFalse();
+        handler.Sent.Should().Be(1, "no wait inside a generation refills a daily quota");
+        response.Error.Should().Contain("DAILY quota");
+    }
+
+    [Fact]
+    public void WithNoHeaderTheWaitGrowsToAMinuteAndStopsThere()
+    {
+        using var response = Limited();
+
+        OpenAiCompatibleCodegenClient.RetryAfter(response, attempt: 0).Should().Be(TimeSpan.FromSeconds(5d));
+        OpenAiCompatibleCodegenClient.RetryAfter(response, attempt: 3).Should().Be(TimeSpan.FromSeconds(40d));
+        OpenAiCompatibleCodegenClient.RetryAfter(response, attempt: 6).Should().Be(TimeSpan.FromSeconds(60d));
+        OpenAiCompatibleCodegenClient.IsQuotaExhausted(PoolBusy).Should().BeFalse();
+        OpenAiCompatibleCodegenClient.IsQuotaExhausted(DailyQuota).Should().BeTrue();
+    }
+
+    private static HttpResponseMessage Busy()
+    {
+        var busy = Reply((HttpStatusCode)429, PoolBusy);
+        busy.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.Zero);
+        return busy;
+    }
+
     // ── a gateway's upstream failure, reported as a 500 ─────────────────────────────────────────
 
     private const string UpstreamFailed =

@@ -310,7 +310,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         }
 
         var packFile = Prepare(request);
-        var psi = ProcessFor(exe, stream: true, packFile);
+        var psi = ProcessFor(exe, stream: true, packFile, request.Effort);
         using var process = new Process { StartInfo = psi };
 
         if (!process.Start())
@@ -444,7 +444,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             : StrategyCodegenResponse.Ok(files, text, usage);
     }
 
-    internal ProcessStartInfo ProcessFor(string exe, bool stream, string? systemPromptFile = null)
+    internal ProcessStartInfo ProcessFor(string exe, bool stream, string? systemPromptFile = null, CodegenEffort? effort = null)
     {
         var psi = new ProcessStartInfo(exe)
         {
@@ -469,7 +469,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
             // that could not be created is not a reason to fail the generation.
             WorkingDirectory = Directory.Exists(WorkingDirectory) ? WorkingDirectory : string.Empty,
         };
-        foreach (var arg in _adapter.ArgumentsFor(_model, _effort, stream, _cliProfile, systemPromptFile))
+        foreach (var arg in _adapter.ArgumentsFor(_model, effort ?? _effort, stream, _cliProfile, systemPromptFile))
             psi.ArgumentList.Add(arg);
         return psi;
     }
@@ -483,7 +483,7 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         var packFile = Prepare(request);
         var prompt = FlattenPrompt(request, includeSystemContext: packFile is null);
 
-        using var process = new Process { StartInfo = ProcessFor(exe, stream: false, packFile) };
+        using var process = new Process { StartInfo = ProcessFor(exe, stream: false, packFile, request.Effort) };
         try
         {
             if (!process.Start())
@@ -713,13 +713,38 @@ public sealed class AgentCliCodegenClient : IStrategyCodegenClient
         return sb.ToString();
     }
 
-    /// <summary>A non-zero exit, explained. An unknown option means the installed CLI predates a flag
-    /// this client sends, and "update it" is the whole of the fix.</summary>
-    private string ExitFailure(int exitCode, string stderr) =>
-        $"{_adapter.DisplayName} exited {exitCode}: {Trim(stderr)}"
-        + (stderr.Contains("unknown option", StringComparison.OrdinalIgnoreCase)
-            ? $" — the installed {_adapter.Executable} is older than this app expects; update it."
-            : string.Empty);
+    /// <summary>
+    /// A non-zero exit, explained. An unknown option means the installed CLI predates a flag this client
+    /// sends, and "update it" is the whole of the fix.
+    ///
+    /// <para><b>The reason comes LAST.</b> A CLI prints its banner, its settings and an echo of the prompt
+    /// before the line that says why it stopped. Measured 2026-09-19 on Codex: every failure read
+    /// "exited 1: OpenAI Codex v0.151.0 -------- workdir: …" and the actual "ERROR: You've hit your usage
+    /// limit … try again at Oct 14th" was cut off by the 300-character trim, so four repair rounds were
+    /// spent on an account that could not answer.</para>
+    /// </summary>
+    private string ExitFailure(int exitCode, string stderr)
+    {
+        var reason = ErrorLines(stderr) is { Length: > 0 } errors ? string.Join(" ", errors) : stderr;
+
+        return $"{_adapter.DisplayName} exited {exitCode}: {Trim(reason)}"
+            + (stderr.Contains("unknown option", StringComparison.OrdinalIgnoreCase)
+                ? $" — the installed {_adapter.Executable} is older than this app expects; update it."
+                : stderr.Contains("usage limit", StringComparison.OrdinalIgnoreCase)
+                    ? " — the CLI's plan has used up its allowance; wait for the reset it names, or use another provider."
+                    : string.Empty);
+    }
+
+    /// <summary>The lines a CLI marks as its error, last ones kept, without repeats.</summary>
+    internal static string[] ErrorLines(string output) =>
+        [.. (output ?? string.Empty)
+            .Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase)
+                           || line.StartsWith("Error:", StringComparison.Ordinal)
+                           || line.StartsWith("fatal:", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.Ordinal)
+            .TakeLast(2)];
 
     private static async Task<string> DrainAsync(Task<string> stderr)
     {

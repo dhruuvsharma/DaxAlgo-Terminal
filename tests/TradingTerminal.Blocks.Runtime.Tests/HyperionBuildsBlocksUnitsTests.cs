@@ -59,6 +59,30 @@ public sealed class HyperionBuildsBlocksUnitsTests
     }
 
     [Fact]
+    public void An_unplanned_task_is_sent_the_blocks_its_brief_names_and_a_visualizer_never_the_trading_ones()
+    {
+        // Measured 2026-09-18: a footprint brief naming TradeClassifier, FootprintTimeBucketer and the
+        // instruments block fell back to the single-file plan and its builder was sent none of those
+        // cards — six repair rounds guessing their APIs. The brief also said the unit must never use the
+        // orders block, which a word match alone would have read as asking for it.
+        const string brief = """
+            Read the tick size from the instruments block. Classify prints with TradeClassifier and bucket
+            them with FootprintTimeBucketer. It is a visualizer: it never uses the orders block.
+            """;
+
+        var dialect = new BlocksSwarmDialect();
+        var visualizer = BuildPlan.Single(brief, AuthoringKind.Visualizer);
+        var strategy = BuildPlan.Single(brief, AuthoringKind.Strategy);
+
+        dialect.BlocksFor(visualizer.Tasks[0], visualizer).Should()
+            .Contain(["unit", "settings", "market", "schedule", "ui", "instruments", "math.orderflow"])
+            .And.NotContain("orders").And.NotContain("portfolio").And.NotContain("math.regression");
+        dialect.BlocksFor(strategy.Tasks[0], strategy).Should().Contain(["instruments", "math.orderflow", "orders", "portfolio"]);
+
+        BlockCatalog.Load().Mentioned("a plain spread between two legs").Should().NotContain("math.orderflow");
+    }
+
+    [Fact]
     public void The_contract_carries_the_messages_both_builders_meet_through()
     {
         var plan = SpreadPlan();
@@ -151,6 +175,40 @@ public sealed class HyperionBuildsBlocksUnitsTests
             }
             """)]);
         escapes.Report.FailedAt.Should().Be(VerificationRung.Policy);
+    }
+
+    [Fact]
+    public async Task A_member_that_does_not_exist_is_answered_with_the_ones_that_do()
+    {
+        // Measured 2026-09-18: Settings.Enum, then Settings.Choice, then TradePrint.TimeUtc — a free model
+        // repairing "no such member" guessed another name for ten rounds. The finding now says what the
+        // type does have, for an SDK interface, an SDK record, and the unit's own class alike.
+        var gate = new BlocksGate(new BlocksUnitCompiler(), "gate");
+
+        var guessed = await gate.RunAsync([new StrategyFile("Guessed.cs", """
+            public sealed class Guessed : IUnit
+            {
+                public UnitInfo Info { get; } = new("Guessed", "", [StrategyParameter.Choice("mode", "Mode", "A", ["A", "B"])]);
+                public Task StartAsync(IUnitContext context, CancellationToken ct)
+                {
+                    var mode = context.Settings.Choice("mode");
+                    context.Market.OnTrade(context.Settings.Instrument("instrument"), t => { var at = t.TimeUtc; });
+                    Helper.Nope();
+                    var size = BarSize.S15;
+                    return Task.CompletedTask;
+                }
+            }
+
+            public static class Helper { public static void Real() { } }
+            """)]);
+
+        var messages = guessed.Report.Findings.Select(f => f.Message).ToArray();
+        messages.Should().Contain(m => m.Contains("'Choice'") && m.Contains("ISettings has:") && m.Contains("Text"));
+        messages.Should().Contain(m => m.Contains("'TimeUtc'") && m.Contains("TradePrint has:") && m.Contains("EventTimeUtc"));
+        messages.Should().Contain(m => m.Contains("'Nope'") && m.Contains("Helper has: Real."));
+        messages.Should().Contain(m => m.Contains("'S15'") && m.Contains("BarSize has: OneMinute,"))
+            .And.NotContain(m => m.Contains("CompareTo") || m.Contains("value__"), "an enum is its values");
+        messages.Should().NotContain(m => m.Contains("has:") && (m.Contains("GetHashCode") || m.Contains("Deconstruct")));
     }
 
     [Fact]

@@ -135,10 +135,19 @@ public sealed record CodegenUsage(int InputTokens, int OutputTokens, int CachedI
 ///
 /// <para>Null for a single-agent session, which is what the in-app builder still does.</para>
 /// </param>
+/// <param name="Effort">
+/// This call's reasoning effort, overriding the client's own. Null is the client's.
+///
+/// <para>For the one call that must answer rather than think: a critic whose reply is a few lines of
+/// JSON. Measured 2026-09-19 on NVIDIA NIM's DeepSeek V4 Flash at a high effort — a critic reasoned
+/// through the whole 131,072-token cap for fifty-five minutes and returned nothing, twice, so the unit
+/// that passed the gate was never reviewed at all. A client that has no effort setting ignores it.</para>
+/// </param>
 public sealed record StrategyCodegenRequest(
     string SystemContext,
     IReadOnlyList<CodegenMessage> Messages,
-    string? RoleInstruction = null);
+    string? RoleInstruction = null,
+    CodegenEffort? Effort = null);
 
 /// <summary>
 /// The outcome of one generation. <paramref name="Files"/> is the extracted C# — one entry per file the
@@ -160,6 +169,16 @@ public sealed record StrategyCodegenResponse(
     IReadOnlyList<StrategyFile>? Files = null,
     CodegenUsage? Usage = null)
 {
+    /// <summary>
+    /// What a reply that was CUT OFF had written before it stopped — on a failed response only.
+    ///
+    /// <para>A reply that hit its output limit inside a code block is a failure to the single
+    /// conversation, which has nothing to do with half a file. A swarm builder does: it can ask the model
+    /// to continue from where it stopped. Measured 2026-09-19: a page reply ended in the middle of its
+    /// stylesheet, and the half-written files were thrown away with it.</para>
+    /// </summary>
+    public string? Partial { get; init; }
+
     /// <summary>The generated files, never null — falls back to <see cref="Code"/> as a single file.</summary>
     public IReadOnlyList<StrategyFile> FileList => Files ?? (string.IsNullOrWhiteSpace(Code)
         ? []

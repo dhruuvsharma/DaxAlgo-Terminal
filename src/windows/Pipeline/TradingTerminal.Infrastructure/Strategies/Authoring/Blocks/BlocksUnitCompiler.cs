@@ -46,13 +46,23 @@ public sealed record BlocksCompileResult(
 /// </summary>
 public sealed class BlocksUnitCompiler
 {
-    /// <summary>Imported into every unit, so a missing using is never the reason a build fails.</summary>
+    /// <summary>
+    /// Imported into every unit, so a missing using is never the reason a build fails.
+    ///
+    /// <para><c>System.Text</c>, <c>System.Net.WebSockets</c> and <c>System.Globalization</c> joined on
+    /// 2026-09-19: the network block invites a WebSocket, a WebSocket needs <c>Encoding.UTF8</c>, and the
+    /// OpenRouter Nex N2.5 Pro run failed on <c>'Encoding' does not exist</c> in fourteen places. None of
+    /// their type names collides with a Blocks, Quant or Core type.</para>
+    /// </summary>
     public static IReadOnlyList<string> AmbientNamespaces { get; } =
     [
         "System",
         "System.Collections.Generic",
         "System.Linq",
+        "System.Globalization",
         "System.Net.Http",
+        "System.Net.WebSockets",
+        "System.Text",
         "System.Text.Json",
         "System.Threading",
         "System.Threading.Tasks",
@@ -120,7 +130,7 @@ public sealed class BlocksUnitCompiler
         var emit = compilation.Emit(image);
         diagnostics.AddRange(emit.Diagnostics
             .Where(d => d.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning)
-            .Select(Map));
+            .Select(d => Map(d, compilation)));
 
         if (!emit.Success) return new BlocksCompileResult(false, diagnostics, PageFiles: page);
 
@@ -260,17 +270,192 @@ public sealed class BlocksUnitCompiler
         return null;
     }
 
-    private static StrategyDiagnostic Map(Diagnostic diagnostic)
+    private static StrategyDiagnostic Map(Diagnostic diagnostic, Compilation compilation)
     {
         var span = diagnostic.Location.GetLineSpan();
         return new StrategyDiagnostic(
             diagnostic.Severity == DiagnosticSeverity.Error ? StrategyDiagnosticSeverity.Error : StrategyDiagnosticSeverity.Warning,
             diagnostic.Id,
-            diagnostic.GetMessage(),
+            diagnostic.GetMessage() + Hint(diagnostic, compilation),
             span.StartLinePosition.Line + 1,
             span.StartLinePosition.Character + 1,
             File: span.Path ?? string.Empty);
     }
+
+    /// <summary>
+    /// What the compiler's sentence leaves out: the right name, beside the wrong one.
+    ///
+    /// <para><b>Every one of these was a repair loop on 2026-09-18/19.</b> A model told only what is wrong
+    /// guesses again — <c>Settings.Enum</c> then <c>Settings.Choice</c>; <c>Trade</c> for
+    /// <c>TradePrint</c>; <c>using DaxAlgo.Blocks.Math</c> for a block called <c>math.orderflow</c>;
+    /// <c>LiquidationEvent</c> declared in two files by two builders. Each hint names the fix.</para>
+    /// </summary>
+    private static string Hint(Diagnostic diagnostic, Compilation compilation) => diagnostic.Id switch
+    {
+        "CS1061" or "CS0117" => RealMembers(diagnostic, compilation),
+        "CS0234" or "CS0246" when InUsing(diagnostic) is { } imported => NotANamespace(imported),
+        "CS0246" => SimilarTypes(diagnostic, compilation),
+        "CS0101" => DeclaredIn(diagnostic, compilation),
+        "CS0104" => " — the SDK already has a type with this name, and every SDK type is imported: rename "
+                    + "yours, or use the SDK's.",
+        _ => string.Empty,
+    };
+
+    /// <summary>The namespace a failing <c>using</c> names, or null when the error is not in one.</summary>
+    private static string? InUsing(Diagnostic diagnostic)
+    {
+        if (diagnostic.Location.SourceTree is not { } tree) return null;
+        var node = tree.GetRoot().FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
+        return node.AncestorsAndSelf().OfType<UsingDirectiveSyntax>().FirstOrDefault()?.Name?.ToString();
+    }
+
+    private static string NotANamespace(string imported) =>
+        imported.StartsWith("DaxAlgo", StringComparison.Ordinal) || imported.StartsWith("TradingTerminal", StringComparison.Ordinal)
+            ? " — block ids (market, math.orderflow …) are names of cards, not namespaces. Every Blocks, maths and "
+              + "market type is already imported: delete this using."
+            : " — delete this using; what a unit may call is already imported.";
+
+    /// <summary>
+    /// For "The type or namespace name 'Trade' could not be found": the imported types it was probably
+    /// meant to be — " — did you mean TradePrint, TradeSide?".
+    /// </summary>
+    private static string SimilarTypes(Diagnostic diagnostic, Compilation compilation)
+    {
+        if (QuotedName(diagnostic.GetMessage()) is not { Length: >= 3 } missing) return string.Empty;
+
+        var candidates = AmbientNamespaces
+            .Select(ns => ns.Split('.').Aggregate<string, INamespaceSymbol?>(
+                compilation.GlobalNamespace, (at, part) => at?.GetNamespaceMembers().FirstOrDefault(n => n.Name == part)))
+            .Where(ns => ns is not null && !ns.ToDisplayString().StartsWith("System", StringComparison.Ordinal))
+            .SelectMany(ns => ns!.GetTypeMembers())
+            .Where(t => t.DeclaredAccessibility == Microsoft.CodeAnalysis.Accessibility.Public)
+            .Select(t => (t.Name, Namespace: t.ContainingNamespace.ToDisplayString()))
+            .DistinctBy(t => t.Name, StringComparer.Ordinal)
+            .Select(t => (t.Name, Score: Similarity(missing, t.Name),
+
+                // Among equally close names, the market's own types and the blocks first: a unit asking
+                // for "Trade" wants the print it is handed, not a maths helper that shares a prefix.
+                Rank: t.Namespace is "TradingTerminal.Core.MarketData" or "DaxAlgo.Blocks" ? 0 : 1))
+            .Where(c => c.Score < int.MaxValue)
+            .OrderBy(c => c.Score)
+            .ThenBy(c => c.Rank)
+            .ThenBy(c => c.Name.Length)
+            .Take(4)
+            .Select(c => c.Name)
+            .ToArray();
+
+        return candidates.Length == 0
+            ? string.Empty
+            : $" — did you mean {string.Join(", ", candidates)}? Every Blocks, maths and market type is already imported.";
+    }
+
+    /// <summary>Lower is closer; <see cref="int.MaxValue"/> is unrelated.</summary>
+    internal static int Similarity(string missing, string candidate)
+    {
+        if (candidate.StartsWith(missing, StringComparison.OrdinalIgnoreCase)) return 0;
+        if (candidate.Contains(missing, StringComparison.OrdinalIgnoreCase)) return 1;
+        if (candidate.Length >= 4 && missing.Contains(candidate, StringComparison.OrdinalIgnoreCase)) return 2;
+
+        var distance = Levenshtein(missing.ToLowerInvariant(), candidate.ToLowerInvariant());
+        return distance <= 2 ? 2 + distance : int.MaxValue;
+    }
+
+    private static int Levenshtein(string a, string b)
+    {
+        var previous = new int[b.Length + 1];
+        var current = new int[b.Length + 1];
+        for (var j = 0; j <= b.Length; j++) previous[j] = j;
+
+        for (var i = 1; i <= a.Length; i++)
+        {
+            current[0] = i;
+            for (var j = 1; j <= b.Length; j++)
+                current[j] = Math.Min(Math.Min(current[j - 1] + 1, previous[j] + 1), previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+            (previous, current) = (current, previous);
+        }
+
+        return previous[b.Length];
+    }
+
+    /// <summary>
+    /// For "already contains a definition for 'LiquidationEvent'": every file that declares it, and what
+    /// to do about it.
+    /// </summary>
+    private static string DeclaredIn(Diagnostic diagnostic, Compilation compilation)
+    {
+        if (QuotedName(diagnostic.GetMessage(), last: true) is not { Length: > 0 } name) return string.Empty;
+
+        var files = compilation.GetSymbolsWithName(name, SymbolFilter.Type)
+            .SelectMany(s => s.Locations)
+            .Where(l => l.IsInSource)
+            .Select(l => l.SourceTree!.FilePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return files.Length < 2
+            ? string.Empty
+            : $" — '{name}' is declared in {string.Join(" and ", files)}. Keep ONE: a type belongs to the file the "
+              + "contract gives it; a small record only your file uses belongs NESTED inside your own class.";
+    }
+
+    /// <summary>The first (or last) 'quoted' name in a compiler message.</summary>
+    private static string? QuotedName(string message, bool last = false)
+    {
+        var matches = System.Text.RegularExpressions.Regex.Matches(message, "'([A-Za-z_][A-Za-z0-9_]*)'");
+        return matches.Count == 0 ? null : matches[last ? ^1 : 0].Groups[1].Value;
+    }
+
+    /// <summary>What a type does have, beside the compiler saying what it does not.</summary>
+    private static readonly HashSet<string> Boilerplate = new(StringComparer.Ordinal)
+    {
+        "Equals", "GetHashCode", "ToString", "GetType", "Deconstruct", "PrintMembers", "EqualityContract",
+    };
+
+    /// <summary>
+    /// For "'ISettings' does not contain a definition for 'Choice'" (CS1061, CS0117), the members the type
+    /// really has — " — ISettings has: Int, Number, Bool, Text, …" — or nothing.
+    ///
+    /// <para><b>A model repairing a missing member guesses another name.</b> Measured 2026-09-18 on the
+    /// free DeepSeek V4 Flash: <c>Settings.Enum</c>, then <c>Settings.Choice</c>, then
+    /// <c>TradePrint.TimeUtc</c> — ten repair rounds over two runs, with the settings card that names
+    /// <c>Text()</c> in the very prompt. The compiler's sentence says only what is wrong; the list says
+    /// what is right, for SDK types and the unit's own alike.</para>
+    /// </summary>
+    private static string RealMembers(Diagnostic diagnostic, Compilation compilation)
+    {
+        if (diagnostic.Id is not ("CS1061" or "CS0117") || diagnostic.Location.SourceTree is not { } tree)
+            return string.Empty;
+
+        var node = tree.GetRoot().FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
+        var receiver = node.AncestorsAndSelf().OfType<MemberAccessExpressionSyntax>().FirstOrDefault()?.Expression;
+        if (receiver is null) return string.Empty;
+
+        var model = compilation.GetSemanticModel(tree);
+        var type = model.GetTypeInfo(receiver).Type ?? model.GetSymbolInfo(receiver).Symbol as ITypeSymbol;
+        if (type is null or IErrorTypeSymbol) return string.Empty;
+
+        // An enum is its values. Everything else is itself, its bases and its interfaces — but not what
+        // .NET puts under every type (Object, ValueType, IComparable, IConvertible), which is noise here.
+        var owners = new List<ITypeSymbol> { type };
+        if (type.TypeKind != TypeKind.Enum)
+        {
+            owners.AddRange(type.AllInterfaces.Where(i => !IsDotNet(i)));
+            for (var b = type.BaseType; b is not null && !IsDotNet(b); b = b.BaseType) owners.Add(b);
+        }
+
+        var names = owners
+            .SelectMany(t => t.GetMembers())
+            .Where(m => m.DeclaredAccessibility == Microsoft.CodeAnalysis.Accessibility.Public && m.CanBeReferencedByName && !Boilerplate.Contains(m.Name))
+            .Select(m => m.Name)
+            .Distinct(StringComparer.Ordinal)
+            .Take(40)
+            .ToArray();
+
+        return names.Length == 0 ? string.Empty : $" — {type.Name} has: {string.Join(", ", names)}.";
+    }
+
+    private static bool IsDotNet(ITypeSymbol type) =>
+        type.ContainingNamespace?.ToDisplayString() is { } ns && (ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal));
 
     private static StrategyDiagnostic Error(string id, string message, string file = "") =>
         new(StrategyDiagnosticSeverity.Error, id, message, 0, 0, file);

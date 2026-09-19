@@ -77,7 +77,19 @@ public sealed class BlocksGate(
 
         var failures = findings.Where(f => f.Severity == DriveSeverity.Failure).ToArray();
         var lifecycle = failures.Where(f => !IsPage(f.Code)).Select(f => ToFinding(f, file: null)).ToArray();
-        var page = failures.Where(f => IsPage(f.Code)).Select(f => ToFinding(f, PageEntry)).ToArray();
+
+        // A page error names the page file it came from when the browser said which, so a fault in a
+        // module reaches whoever owns the module rather than whoever owns index.html. And a file the page
+        // loads that the unit does not have is a page failure whatever the probe saw: see PageAssets.
+        VerificationFinding[] page =
+        [
+            .. failures.Where(f => IsPage(f.Code)).Select(f => ToFinding(f, PageFileIn(f.Message) ?? PageEntry)),
+            .. PageAssets.Missing(pages).Select(m => new VerificationFinding(
+                "page.missing-file",
+                $"{m.From} loads '{m.Reference}', but {m.Path} is not one of the unit's files, so it never loads.",
+                $"Write {m.Path}, or stop loading it.",
+                m.Path)),
+        ];
 
         var verdict = new VerificationReport(
         [
@@ -130,6 +142,17 @@ public sealed class BlocksGate(
 
     private static bool IsPage(string code) =>
         code.StartsWith("page.", StringComparison.Ordinal) || code == "ui.never-sent";
+
+    /// <summary>The page file a probe message names — "(scene.js:42)" — as a unit file path, or null.</summary>
+    public static string? PageFileIn(string message)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(
+            message ?? string.Empty, @"\(([\w.\-/]+\.(?:m?js|html?|css)):\d+\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!match.Success) return null;
+
+        var leaf = match.Groups[1].Value.Replace('\\', '/').TrimStart('/');
+        return leaf.StartsWith("ui/", StringComparison.OrdinalIgnoreCase) ? leaf : "ui/" + leaf;
+    }
 
     // ui.never-sent is the unit's silence, not the page's fault, so it names no file and reaches the C#.
     private static VerificationFinding ToFinding(DriveFinding finding, string? file) =>
