@@ -169,6 +169,36 @@ public sealed class HyperionBuildsRichPagesTests
         run.Files.Single(f => f.Name == "Unit.cs").Content.Should().Contain("public int A => 1;").And.Contain("public int B => 2;");
     }
 
+    [Fact]
+    public async Task A_builder_that_thinks_without_answering_is_asked_once_more_at_a_medium_effort()
+    {
+        // Measured 2026-09-20 at each model's maximum effort: five of Nex N2.5 Pro's nine calls returned
+        // nothing after 225,335 output tokens, and DeepSeek V4 Flash spent 1h52m on one planning call.
+        var efforts = new ConcurrentQueue<CodegenEffort?>();
+        var client = new ByRole((role, request) =>
+        {
+            if (role.Contains("YOUR ROLE: Planner", StringComparison.Ordinal)) return "I need to think about this.";
+            efforts.Enqueue(request.Effort);
+            return request.Effort is null ? null : "```csharp\n// file: Unit.cs\npublic sealed class Unit { }\n```";
+        }, provider: "nvidia", model: "deepseek-ai/deepseek-v4-flash-0731", effort: CodegenEffort.High,
+           failure: "NVIDIA NIM spent the whole generation reasoning and never started an answer.");
+
+        var run = await new SwarmRunner(client, new AlwaysPasses())
+            .RunAsync(new SwarmRequest("a battlefield", "PACK", AuthoringKind.Visualizer, new SwarmBudget(1, 1, 1)) with { MayAsk = false });
+
+        efforts.Should().Equal(null, CodegenEffort.Medium);
+        run.Files.Should().ContainSingle().Which.Name.Should().Be("Unit.cs");
+    }
+
+    /// <summary>Passes whatever it is shown.</summary>
+    private sealed class AlwaysPasses : IUnitGate
+    {
+        public Task<GateResult> RunAsync(IReadOnlyList<StrategyFile> files, CancellationToken ct = default) =>
+            Task.FromResult(new GateResult(
+                new VerificationReport([VerificationStep.Pass(VerificationRung.Compile), VerificationStep.Pass(VerificationRung.Lifecycle)]),
+                Compile: null));
+    }
+
     [Theory]
     [InlineData("```css\n/* file: ui/style.css */\nbody{", "color:red}\n```", "```css\n/* file: ui/style.css */\nbody{color:red}\n```")]
     [InlineData("```css\n/* file: ui/style.css */\nbody{", "```css\ncolor:red}\n```", "```css\n/* file: ui/style.css */\nbody{color:red}\n```")]
@@ -176,6 +206,46 @@ public sealed class HyperionBuildsRichPagesTests
     public void A_continuation_is_joined_whether_it_carries_on_reopens_or_restarts(string partial, string continuation, string joined)
     {
         SwarmRunner.Stitch(partial, continuation).Should().Be(joined);
+    }
+
+    [Fact]
+    public void Files_named_by_a_header_are_taken_even_when_nothing_was_fenced()
+    {
+        // Measured 2026-09-20 on NVIDIA NIM's Nemotron 3 Ultra: both page replies opened straight at their
+        // header and ran to a complete file, with no fence anywhere — 24,000 tokens read as "no file".
+        const string reply = """
+            <!-- file: ui/index.html -->
+            <!DOCTYPE html>
+            <html><body><div id="app"></div></body></html>
+
+            // file: ui/battlefield.js
+            import * as THREE from "three";
+            export function mountScene(el) { return { update() {} }; }
+            """;
+
+        var files = CodegenCodeExtractor.ExtractUnitFiles(reply);
+
+        files.Select(f => f.Name).Should().Equal("ui/index.html", "ui/battlefield.js");
+        files[0].Content.Should().StartWith("<!DOCTYPE html>").And.NotContain("battlefield.js");
+        files[1].Content.Should().Contain("mountScene");
+
+        // A module written as plain JavaScript is a page file, not a C# file that happens to look like code.
+        const string module = """
+            // file: ui/scene.js
+            import * as THREE from "three";
+            const BULL = 0x22c55e;
+            export function mountScene(el) { return { update(state) {}, dispose() {} }; }
+            """;
+
+        CodegenCodeExtractor.ExtractUnitFiles(module).Should().ContainSingle()
+            .Which.Name.Should().Be("ui/scene.js");
+        CodegenCodeExtractor.ExtractFiles(module).Should().BeEmpty("it declares no C#");
+
+        // A fenced reply still wins, and prose alone is still prose.
+        CodegenCodeExtractor.ExtractUnitFiles("```html\n<!-- file: ui/index.html -->\n<p>fenced</p>\n```")
+            .Should().ContainSingle().Which.Content.Should().Be("<p>fenced</p>");
+        CodegenCodeExtractor.ExtractUnitFiles("I will write ui/index.html next, once you confirm the layout.")
+            .Should().BeEmpty();
     }
 
     // ── the critic that looks, and the critic that reads ────────────────────────────────────────

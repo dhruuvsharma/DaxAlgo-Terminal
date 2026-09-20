@@ -463,14 +463,21 @@ public sealed class SwarmRunner(
 
         for (var attempt = 1; attempt <= 2; attempt++)
         {
-            var (response, reported) = await CodegenStream.DrainAsync(
-                _client,
+            var (response, reported, abandoned) = await AskAsync(
                 new StrategyCodegenRequest(
                     request.SharedContext,
                     messages,
                     _dialect.Planner(request.Kind, request.Budget.MaxTasks)),
                 ThinkingOnly(events),
                 ct).ConfigureAwait(false);
+
+            // A PLANNER THAT SAYS NOTHING ENDS THE RUN, so it gets the same second turn a builder does —
+            // and the thinking turn is still a row and still billed.
+            if (abandoned != CodegenUsage.None)
+            {
+                Record("Planner", null, abandoned, answered: false);
+                usage = usage.Add(abandoned);
+            }
 
             usage = usage.Add(reported);
 
@@ -641,17 +648,18 @@ public sealed class SwarmRunner(
         });
 
         var opening = new CodegenMessage(CodegenRole.User, message);
-        var (response, reported) = await CodegenStream.DrainAsync(
-            _client,
-            new StrategyCodegenRequest(request.SharedContext, [opening], instruction),
-            beat,
-            ct).ConfigureAwait(false);
+        var (response, reported, abandoned) = await AskAsync(
+            new StrategyCodegenRequest(request.SharedContext, [opening], instruction), beat, ct).ConfigureAwait(false);
+
+        // The turn that thought and said nothing is a call the run paid for: its own row, before the one
+        // that answered.
+        if (abandoned != CodegenUsage.None) Record(task.Kind.ToString(), task.Id, abandoned, answered: false);
 
         // CUT OFF MID-FILE: ASK FOR THE REST. Measured 2026-09-19 on NVIDIA NIM's GLM 5.3 Flash: a page
         // reply stopped inside its stylesheet with no finish reason at all, the half-written block parsed
         // as nothing, and the script it was about to write never existed. The text written so far is the
         // expensive part; the model is shown it and asked to carry on from the last character.
-        var total = reported;
+        var total = reported.Add(abandoned);
         var partial = response.Success
             ? (OpenAiCompatibleCodegenClient.IsCutMidBlock(response.RawText ?? string.Empty) ? response.RawText : null)
             : response.Partial;
@@ -705,6 +713,34 @@ public sealed class SwarmRunner(
 
         if (!lastRecorded) Record(task.Kind.ToString(), task.Id, reported, files: files.Count);
         return new TaskResult(files, total, null);
+    }
+
+    /// <summary>
+    /// One call, and — when the model thought through its whole budget instead of answering — one more at
+    /// a medium effort.
+    ///
+    /// <para><b>The run's own effort first.</b> Measured 2026-09-20 on the Battlefield brief at each
+    /// model's maximum: five of Nex N2.5 Pro's nine calls returned nothing after 225,335 output tokens,
+    /// and DeepSeek V4 Flash spent an hour and fifty-two minutes on one planning call. A turn that
+    /// produced no text is not a turn to repeat identically, and lowering the effort is the one lever
+    /// measured to change the outcome — it is what made a page appear at all on 2026-09-15.</para>
+    ///
+    /// <para>Returns what the second call spent as <c>Usage</c> and what the abandoned one spent as
+    /// <c>Abandoned</c>, so the trajectory keeps a row for each.</para>
+    /// </summary>
+    private async Task<(StrategyCodegenResponse Response, CodegenUsage Usage, CodegenUsage Abandoned)> AskAsync(
+        StrategyCodegenRequest request, IProgress<CodegenEvent>? beat, CancellationToken ct)
+    {
+        var (response, reported) = await CodegenStream.DrainAsync(_client, request, beat, ct).ConfigureAwait(false);
+
+        if (response.Success || !ModelCritic.ThoughtWithoutAnswering(response.Error)) return (response, reported, CodegenUsage.None);
+        if (!AiModelCatalog.SupportsEffort(_client.ProviderId, _client.Model)) return (response, reported, CodegenUsage.None);
+        if (_client.Effort is CodegenEffort.Low or CodegenEffort.Medium) return (response, reported, CodegenUsage.None);
+
+        var (retried, again) = await CodegenStream.DrainAsync(
+            _client, request with { Effort = CodegenEffort.Medium }, beat, ct).ConfigureAwait(false);
+
+        return (retried, again, reported);
     }
 
     /// <summary>How many times one builder turn may be continued after being cut off.</summary>

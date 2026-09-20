@@ -31,6 +31,17 @@ public static partial class CodegenCodeExtractor
     [GeneratedRegex(@"^[ \t]*(?:<!--|//|/\*)[ \t]*(?:file[ \t]*:[ \t]*)?(?<name>[\w.\-/]+\.(?:html?|m?js|css|svg))[ \t]*(?:-->|\*/)?[ \t]*\r?\n", RegexOptions.IgnoreCase)]
     private static partial Regex PageHeader();
 
+    /// <summary>
+    /// A <c>file:</c> header on its own line, in any of the comment syntaxes, for a reply that wrote its
+    /// files with headers and NO fences.
+    ///
+    /// <para>The word "file" is required here, unlike inside a fence: without a fence to say where code
+    /// begins, a bare name in a sentence is prose.</para>
+    /// </summary>
+    [GeneratedRegex(@"^[ \t]*(?:<!--|//|/\*)[ \t]*file[ \t]*:[ \t]*(?<name>[\w.\-/]+\.(?:cs|html?|m?js|css|svg))[ \t]*(?:-->|\*/)?[ \t]*$",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline)]
+    private static partial Regex HeaderedFile();
+
     /// <summary>A page file named in an info string or the prose line above a fence.</summary>
     [GeneratedRegex(@"(?<name>(?:ui/)?[\w.\-/]*[\w\-]\.(?:html?|m?js|css|svg))\b", RegexOptions.IgnoreCase)]
     private static partial Regex PageNameMention();
@@ -119,6 +130,13 @@ public static partial class CodegenCodeExtractor
         var matches = FencedBlock().Matches(reply);
         if (matches.Count == 0)
         {
+            // Headers without fences: the files are all there and named, so they are taken — and a reply
+            // that named ONLY page files has written no C# at all. Without that second half, a page module
+            // written as plain JavaScript reads as "looks like code" and arrives as one .cs file that no
+            // page task can accept (measured on Nemotron 3 Ultra's ui/scene.js, 22,301 tokens).
+            if (HeaderedFiles(reply) is { Count: > 0 } headered)
+                return [.. headered.Where(f => !IsPageFile(f.Name))];
+
             // Unfenced. Only treat it as code if it looks like code — otherwise it's prose (a question),
             // and compiling prose would bury the model's actual answer under 40 syntax errors.
             var bare = reply.Trim();
@@ -170,6 +188,43 @@ public static partial class CodegenCodeExtractor
             if (body.Length == 0) continue;
 
             files.Add(new StrategyFile(UniquePage(name ?? fallback, used), body));
+        }
+
+        // NOTHING FENCED, BUT EVERY FILE NAMED. Measured 2026-09-20 on NVIDIA NIM's Nemotron 3 Ultra: its
+        // page replies opened straight at "<!-- file: ui/index.html -->" and ran to a complete page and a
+        // complete module, with no fence anywhere — 24,000 tokens of finished work read as "returned no
+        // file", twice. A header on its own line is the model saying where a file starts as plainly as a
+        // fence does.
+        return files.Count > 0 ? files : HeaderedFiles(reply);
+    }
+
+    /// <summary>The files of a reply that named each one with a <c>file:</c> header and fenced none.</summary>
+    internal static IReadOnlyList<StrategyFile> HeaderedFiles(string? reply)
+    {
+        if (string.IsNullOrWhiteSpace(reply)) return [];
+
+        var headers = HeaderedFile().Matches(reply);
+        if (headers.Count == 0) return [];
+
+        var files = new List<StrategyFile>();
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var at = 0; at < headers.Count; at++)
+        {
+            var start = headers[at].Index + headers[at].Length;
+            var end = at + 1 < headers.Count ? headers[at + 1].Index : reply.Length;
+            if (end <= start) continue;
+
+            // A stray fence around the lot, and any closing fence, are not part of the file.
+            var body = reply[start..end].Trim().Trim('`').Trim();
+            if (body.Length == 0) continue;
+
+            var written = headers[at].Groups["name"].Value.Trim();
+            var name = written.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                ? Unique(written[(written.LastIndexOf('/') + 1)..], used)
+                : UniquePage(InPageFolder(written), used);
+
+            files.Add(new StrategyFile(name, body));
         }
 
         return files;
