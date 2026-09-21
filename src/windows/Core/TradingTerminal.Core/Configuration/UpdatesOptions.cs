@@ -1,4 +1,4 @@
-namespace TradingTerminal.Core.Configuration;
+﻿namespace TradingTerminal.Core.Configuration;
 
 /// <summary>
 /// Application update checking, bound from the <c>Updates</c> configuration section.
@@ -33,4 +33,31 @@ public sealed class UpdatesOptions
     /// cannot turn the app into a polling loop against the release host.
     /// </summary>
     public int CheckIntervalHours { get; set; } = 24;
+
+    /// <summary>
+    /// Whether accepting the prompt may download and run the installer. True by default, so a
+    /// configured feed gives the whole feature; false degrades to the original behaviour — the banner
+    /// offers the release notes and the user installs by hand.
+    ///
+    /// <para>This switch only narrows: it can never turn anything on that <see cref="FeedUrl"/> and
+    /// <see cref="FeedPublicKey"/> have not already enabled, and it cannot relax the signature and
+    /// hash checks, which have no off switch at all.</para>
+    /// </summary>
+    public bool AllowAutomaticInstall { get; set; } = true;
+
+    /// <summary>
+    /// Optional Authenticode thumbprint the downloaded installer's signer must match exactly, as a
+    /// hex string (spaces and case are ignored). Empty means "any signature Windows trusts", which is
+    /// already narrow because the bytes must first match the <c>sha256</c> of the signed manifest —
+    /// pinning simply removes the case where our manifest-signing key leaks but the code-signing
+    /// certificate does not. Pin it in the shipped configuration.
+    /// </summary>
+    public string InstallerCertificateThumbprint { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Hard ceiling on the installer download, in bytes. Enforced while streaming rather than from
+    /// the declared content length, so a lying or endless response is cut off instead of filling the
+    /// user's disk. Default 512 MiB; values below 1 fall back to the default.
+    /// </summary>
+    public long MaxInstallerBytes { get; set; } = 512L * 1024 * 1024;
 }

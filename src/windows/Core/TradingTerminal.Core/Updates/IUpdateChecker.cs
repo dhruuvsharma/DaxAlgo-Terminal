@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 namespace TradingTerminal.Core.Updates;
@@ -34,11 +34,12 @@ public sealed record UpdateCheckResult(
 /// <summary>
 /// Reads the signed release feed and reports whether a newer version exists.
 ///
-/// **Detection only.** An implementation must never download, unpack or execute anything: the app
-/// prompts, and the user goes and gets the installer, where Windows and the installer's own
-/// Authenticode signature still apply. Turning this into a self-updater makes the application a
-/// remote-code-execution path, which is a decision to take deliberately and not a natural extension
-/// of a version check.
+/// **Detection only, still.** A checker must never download, unpack or execute anything; it answers
+/// one question and touches nothing but the manifest. Installing is a separate, explicitly enabled
+/// seam — <see cref="IUpdateDownloader"/> and <see cref="IUpdateInstaller"/> — because a self-updater
+/// makes the application a remote-code-execution path, and that stays a decision taken deliberately
+/// rather than something a version check quietly grows into. Keeping the two apart is what lets
+/// <c>AllowAutomaticInstall</c> be switched off and leave a working, link-only prompt behind.
 ///
 /// Implementations never throw, other than propagating <see cref="OperationCanceledException"/> when
 /// the caller cancels. Every other failure classifies as <see cref="UpdateOutcome.Failed"/> and is

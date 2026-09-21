@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 
 namespace TradingTerminal.Core.Updates;
@@ -29,16 +29,32 @@ public sealed record UpdateManifest
     public string ReleaseNotesUrl { get; init; } = string.Empty;
 
     /// <summary>
-    /// Where the installer can be downloaded. **Nothing in the app consumes this yet, by design** —
-    /// see <c>IUpdateChecker</c>. Before anything downloads it: require https, verify
-    /// <see cref="Sha256"/> over the downloaded bytes, and check the installer's own Authenticode
-    /// signature. A manifest signature proves the manifest is ours; it does not make an arbitrary
-    /// download safe to execute.
+    /// Where the installer can be downloaded. Consumed by <c>IUpdateDownloader</c>, which requires
+    /// absolute https, verifies <see cref="Sha256"/> over the downloaded bytes, and checks the
+    /// installer's own Authenticode signature before anything is executed. A manifest signature
+    /// proves the manifest is ours; it does not make an arbitrary download safe to execute, which is
+    /// why all three checks stand on top of it.
+    ///
+    /// <para>Empty means this release is announce-only: the banner still links to the release notes
+    /// and the user installs by hand.</para>
     /// </summary>
     [JsonPropertyName("downloadUrl")]
     public string DownloadUrl { get; init; } = string.Empty;
 
-    /// <summary>Lower-case hex SHA-256 of the installer at <see cref="DownloadUrl"/>. Unused today.</summary>
+    /// <summary>
+    /// Lower-case hex SHA-256 of the installer at <see cref="DownloadUrl"/>. Required whenever
+    /// <see cref="DownloadUrl"/> is set — a download with nothing to check it against is not offered
+    /// for installation, because the signature covers this manifest and not the bytes it points at.
+    /// </summary>
     [JsonPropertyName("sha256")]
     public string Sha256 { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Expected size of the installer in bytes, or 0 when the feed did not say. Advisory only: it
+    /// gives the progress bar a total before the first byte arrives and lets an obviously wrong
+    /// response be abandoned early. The real ceiling is <c>UpdatesOptions.MaxInstallerBytes</c>,
+    /// enforced against the bytes actually received rather than against anything the server claims.
+    /// </summary>
+    [JsonPropertyName("sizeBytes")]
+    public long SizeBytes { get; init; }
 }

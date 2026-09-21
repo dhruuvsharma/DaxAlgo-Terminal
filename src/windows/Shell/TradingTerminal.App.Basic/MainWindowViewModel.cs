@@ -85,8 +85,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
         _services = services;
         _logger = logger;
         // Same reasoning for the update strip. GetService, not GetRequiredService: a shell that
-        // never calls AddUpdates should compose fine and simply never show the notice.
-        Update = new UpdateNoticeViewModel(services.GetService<IUpdateNotifier>());
+        // never calls AddUpdates should compose fine and simply never show the notice, and one that
+        // calls it with no feed configured resolves the inert seams and shows a link-only strip.
+        //
+        // Shutting down is the shell's to do, not the view-model's: the installer replaces the very
+        // files this process is running from, and exiting through Application.Shutdown keeps the
+        // normal OnExit path — the generic host stops, the execution ledger flushes — instead of
+        // having something deeper in the stack kill a process that may still hold trading state.
+        Update = new UpdateNoticeViewModel(
+            services.GetService<IUpdateNotifier>(),
+            downloader: services.GetService<IUpdateDownloader>(),
+            installer: services.GetService<IUpdateInstaller>(),
+            requestExit: RequestShutdownForUpdate);
 
         // Vibe Code → Launch CLI: offer every agent CLI the app knows, tagged by whether it resolved on
         // PATH so the menu can show (and disable) an uninstalled one instead of hiding it.
@@ -1077,6 +1087,22 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
     /// <summary>Backs the "a new version is available" strip in the row-2 banner stack. Always
     /// present; it simply never becomes visible when no update feed is configured.</summary>
     public UpdateNoticeViewModel Update { get; }
+
+    /// <summary>
+    /// Closes the application so a downloaded update can replace the files it is running from. Called
+    /// only once the installer process is confirmed running — a failed download leaves the app up.
+    ///
+    /// <para>Goes through <see cref="Application.Shutdown()"/> rather than killing the process, so
+    /// <c>App.OnExit</c> still stops the generic host and flushes what the session was holding. The
+    /// dispatcher hop is defensive: the caller is already on the UI thread today, and a shutdown
+    /// raised from anywhere else would otherwise throw.</para>
+    /// </summary>
+    private static void RequestShutdownForUpdate()
+    {
+        var app = Application.Current;
+        if (app is null) return;
+        app.Dispatcher.InvokeAsync(app.Shutdown);
+    }
 
     /// <summary>Help → Support the developer. Routes through the shared prompt service so the window
     /// is single-instance whether opened here or auto-shown on launch.</summary>
