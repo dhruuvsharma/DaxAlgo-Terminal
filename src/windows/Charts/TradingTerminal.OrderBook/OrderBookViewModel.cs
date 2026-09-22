@@ -305,6 +305,8 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _showTrades = true;
     [ObservableProperty] private bool _showFootprintOverlay;
     [ObservableProperty] private bool _showBattlefield;
+    /// <summary>Stack recent heatmap books into thicker armies (war ground). Off = live book only.</summary>
+    [ObservableProperty] private bool _showWarGround = true;
     [ObservableProperty] private bool _showMicropriceLine = true;
     [ObservableProperty] private bool _showImbalanceLane = true;
 
@@ -341,6 +343,7 @@ public sealed partial class OrderBookViewModel : ViewModelBase, IDisposable
     partial void OnShowTradesChanged(bool value) => RaiseRedraw();
     partial void OnShowFootprintOverlayChanged(bool value) => RaiseRedraw();
     partial void OnShowBattlefieldChanged(bool value) => RaiseRedraw();
+    partial void OnShowWarGroundChanged(bool value) => RaiseRedraw();
     partial void OnShowMicropriceLineChanged(bool value) => RaiseRedraw();
     partial void OnShowImbalanceLaneChanged(bool value) => RaiseRedraw();
 

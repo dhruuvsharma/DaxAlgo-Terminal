@@ -173,7 +173,7 @@ public partial class OrderBookPanel : UserControl
         // Battlefield mode: full 3D Projection3 scene (soldiers on resting prices).
         if (_vm.ShowBattlefield)
         {
-            DrawBattlefield3D(columns[^1], plotW, plotH, AxisWidth);
+            DrawBattlefield3D(columns, plotW, plotH, AxisWidth);
             if (laneH > 0)
             {
                 var laneVisible = Math.Min(columns.Count, Math.Max(1, (int)(plotW / ColumnWidth)));
@@ -438,14 +438,35 @@ public partial class OrderBookPanel : UserControl
     }
 
     /// <summary>
-    /// NewHedge / Hyperion battlefield: each resting size chunk is a soldier on its price,
-    /// projected with <see cref="Projection3"/> (painter's algorithm). Replaces the old 2D band stub.
+    /// War ground: trench grid + no-man's-land front + soldiers from live or stacked recent books.
     /// </summary>
-    private void DrawBattlefield3D(HeatColumn last, double plotW, double plotH, double axisW)
+    private void DrawBattlefield3D(IReadOnlyList<HeatColumn> columns, double plotW, double plotH, double axisW)
     {
+        if (columns.Count == 0) return;
+        var last = columns[^1];
         var tick = InferTick(last);
         if (tick <= 0) tick = 0.25;
-        var depth = new DepthSnapshot(last.TimeUtc, last.Bids, last.Asks);
+
+        DepthSnapshot depth;
+        var stacked = 1;
+        if (_vm.ShowWarGround && columns.Count > 1)
+        {
+            stacked = Math.Min(12, columns.Count);
+            var slice = columns.Skip(columns.Count - stacked)
+                .Select(c => (c.Bids, c.Asks))
+                .ToList();
+            depth = BattlefieldForces.MergeBooksAtTick(slice, tick, last.TimeUtc);
+            // Mid from live book so the front does not jump when stacked walls dominate.
+            if (last.BestBid > 0 && last.BestAsk > 0)
+            {
+                depth = new DepthSnapshot(last.TimeUtc, depth.Bids, depth.Asks);
+            }
+        }
+        else
+        {
+            depth = new DepthSnapshot(last.TimeUtc, last.Bids, last.Asks);
+        }
+
         var soldiers = BattlefieldForces.FromDepth(depth, tick, halfWidthTicks: 22, troopUnit: 5, maxTroopsPerLevel: 10);
         if (soldiers.Count == 0)
         {
@@ -457,99 +478,137 @@ public partial class OrderBookPanel : UserControl
         var originY = 0d;
         var corners = new[]
         {
-            new Vec3(-1.05d, 0d, -0.5d), new Vec3(1.05d, 0d, -0.5d),
-            new Vec3(-1.05d, 0d, 0.5d), new Vec3(1.05d, 0d, 0.5d),
-            new Vec3(-1.05d, 0.6d, -0.5d), new Vec3(1.05d, 0.6d, -0.5d),
-            new Vec3(-1.05d, 0.6d, 0.5d), new Vec3(1.05d, 0.6d, 0.5d),
+            new Vec3(-1.1d, 0d, -0.55d), new Vec3(1.1d, 0d, -0.55d),
+            new Vec3(-1.1d, 0d, 0.55d), new Vec3(1.1d, 0d, 0.55d),
+            new Vec3(-1.1d, 0.65d, -0.55d), new Vec3(1.1d, 0.65d, -0.55d),
+            new Vec3(-1.1d, 0.65d, 0.55d), new Vec3(1.1d, 0.65d, 0.55d),
         };
         var seconds = (DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds;
         var camera = Camera3.Framing(corners).Orbit(seconds * 0.12d);
         var projection = Projection3.Of(camera, plotW, plotH);
 
-        // Ground line
-        Projected? prev = null;
-        for (var i = 0; i <= 24; i++)
+        void Seg(Vec3 a, Vec3 b, Brush stroke, double thick)
         {
-            var x = -1d + (2d * i / 24d);
-            var p = projection.Project(new Vec3(x, 0d, 0d));
-            if (p.InFront && prev is { InFront: true } q)
-            {
-                HeatCanvas.Children.Add(new Line
-                {
-                    X1 = originX + q.X, Y1 = originY + q.Y,
-                    X2 = originX + p.X, Y2 = originY + p.Y,
-                    Stroke = GridPen, StrokeThickness = 1,
-                });
-            }
-            prev = p;
-        }
-
-        // Front line at mid
-        var fa = projection.Project(new Vec3(0d, 0d, -0.35d));
-        var fb = projection.Project(new Vec3(0d, 0.55d, 0.35d));
-        if (fa.InFront && fb.InFront)
-        {
+            var pa = projection.Project(a);
+            var pb = projection.Project(b);
+            if (!pa.InFront || !pb.InFront) return;
             HeatCanvas.Children.Add(new Line
             {
-                X1 = originX + fa.X, Y1 = originY + fa.Y,
-                X2 = originX + fb.X, Y2 = originY + fb.Y,
-                Stroke = MicroLine, StrokeThickness = 2.2,
+                X1 = originX + pa.X, Y1 = originY + pa.Y,
+                X2 = originX + pb.X, Y2 = originY + pb.Y,
+                Stroke = stroke, StrokeThickness = thick,
             });
         }
 
-        var drawn = new List<(double Depth, double X, double Y, bool Bid)>(soldiers.Count);
+        // Trench grid (war ground).
+        for (var i = 0; i <= 20; i++)
+        {
+            var x = -1d + (2d * i / 20d);
+            Seg(new Vec3(x, 0d, -0.45d), new Vec3(x, 0d, 0.45d), GridPen, 0.7);
+        }
+        for (var j = 0; j <= 8; j++)
+        {
+            var z = -0.45d + (0.9d * j / 8d);
+            Seg(new Vec3(-1d, 0d, z), new Vec3(1d, 0d, z), GridPen, 0.7);
+        }
+
+        // No-man's-land strip around mid (front).
+        Seg(new Vec3(-0.06d, 0d, -0.4d), new Vec3(-0.06d, 0d, 0.4d), MicroLine, 1.2);
+        Seg(new Vec3(0.06d, 0d, -0.4d), new Vec3(0.06d, 0d, 0.4d), MicroLine, 1.2);
+        Seg(new Vec3(0d, 0d, -0.4d), new Vec3(0d, 0.58d, 0.4d), MicroLine, 2.4);
+
+        // Territory edge markers (bulls left / bears right).
+        Seg(new Vec3(-1d, 0.02d, 0d), new Vec3(-0.08d, 0.02d, 0d), BidLine, 1.5);
+        Seg(new Vec3(0.08d, 0.02d, 0d), new Vec3(1d, 0.02d, 0d), AskLine, 1.5);
+
+        var drawn = new List<(double Depth, double X, double Y, bool Bid, double Size)>(soldiers.Count);
         foreach (var s in soldiers)
         {
             var p = projection.Project(new Vec3(s.X, s.Y, s.Z));
             if (!p.InFront) continue;
-            drawn.Add((p.Depth, originX + p.X, originY + p.Y, s.IsBid));
+            drawn.Add((p.Depth, originX + p.X, originY + p.Y, s.IsBid, s.Size));
         }
         drawn.Sort((a, b) => b.Depth.CompareTo(a.Depth));
 
         foreach (var s in drawn)
         {
             var brush = s.Bid ? BuyDot : SellDot;
-            // Triangle-ish soldiers: small diamond polygons via rotated ellipse + size cue.
-            var r = 3.2;
-            var elli = new Ellipse
+            var stroke = s.Bid ? BidLine : AskLine;
+            var r = 2.6 + Math.Min(2.4, Math.Sqrt(Math.Max(1d, s.Size)) * 0.15);
+            // Triangle soldiers (point toward the front).
+            var poly = new Polygon
             {
-                Width = r * 2, Height = r * 2,
                 Fill = brush,
-                Stroke = s.Bid ? BidLine : AskLine,
-                StrokeThickness = 0.8,
+                Stroke = stroke,
+                StrokeThickness = 0.9,
+                Points = s.Bid
+                    ? new PointCollection
+                    {
+                        new Point(s.X + r, s.Y),
+                        new Point(s.X - r * 0.7, s.Y - r * 0.85),
+                        new Point(s.X - r * 0.7, s.Y + r * 0.85),
+                    }
+                    : new PointCollection
+                    {
+                        new Point(s.X - r, s.Y),
+                        new Point(s.X + r * 0.7, s.Y - r * 0.85),
+                        new Point(s.X + r * 0.7, s.Y + r * 0.85),
+                    },
             };
-            Canvas.SetLeft(elli, s.X - r);
-            Canvas.SetTop(elli, s.Y - r);
-            HeatCanvas.Children.Add(elli);
+            HeatCanvas.Children.Add(poly);
         }
 
-        // Strikes from recent trades in this column
-        if (last.Trades is { Count: > 0 } trades)
+        // Strikes from recent trades (live column + a few behind on war ground).
+        var mid = last.BestBid > 0 && last.BestAsk > 0
+            ? (last.BestBid + last.BestAsk) * 0.5
+            : (depth.BestBid + depth.BestAsk) * 0.5;
+        var tradeCols = _vm.ShowWarGround ? columns.Skip(Math.Max(0, columns.Count - 4)) : columns.TakeLast(1);
+        var strikeInput = tradeCols
+            .SelectMany(c => c.Trades ?? Enumerable.Empty<TradeMark>())
+            .Select(t => (t.Price, t.Size, t.Side == AggressorSide.Buy));
+        foreach (var strike in BattlefieldForces.FromTrades(strikeInput, mid, tick, 22, minSize: 5))
         {
-            var mid = (last.BestBid + last.BestAsk) * 0.5;
-            var strikeInput = trades.Select(t => (t.Price, t.Size, t.Side == AggressorSide.Buy));
-            foreach (var strike in BattlefieldForces.FromTrades(strikeInput, mid, tick, 22, minSize: 5))
+            var a = projection.Project(new Vec3(strike.X0, strike.Y0, strike.Z0));
+            var b = projection.Project(new Vec3(strike.X1, strike.Y1, strike.Z1));
+            if (!a.InFront || !b.InFront) continue;
+            HeatCanvas.Children.Add(new Line
             {
-                var a = projection.Project(new Vec3(strike.X0, strike.Y0, strike.Z0));
-                var b = projection.Project(new Vec3(strike.X1, strike.Y1, strike.Z1));
-                if (!a.InFront || !b.InFront) continue;
-                HeatCanvas.Children.Add(new Line
-                {
-                    X1 = originX + a.X, Y1 = originY + a.Y,
-                    X2 = originX + b.X, Y2 = originY + b.Y,
-                    Stroke = strike.IsBuy ? BuyDot : SellDot,
-                    StrokeThickness = 2,
-                });
-            }
+                X1 = originX + a.X, Y1 = originY + a.Y,
+                X2 = originX + b.X, Y2 = originY + b.Y,
+                Stroke = strike.IsBuy ? BuyDot : SellDot,
+                StrokeThickness = 2.2,
+            });
         }
 
+        var pressure = BattlefieldForces.BidPressure(soldiers);
         var bulls = soldiers.Count(s => s.IsBid);
         var bears = soldiers.Count - bulls;
         var total = Math.Max(1, bulls + bears);
-        AddText($"BATTLEFIELD  ·  BULLS {bulls} ({bulls / (double)total:P0})  ·  BEARS {bears} ({bears / (double)total:P0})",
+        var owner = pressure > 0.55 ? "BULLS HOLD FRONT" : pressure < 0.45 ? "BEARS HOLD FRONT" : "CONTESTED";
+        var mode = _vm.ShowWarGround ? $"war ground ×{stacked}" : "live book";
+        AddText($"BATTLEFIELD  ·  {owner}  ·  {mode}",
             axisW + 8, 6, plotW - 16, 16, DimText, 11);
-        AddText($"front {((last.BestBid + last.BestAsk) * 0.5).ToString("N" + DecimalsFor(tick), CultureInfo.InvariantCulture)}   soldiers {soldiers.Count}",
+        AddText(
+            $"BULLS {bulls} ({bulls / (double)total:P0})  ·  BEARS {bears} ({bears / (double)total:P0})  ·  front {mid.ToString("N" + DecimalsFor(tick), CultureInfo.InvariantCulture)}  ·  pressure {pressure:P0}",
             axisW + 8, 22, plotW - 16, 14, DimText, 10);
+
+        // Pressure bar under HUD.
+        var barW = Math.Min(180, plotW - 24);
+        var barX = axisW + 8;
+        var barY = 40d;
+        HeatCanvas.Children.Add(new Rectangle
+        {
+            Width = barW, Height = 6, Fill = GridPen,
+        });
+        Canvas.SetLeft(HeatCanvas.Children[^1], barX);
+        Canvas.SetTop(HeatCanvas.Children[^1], barY);
+        var bullW = barW * pressure;
+        HeatCanvas.Children.Add(new Rectangle { Width = bullW, Height = 6, Fill = BidLine });
+        Canvas.SetLeft(HeatCanvas.Children[^1], barX);
+        Canvas.SetTop(HeatCanvas.Children[^1], barY);
+        HeatCanvas.Children.Add(new Rectangle { Width = barW - bullW, Height = 6, Fill = AskLine });
+        Canvas.SetLeft(HeatCanvas.Children[^1], barX + bullW);
+        Canvas.SetTop(HeatCanvas.Children[^1], barY);
     }
 
     private void DrawImbalanceLane(IReadOnlyList<HeatColumn> columns, int start,

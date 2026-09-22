@@ -449,6 +449,9 @@
                                   ToolTip="Bookmap-style executed bid×ask cells over resting liquidity." />
                         <CheckBox Content="Battlefield viz" IsChecked="{Binding ShowBattlefield}" Margin="0,0,0,4"
                                   ToolTip="3D bulls-vs-bears: each resting size chunk is a soldier on its price (Projection3)." />
+                        <CheckBox Content="War ground (stack books)" IsChecked="{Binding ShowWarGround}" Margin="0,0,0,4"
+                                  IsEnabled="{Binding ShowBattlefield}"
+                                  ToolTip="Merge the last few heatmap columns so walls that persist thicken into bigger armies." />
                         <CheckBox Content="Microprice line" IsChecked="{Binding ShowMicropriceLine}" Margin="0,0,0,4" />
                         <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" Margin="0,0,0,12" />
 
