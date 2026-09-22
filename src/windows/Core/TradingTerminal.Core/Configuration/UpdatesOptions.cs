@@ -1,4 +1,4 @@
-﻿namespace TradingTerminal.Core.Configuration;
+namespace TradingTerminal.Core.Configuration;
 
 /// <summary>
 /// Application update checking, bound from the <c>Updates</c> configuration section.
