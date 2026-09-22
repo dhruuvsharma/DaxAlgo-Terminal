@@ -98,6 +98,11 @@ public static class AuthoringExemplar
         "battlefield", "soldier", "soldiers", "army", "armies", "bulls vs", "bears vs", "newhedge",
     ];
 
+    private static readonly string[] IchimokuWords =
+    [
+        "ichimoku", "kumo", "tenkan", "kijun", "senkou", "chikou", "ichimoku cloud",
+    ];
+
     /// <summary>
     /// The exemplar for one kind and brief, already normalised, or empty when none is embedded.
     /// </summary>
@@ -172,19 +177,25 @@ public static class AuthoringExemplar
             : "MovingAverageCrossKernel.cs",
         AuthoringKind.Visualizer => WantsBattlefield(brief)
             ? "OrderBookBattlefieldVisualizer.cs"
-            : WantsSpace(brief)
-                ? "DepthLandscapeVisualizer.cs"
-                : WantsCells(brief)
-                    ? "FootprintClusterVisualizer.cs"
-                    : WantsOrderFlow(brief)
-                        ? "BookPressureVisualizer.cs"
-                        : "SpreadBandVisualizer.cs",
+            : WantsIchimoku(brief)
+                ? "ModernIchimokuVisualizer.cs"
+                : WantsSpace(brief)
+                    ? "DepthLandscapeVisualizer.cs"
+                    : WantsCells(brief)
+                        ? "FootprintClusterVisualizer.cs"
+                        : WantsOrderFlow(brief)
+                            ? "BookPressureVisualizer.cs"
+                            : "SpreadBandVisualizer.cs",
         _ => null,
     };
 
     /// <summary>True when the brief asks for the bulls-vs-bears / soldier battlefield scene.</summary>
     internal static bool WantsBattlefield(string? brief) =>
         Mentions(brief, BattlefieldWords);
+
+    /// <summary>True when the brief asks for Ichimoku / Kumo cloud.</summary>
+    internal static bool WantsIchimoku(string? brief) =>
+        Mentions(brief, IchimokuWords);
 
     /// <summary>True when the brief asks for a picture in three dimensions.</summary>
     internal static bool WantsSpace(string? brief) => Mentions(brief, SpatialWords);

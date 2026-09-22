@@ -122,6 +122,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _showRsi;
     [ObservableProperty] private bool _showMacd;
     [ObservableProperty] private bool _showLuxSignals;
+    [ObservableProperty] private bool _showIchimoku;
     [ObservableProperty] private string _status = "Loading instruments…";
 
     /// <summary>Display pause: live candle pushes stop; the hub subscription keeps running so
@@ -155,6 +156,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     partial void OnShowRsiChanged(bool value) => QueueReload();
     partial void OnShowMacdChanged(bool value) => QueueReload();
     partial void OnShowLuxSignalsChanged(bool value) => QueueReload();
+    partial void OnShowIchimokuChanged(bool value) => QueueReload();
 
     partial void OnIsPausedChanged(bool value)
     {
@@ -278,6 +280,15 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
                 volume[i] = new ChartVolume(t, b.Volume, b.Close >= b.Open ? "#26a69a80" : "#ef535080");
             }
 
+            var ichi = ShowIchimoku ? IchimokuBundle(bars) : null;
+            ChartSignalMarker[]? signals = null;
+            if (ShowLuxSignals && ichi?.Signals is { Length: > 0 })
+                signals = LuxSignals(bars).Concat(ichi.Signals).ToArray();
+            else if (ShowLuxSignals)
+                signals = LuxSignals(bars);
+            else if (ichi?.Signals is { Length: > 0 })
+                signals = ichi.Signals;
+
             var snapshot = new ChartSnapshot(
                 Symbol: instrument.DisplayName,
                 Timeframe: tf.Label,
@@ -288,8 +299,13 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
                 Ema: ShowEma ? Ema(bars, 50) : null,
                 Rsi: ShowRsi ? Rsi(bars, 14) : null,
                 Macd: ShowMacd ? Macd(bars, 12, 26, 9) : null,
-                Signals: ShowLuxSignals ? LuxSignals(bars) : null,
-                Trail: ShowLuxSignals ? LuxTrail(bars) : null);
+                Signals: signals,
+                Trail: ShowLuxSignals ? LuxTrail(bars) : null,
+                Tenkan: ichi?.Tenkan,
+                Kijun: ichi?.Kijun,
+                SpanA: ichi?.SpanA,
+                SpanB: ichi?.SpanB,
+                Chikou: ichi?.Chikou);
 
             if (ct.IsCancellationRequested) return;
             _lastBars = bars;
@@ -359,7 +375,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         if (name.Length == 0) return;
         _presetStore.Save(name, new ChartsPreset(
             SelectedInstrument?.Contract.Symbol, SelectedTimeframe?.Label, SelectedChartType,
-            ShowSma, ShowEma, ShowRsi, ShowMacd, ShowLuxSignals));
+            ShowSma, ShowEma, ShowRsi, ShowMacd, ShowLuxSignals, ShowIchimoku));
         RefreshPresetNames(selected: name);
         _logger.LogInformation("Charts: preset '{Name}' saved", name);
     }
@@ -396,6 +412,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
             ShowRsi = preset.ShowRsi;
             ShowMacd = preset.ShowMacd;
             ShowLuxSignals = preset.ShowLuxSignals;
+            ShowIchimoku = preset.ShowIchimoku;
         }
         finally
         {
@@ -555,6 +572,65 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         return pts.ToArray();
     }
 
+    private sealed record IchimokuSeries(
+        ChartLinePoint[] Tenkan,
+        ChartLinePoint[] Kijun,
+        ChartLinePoint[] SpanA,
+        ChartLinePoint[] SpanB,
+        ChartLinePoint[] Chikou,
+        ChartSignalMarker[] Signals);
+
+    private static IchimokuSeries IchimokuBundle(IReadOnlyList<Bar> bars)
+    {
+        var eng = new DaxAlgo.Sdk.Quant.ModernIchimoku();
+        var tenkan = new List<ChartLinePoint>();
+        var kijun = new List<ChartLinePoint>();
+        var spanA = new List<ChartLinePoint>();
+        var spanB = new List<ChartLinePoint>();
+        var chikou = new List<ChartLinePoint>();
+        var signals = new List<ChartSignalMarker>();
+        var closes = new double[bars.Count];
+
+        for (var i = 0; i < bars.Count; i++)
+        {
+            var b = bars[i];
+            closes[i] = b.Close;
+            var t = ToEpoch(b.TimestampUtc);
+            var s = eng.Update(b.High, b.Low, b.Open, b.Close);
+            if (double.IsFinite(s.Tenkan)) tenkan.Add(new ChartLinePoint(t, Round(s.Tenkan)));
+            if (double.IsFinite(s.Kijun)) kijun.Add(new ChartLinePoint(t, Round(s.Kijun)));
+            if (double.IsFinite(s.SpanA)) spanA.Add(new ChartLinePoint(t, Round(s.SpanA)));
+            if (double.IsFinite(s.SpanB)) spanB.Add(new ChartLinePoint(t, Round(s.SpanB)));
+
+            if (s.RawSignal == DaxAlgo.Sdk.Quant.ModernIchimoku.SignalKind.None) continue;
+            var (shape, color, text) = s.RawSignal switch
+            {
+                DaxAlgo.Sdk.Quant.ModernIchimoku.SignalKind.TkBull =>
+                    (s.Qualified ? "arrowUp" : "circle", s.Qualified ? "#26a69a" : "#90a4ae", s.Qualified ? "TK↑" : "tk"),
+                DaxAlgo.Sdk.Quant.ModernIchimoku.SignalKind.TkBear =>
+                    (s.Qualified ? "arrowDown" : "circle", s.Qualified ? "#ef5350" : "#90a4ae", s.Qualified ? "TK↓" : "tk"),
+                DaxAlgo.Sdk.Quant.ModernIchimoku.SignalKind.KumoBull =>
+                    (s.Qualified ? "arrowUp" : "circle", s.Qualified ? "#00e676" : "#90a4ae", s.Qualified ? "K↑" : "k"),
+                DaxAlgo.Sdk.Quant.ModernIchimoku.SignalKind.KumoBear =>
+                    (s.Qualified ? "arrowDown" : "circle", s.Qualified ? "#ff1744" : "#90a4ae", s.Qualified ? "K↓" : "k"),
+                _ => ("circle", "#888", ""),
+            };
+            signals.Add(new ChartSignalMarker(t, shape, color, text));
+        }
+
+        const int d = DaxAlgo.Sdk.Quant.ModernIchimoku.DefaultDisplacement;
+        for (var i = 0; i < bars.Count; i++)
+        {
+            var src = i + d;
+            if (src >= bars.Count) break;
+            chikou.Add(new ChartLinePoint(ToEpoch(bars[i].TimestampUtc), Round(closes[src])));
+        }
+
+        return new IchimokuSeries(
+            tenkan.ToArray(), kijun.ToArray(), spanA.ToArray(), spanB.ToArray(),
+            chikou.ToArray(), signals.ToArray());
+    }
+
     private static double Round(double v) => Math.Round(v, 6);
 
     public void Dispose()
@@ -596,7 +672,8 @@ public sealed record ChartsPreset(
     bool ShowEma,
     bool ShowRsi,
     bool ShowMacd,
-    bool ShowLuxSignals = false);
+    bool ShowLuxSignals = false,
+    bool ShowIchimoku = false);
 
 // ── JSON bridge DTOs (camelCase via the window's serializer) → Lightweight Charts shapes ─────────
 public sealed record ChartCandle(long Time, double Open, double High, double Low, double Close);
@@ -615,4 +692,9 @@ public sealed record ChartSnapshot(
     ChartLinePoint[]? Rsi,
     MacdPoint[]? Macd,
     ChartSignalMarker[]? Signals = null,
-    ChartLinePoint[]? Trail = null);
+    ChartLinePoint[]? Trail = null,
+    ChartLinePoint[]? Tenkan = null,
+    ChartLinePoint[]? Kijun = null,
+    ChartLinePoint[]? SpanA = null,
+    ChartLinePoint[]? SpanB = null,
+    ChartLinePoint[]? Chikou = null);

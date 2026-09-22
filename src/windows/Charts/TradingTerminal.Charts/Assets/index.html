@@ -89,6 +89,11 @@ window.dax = {
     if (p.sma) { const s = chart.addSeries(LWC.LineSeries, { color: '#42a5f5', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.sma); extra.push(s); }
     if (p.ema) { const s = chart.addSeries(LWC.LineSeries, { color: '#e0a000', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.ema); extra.push(s); }
     if (p.trail) { const t = chart.addSeries(LWC.LineSeries, { color: '#ab47bc', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false }, 0); t.setData(p.trail); extra.push(t); }
+    if (p.tenkan) { const s = chart.addSeries(LWC.LineSeries, { color: '#26c6da', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.tenkan); extra.push(s); }
+    if (p.kijun) { const s = chart.addSeries(LWC.LineSeries, { color: '#ef6c00', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.kijun); extra.push(s); }
+    if (p.spanA) { const s = chart.addSeries(LWC.LineSeries, { color: '#66bb6a', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.spanA); extra.push(s); }
+    if (p.spanB) { const s = chart.addSeries(LWC.LineSeries, { color: '#e57373', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.spanB); extra.push(s); }
+    if (p.chikou) { const s = chart.addSeries(LWC.LineSeries, { color: '#78909c', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.chikou); extra.push(s); }
 
     if (p.signals && p.signals.length && candleSeries && candleSeries.setMarkers) {
       try {
