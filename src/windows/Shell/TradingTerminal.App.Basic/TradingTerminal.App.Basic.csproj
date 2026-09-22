@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -88,6 +88,17 @@
           Condition="'$(Configuration)' == 'Debug' And Exists('..\..\..\..\appsettings.Testing.json')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <!-- The entitlement layer, which exists only in the installer editions: it is authored in
+       Basic-Installer and promoted up into Pro-Installer, and is absent from this open-source
+       checkout entirely. Guarded by Exists() for the same reason the launch profiles above are —
+       that is what lets one promoted csproj serve every edition.
+
+       Only the REFERENCE is conditional. Whether the account panel is actually composed is decided
+       per edition in Composition/AppDependencyInjection.cs, which every repo owns. -->
+  <ItemGroup Condition="Exists('..\TradingTerminal.Accounts\TradingTerminal.Accounts.csproj')">
+    <ProjectReference Include="..\TradingTerminal.Accounts\TradingTerminal.Accounts.csproj" />
   </ItemGroup>
 
 
