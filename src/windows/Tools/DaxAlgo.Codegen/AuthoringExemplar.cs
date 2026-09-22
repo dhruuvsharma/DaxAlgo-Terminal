@@ -90,7 +90,12 @@ public static class AuthoringExemplar
 
     private static readonly string[] SpatialWords =
     [
-        "3d", "3-d", "three dimensional", "three-dimensional", "battlefield", "isometric", "perspective",
+        "3d", "3-d", "three dimensional", "three-dimensional", "isometric", "perspective",
+    ];
+
+    private static readonly string[] BattlefieldWords =
+    [
+        "battlefield", "soldier", "soldiers", "army", "armies", "bulls vs", "bears vs", "newhedge",
     ];
 
     /// <summary>
@@ -165,15 +170,21 @@ public static class AuthoringExemplar
         AuthoringKind.Strategy => WantsCells(brief)
             ? "RegimeMatrixKernel.cs"
             : "MovingAverageCrossKernel.cs",
-        AuthoringKind.Visualizer => WantsSpace(brief)
-            ? "DepthLandscapeVisualizer.cs"
-            : WantsCells(brief)
-                ? "FootprintClusterVisualizer.cs"
-                : WantsOrderFlow(brief)
-                    ? "BookPressureVisualizer.cs"
-                    : "SpreadBandVisualizer.cs",
+        AuthoringKind.Visualizer => WantsBattlefield(brief)
+            ? "OrderBookBattlefieldVisualizer.cs"
+            : WantsSpace(brief)
+                ? "DepthLandscapeVisualizer.cs"
+                : WantsCells(brief)
+                    ? "FootprintClusterVisualizer.cs"
+                    : WantsOrderFlow(brief)
+                        ? "BookPressureVisualizer.cs"
+                        : "SpreadBandVisualizer.cs",
         _ => null,
     };
+
+    /// <summary>True when the brief asks for the bulls-vs-bears / soldier battlefield scene.</summary>
+    internal static bool WantsBattlefield(string? brief) =>
+        Mentions(brief, BattlefieldWords);
 
     /// <summary>True when the brief asks for a picture in three dimensions.</summary>
     internal static bool WantsSpace(string? brief) => Mentions(brief, SpatialWords);

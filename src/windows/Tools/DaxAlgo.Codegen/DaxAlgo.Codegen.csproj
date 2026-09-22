@@ -107,6 +107,9 @@
     <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\DepthLandscapeVisualizer.cs">
       <LogicalName>DaxAlgo.Codegen.Exemplars.DepthLandscapeVisualizer.cs</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\..\samples\DaxAlgo.Sandbox.Samples\OrderBookBattlefieldVisualizer.cs">
+      <LogicalName>DaxAlgo.Codegen.Exemplars.OrderBookBattlefieldVisualizer.cs</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

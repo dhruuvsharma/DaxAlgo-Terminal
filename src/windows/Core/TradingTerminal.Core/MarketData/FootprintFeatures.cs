@@ -105,6 +105,14 @@ public sealed record FootprintFeatureRow(
 /// <param name="StackedBuy">Longest run of consecutive ask-imbalanced rows (stacked buying).</param>
 /// <param name="StackedSell">Longest run of consecutive bid-imbalanced rows (stacked selling).</param>
 /// <param name="Quality">Feed quality of the trade stream this bar was built from.</param>
+/// <param name="MaxDelta">Bookmap Max Delta: peak running bid/ask delta inside the bar.</param>
+/// <param name="MinDelta">Bookmap Min Delta: trough running bid/ask delta inside the bar.</param>
+/// <param name="PullbackDelta">
+/// Bookmap Pullback Delta: final running delta minus the most recent extreme (max or min).
+/// </param>
+/// <param name="BidTrades">Count of sell-initiated prints (bid hits).</param>
+/// <param name="AskTrades">Count of buy-initiated prints (ask lifts).</param>
+/// <param name="BarHeightTicks">Price span of the bar in ticks (0 when empty / unknown).</param>
 public sealed record FootprintBar(
     DateTime StartUtc,
     DateTime EndUtc,
@@ -119,7 +127,13 @@ public sealed record FootprintBar(
     long CumulativeDelta,
     int StackedBuy,
     int StackedSell,
-    FeedQuality Quality)
+    FeedQuality Quality,
+    long MaxDelta = 0,
+    long MinDelta = 0,
+    long PullbackDelta = 0,
+    int BidTrades = 0,
+    int AskTrades = 0,
+    int BarHeightTicks = 0)
 {
     /// <summary>Total volume across all rows.</summary>
     public long TotalVolume => BuyVolume + SellVolume;
@@ -127,12 +141,16 @@ public sealed record FootprintBar(
 
 /// <summary>Tuning for the footprint feature extractor. All fields have v2 defaults.</summary>
 /// <param name="ImbalanceRatio">Diagonal-imbalance ratio (default 3:1).</param>
-public readonly record struct FootprintExtractorOptions(double ImbalanceRatio = 3.0)
+/// <param name="CryptoDecimals">
+/// Bookmap-style crypto rounding: round prices to this many decimals before tick snap.
+/// Use −1 to disable (futures default).
+/// </param>
+public readonly record struct FootprintExtractorOptions(
+    double ImbalanceRatio = 3.0,
+    int CryptoDecimals = -1)
 {
-    /// <summary>The v2 defaults. Constructed explicitly with the 3:1 ratio because a record-struct
-    /// parameterless <c>new()</c> zero-initialises and does <em>not</em> apply the primary
-    /// constructor's default value.</summary>
-    public static FootprintExtractorOptions Default => new(ImbalanceRatio: 3.0);
+    /// <summary>The v2 defaults.</summary>
+    public static FootprintExtractorOptions Default => new(ImbalanceRatio: 3.0, CryptoDecimals: -1);
 }
 
 /// <summary>
@@ -179,13 +197,37 @@ public static class FootprintFeatures
         if (tickSize <= 0) throw new ArgumentOutOfRangeException(nameof(tickSize), "tickSize must be positive.");
         if (options.Equals(default(FootprintExtractorOptions))) options = FootprintExtractorOptions.Default;
 
+        // Bookmap bar stats: running delta extremes. Max/Min start at 0 so an early print of +50
+        // then a pullback to +20 keeps lastExtreme at the peak (pullback = −30), matching Bookmap's
+        // "retracement from the most recent max/min delta".
+        long runningDelta = 0, maxDelta = 0, minDelta = 0, lastExtreme = 0;
+        int bidTrades = 0, askTrades = 0;
+        foreach (var p in prints.OrderBy(p => p.TimeUtc))
+        {
+            if (p.Size <= 0) continue;
+            long signed = p.Aggressor switch
+            {
+                AggressorSide.Buy => p.Size,
+                AggressorSide.Sell => -p.Size,
+                _ => 0,
+            };
+            if (p.Aggressor == AggressorSide.Buy) askTrades++;
+            else if (p.Aggressor == AggressorSide.Sell) bidTrades++;
+
+            if (signed == 0) continue;
+            runningDelta += signed;
+            if (runningDelta > maxDelta) { maxDelta = runningDelta; lastExtreme = maxDelta; }
+            if (runningDelta < minDelta) { minDelta = runningDelta; lastExtreme = minDelta; }
+        }
+        var pullbackDelta = runningDelta - lastExtreme;
+
         // Bucket buy/sell volume per snapped price.
         var buy = new Dictionary<double, long>();
         var sell = new Dictionary<double, long>();
         foreach (var p in prints)
         {
             if (p.Size <= 0) continue;
-            var bucket = Math.Round(p.Price / tickSize, MidpointRounding.AwayFromZero) * tickSize;
+            var bucket = FootprintPriceSnap.Snap(p.Price, tickSize, options.CryptoDecimals);
             switch (p.Aggressor)
             {
                 case AggressorSide.Buy:
@@ -254,11 +296,20 @@ public static class FootprintFeatures
 
         var (stackedBuy, stackedSell) = StackedRuns(rows);
         var delta = totalBuy - totalSell;
+        var barHeightTicks = 0;
+        if (ordered.Count > 0)
+        {
+            var hi = ordered[0];
+            var lo = ordered[^1];
+            barHeightTicks = Math.Max(1, (int)Math.Round((hi - lo) / tickSize, MidpointRounding.AwayFromZero) + 1);
+        }
 
         return new FootprintBar(
             startUtc, endUtc, rows, pocPrice, volumeCentroid, buyCentroid, sellCentroid,
             totalBuy, totalSell, delta, cumulativeDeltaBefore + delta,
-            stackedBuy, stackedSell, quality);
+            stackedBuy, stackedSell, quality,
+            MaxDelta: maxDelta, MinDelta: minDelta, PullbackDelta: pullbackDelta,
+            BidTrades: bidTrades, AskTrades: askTrades, BarHeightTicks: barHeightTicks);
     }
 
     /// <summary>

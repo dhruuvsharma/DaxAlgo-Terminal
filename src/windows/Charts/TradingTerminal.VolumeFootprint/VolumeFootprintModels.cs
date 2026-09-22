@@ -7,14 +7,51 @@ namespace TradingTerminal.VolumeFootprint;
 public enum PocSeries { Total, Buy, Sell }
 
 /// <summary>
-/// How each price cell is rendered inside a footprint column.
-/// <list type="bullet">
-/// <item><see cref="BidAsk"/> — the classic split: sell volume left (red), buy volume right (green).</item>
-/// <item><see cref="Delta"/> — one cell coloured by net delta sign, intensity by |delta|.</item>
-/// <item><see cref="Volume"/> — one cell as a total-volume profile, intensity by total volume.</item>
-/// </list>
+/// How each price cell's background is painted (Bookmap-style backgrounds + classic splits).
+/// Text is controlled separately by <see cref="CellTextMode"/>.
 /// </summary>
-public enum CellDisplayMode { BidAsk, Delta, Volume }
+public enum CellDisplayMode
+{
+    /// <summary>Sell left / buy right, intensity by side volume (Bookmap Histogram BS).</summary>
+    BidAsk,
+
+    /// <summary>Full cell tinted by horizontal delta sign, intensity by |Δ|.</summary>
+    Delta,
+
+    /// <summary>Full cell intensity by total volume.</summary>
+    Volume,
+
+    /// <summary>Left-aligned histogram bar sized by total volume.</summary>
+    Histogram,
+
+    /// <summary>Signed histogram from centre: buy→right, sell→left.</summary>
+    HistogramDelta,
+
+    /// <summary>Signed histogram sized by |diagonal Δ| (ask vs bid one tick away).</summary>
+    HistogramDiagonalDelta,
+
+    /// <summary>Uniform column tint (readability), intensity by total volume.</summary>
+    FullBackground,
+
+    /// <summary>Uniform column tint by horizontal delta sign.</summary>
+    FullBackgroundDelta,
+}
+
+/// <summary>Bookmap Footprint text formats for cell numbers.</summary>
+public enum CellTextMode
+{
+    /// <summary>Buy × Sell volumes with an x between them.</summary>
+    BxS,
+
+    /// <summary>Total volume only.</summary>
+    Sum,
+
+    /// <summary>Horizontal delta (buy − sell) for the row.</summary>
+    HorizontalDelta,
+
+    /// <summary>Diagonal delta vs the neighbouring tick (ask vs bid below / bid vs ask above).</summary>
+    DiagonalDelta,
+}
 
 /// <summary>One fitted overlay curve: ŷ price per column for one fit kind × POC series. When the
 /// predictor is on the array extends past the visible bars by the prediction horizon.

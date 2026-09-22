@@ -121,6 +121,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _showEma = true;
     [ObservableProperty] private bool _showRsi;
     [ObservableProperty] private bool _showMacd;
+    [ObservableProperty] private bool _showLuxSignals;
     [ObservableProperty] private string _status = "Loading instruments…";
 
     /// <summary>Display pause: live candle pushes stop; the hub subscription keeps running so
@@ -153,6 +154,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
     partial void OnShowEmaChanged(bool value) => QueueReload();
     partial void OnShowRsiChanged(bool value) => QueueReload();
     partial void OnShowMacdChanged(bool value) => QueueReload();
+    partial void OnShowLuxSignalsChanged(bool value) => QueueReload();
 
     partial void OnIsPausedChanged(bool value)
     {
@@ -285,7 +287,9 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
                 Sma: ShowSma ? Sma(bars, 20) : null,
                 Ema: ShowEma ? Ema(bars, 50) : null,
                 Rsi: ShowRsi ? Rsi(bars, 14) : null,
-                Macd: ShowMacd ? Macd(bars, 12, 26, 9) : null);
+                Macd: ShowMacd ? Macd(bars, 12, 26, 9) : null,
+                Signals: ShowLuxSignals ? LuxSignals(bars) : null,
+                Trail: ShowLuxSignals ? LuxTrail(bars) : null);
 
             if (ct.IsCancellationRequested) return;
             _lastBars = bars;
@@ -355,7 +359,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         if (name.Length == 0) return;
         _presetStore.Save(name, new ChartsPreset(
             SelectedInstrument?.Contract.Symbol, SelectedTimeframe?.Label, SelectedChartType,
-            ShowSma, ShowEma, ShowRsi, ShowMacd));
+            ShowSma, ShowEma, ShowRsi, ShowMacd, ShowLuxSignals));
         RefreshPresetNames(selected: name);
         _logger.LogInformation("Charts: preset '{Name}' saved", name);
     }
@@ -391,6 +395,7 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
             ShowEma = preset.ShowEma;
             ShowRsi = preset.ShowRsi;
             ShowMacd = preset.ShowMacd;
+            ShowLuxSignals = preset.ShowLuxSignals;
         }
         finally
         {
@@ -514,6 +519,42 @@ public sealed partial class ChartsViewModel : ViewModelBase, IDisposable
         return pts.ToArray();
     }
 
+    private static ChartSignalMarker[] LuxSignals(IReadOnlyList<Bar> bars)
+    {
+        var eng = new DaxAlgo.Sdk.Quant.LuxStyleSignals();
+        var list = new List<ChartSignalMarker>();
+        foreach (var b in bars)
+        {
+            var s = eng.Update(b.High, b.Low, b.Close);
+            if (s.Kind == DaxAlgo.Sdk.Quant.LuxStyleSignals.Kind.None) continue;
+            var (shape, color, text) = s.Kind switch
+            {
+                DaxAlgo.Sdk.Quant.LuxStyleSignals.Kind.ConfirmBuy => ("arrowUp", "#26a69a", "Buy"),
+                DaxAlgo.Sdk.Quant.LuxStyleSignals.Kind.StrongBuy => ("arrowUp", "#00e676", "Buy+"),
+                DaxAlgo.Sdk.Quant.LuxStyleSignals.Kind.ConfirmSell => ("arrowDown", "#ef5350", "Sell"),
+                DaxAlgo.Sdk.Quant.LuxStyleSignals.Kind.StrongSell => ("arrowDown", "#ff1744", "Sell+"),
+                DaxAlgo.Sdk.Quant.LuxStyleSignals.Kind.ContraBuy => ("circle", "#81c784", "C↑"),
+                DaxAlgo.Sdk.Quant.LuxStyleSignals.Kind.ContraSell => ("circle", "#e57373", "C↓"),
+                _ => ("circle", "#888", ""),
+            };
+            list.Add(new ChartSignalMarker(ToEpoch(b.TimestampUtc), shape, color, text));
+        }
+        return list.ToArray();
+    }
+
+    private static ChartLinePoint[] LuxTrail(IReadOnlyList<Bar> bars)
+    {
+        var eng = new DaxAlgo.Sdk.Quant.LuxStyleSignals();
+        var pts = new List<ChartLinePoint>();
+        foreach (var b in bars)
+        {
+            var s = eng.Update(b.High, b.Low, b.Close);
+            if (s.Trail > 0 && double.IsFinite(s.Trail))
+                pts.Add(new ChartLinePoint(ToEpoch(b.TimestampUtc), Round(s.Trail)));
+        }
+        return pts.ToArray();
+    }
+
     private static double Round(double v) => Math.Round(v, 6);
 
     public void Dispose()
@@ -554,13 +595,15 @@ public sealed record ChartsPreset(
     bool ShowSma,
     bool ShowEma,
     bool ShowRsi,
-    bool ShowMacd);
+    bool ShowMacd,
+    bool ShowLuxSignals = false);
 
 // ── JSON bridge DTOs (camelCase via the window's serializer) → Lightweight Charts shapes ─────────
 public sealed record ChartCandle(long Time, double Open, double High, double Low, double Close);
 public sealed record ChartVolume(long Time, double Value, string Color);
 public sealed record ChartLinePoint(long Time, double Value);
 public sealed record MacdPoint(long Time, double Macd, double Signal, double Hist);
+public sealed record ChartSignalMarker(long Time, string Shape, string Color, string Text);
 public sealed record ChartSnapshot(
     string Symbol,
     string Timeframe,
@@ -570,4 +613,6 @@ public sealed record ChartSnapshot(
     ChartLinePoint[]? Sma,
     ChartLinePoint[]? Ema,
     ChartLinePoint[]? Rsi,
-    MacdPoint[]? Macd);
+    MacdPoint[]? Macd,
+    ChartSignalMarker[]? Signals = null,
+    ChartLinePoint[]? Trail = null);

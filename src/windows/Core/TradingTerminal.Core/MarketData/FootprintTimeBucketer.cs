@@ -15,22 +15,30 @@ namespace TradingTerminal.Core.MarketData;
 /// bucket — and the sealed bar's <c>EndUtc</c> is the new bucket's start. The forming
 /// (unsealed) bar from <see cref="BuildForming"/> instead ends at <c>start + span</c>.
 /// </summary>
-public sealed class FootprintTimeBucketer
+public sealed class FootprintTimeBucketer : IFootprintBucketer
 {
     private readonly TimeSpan _span;
     private readonly double _tickSize;
     private readonly FeedQuality _quality;
+    private readonly FootprintExtractorOptions _options;
     private readonly List<FootprintPrint> _prints = new();
     private DateTime _bucketStart = DateTime.MinValue;
     private long _cumulativeDelta;
 
-    public FootprintTimeBucketer(TimeSpan span, double tickSize, FeedQuality quality)
+    public FootprintTimeBucketer(
+        TimeSpan span,
+        double tickSize,
+        FeedQuality quality,
+        FootprintExtractorOptions options = default)
     {
         if (span <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(span));
         if (tickSize <= 0) throw new ArgumentOutOfRangeException(nameof(tickSize));
         _span = span;
         _tickSize = tickSize;
         _quality = quality;
+        _options = options.Equals(default(FootprintExtractorOptions))
+            ? FootprintExtractorOptions.Default
+            : options;
     }
 
     /// <summary>Start of the bucket currently accumulating, or <see cref="DateTime.MinValue"/>
@@ -54,7 +62,7 @@ public sealed class FootprintTimeBucketer
             if (_bucketStart != DateTime.MinValue && _prints.Count > 0)
             {
                 sealedBar = FootprintFeatures.BuildBar(_prints, _tickSize, _bucketStart, bucket,
-                    _quality, _cumulativeDelta);
+                    _quality, _cumulativeDelta, _options);
                 _cumulativeDelta += sealedBar.Delta;
             }
             _bucketStart = bucket;
@@ -71,7 +79,7 @@ public sealed class FootprintTimeBucketer
         _bucketStart == DateTime.MinValue
             ? null
             : FootprintFeatures.BuildBar(_prints, _tickSize, _bucketStart, _bucketStart + _span,
-                _quality, _cumulativeDelta);
+                _quality, _cumulativeDelta, _options);
 
     public void Reset(long cumulativeDeltaSeed = 0)
     {

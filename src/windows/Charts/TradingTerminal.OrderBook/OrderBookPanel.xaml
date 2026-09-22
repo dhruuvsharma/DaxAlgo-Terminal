@@ -445,6 +445,10 @@
                         <TextBlock Text="VIEW" Style="{StaticResource App.GroupLabel}" Margin="0,0,0,6" />
                         <CheckBox Content="Liquidity heatmap" IsChecked="{Binding ShowHeatmap}" Margin="0,0,0,4" />
                         <CheckBox Content="Trade dots" IsChecked="{Binding ShowTrades}" Margin="0,0,0,4" />
+                        <CheckBox Content="Footprint on heatmap" IsChecked="{Binding ShowFootprintOverlay}" Margin="0,0,0,4"
+                                  ToolTip="Bookmap-style executed bid×ask cells over resting liquidity." />
+                        <CheckBox Content="Battlefield viz" IsChecked="{Binding ShowBattlefield}" Margin="0,0,0,4"
+                                  ToolTip="3D bulls-vs-bears: each resting size chunk is a soldier on its price (Projection3)." />
                         <CheckBox Content="Microprice line" IsChecked="{Binding ShowMicropriceLine}" Margin="0,0,0,4" />
                         <CheckBox Content="Imbalance lane" IsChecked="{Binding ShowImbalanceLane}" Margin="0,0,0,12" />
 

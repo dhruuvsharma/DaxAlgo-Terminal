@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using DaxAlgo.Sdk.Quant;
 using TradingTerminal.Core.Domain;
 
 namespace TradingTerminal.OrderBook;
@@ -155,7 +156,7 @@ public partial class OrderBookPanel : UserControl
     {
         HeatCanvas.Children.Clear();
         if (_vm is null || _w <= AxisWidth + 8 || _h <= 40) return;
-        if (!_vm.ShowHeatmap)
+        if (!_vm.ShowHeatmap && !_vm.ShowBattlefield)
         {
             AddText("Heatmap off", AxisWidth + 8, 8, 200, 18, DimText, 11);
             return;
@@ -168,6 +169,26 @@ public partial class OrderBookPanel : UserControl
         var plotW = _w - AxisWidth;
         var plotH = _h - laneH;
         if (plotH <= 20) return;
+
+        // Battlefield mode: full 3D Projection3 scene (soldiers on resting prices).
+        if (_vm.ShowBattlefield)
+        {
+            DrawBattlefield3D(columns[^1], plotW, plotH, AxisWidth);
+            if (laneH > 0)
+            {
+                var laneVisible = Math.Min(columns.Count, Math.Max(1, (int)(plotW / ColumnWidth)));
+                var laneStart = columns.Count - laneVisible;
+                double LaneX(int colIdx) => AxisWidth + (colIdx - laneStart) * ColumnWidth;
+                DrawImbalanceLane(columns, laneStart, LaneX, plotH, laneH);
+            }
+            return;
+        }
+
+        if (!_vm.ShowHeatmap)
+        {
+            AddText("Heatmap off", AxisWidth + 8, 8, 200, 18, DimText, 11);
+            return;
+        }
 
         // ML forecast gutter: the live columns stop short of the right edge so the predicted
         // path has room ahead of "now".
@@ -222,6 +243,10 @@ public partial class OrderBookPanel : UserControl
         // ── Trade dots ────────────────────────────────────────────────────────────────────────
         if (_vm.ShowTrades)
             DrawTrades(columns, start, X, Y, maxSize);
+
+        // ── Footprint-on-heatmap (executed BxS cells over resting liquidity) ───────────────────
+        if (_vm.ShowFootprintOverlay)
+            DrawFootprintOverlay(columns, start, X, Y, cellH, tick);
 
         // ── Bottom imbalance lane ───────────────────────────────────────────────────────────────
         if (laneH > 0) DrawImbalanceLane(columns, start, X, plotH, laneH);
@@ -354,6 +379,177 @@ public partial class OrderBookPanel : UserControl
                 HeatCanvas.Children.Add(dot);
             }
         }
+    }
+
+    /// <summary>Bookmap-style footprint overlay: aggregate trades in each heat column into bid×ask
+    /// cells at the price tick and paint them over the liquidity field.</summary>
+    private void DrawFootprintOverlay(IReadOnlyList<HeatColumn> columns, int start,
+        Func<int, double> x, Func<double, double> y, double cellH, double tick)
+    {
+        if (tick <= 0) tick = 0.25;
+        long maxVol = 1;
+        var buckets = new List<(double X, double Price, long Buy, long Sell)>();
+        for (var i = start; i < columns.Count; i++)
+        {
+            var trades = columns[i].Trades;
+            if (trades is null || trades.Count == 0) continue;
+            var buy = new Dictionary<double, long>();
+            var sell = new Dictionary<double, long>();
+            foreach (var t in trades)
+            {
+                var px = Math.Round(t.Price / tick) * tick;
+                if (t.Side == AggressorSide.Buy) buy[px] = buy.GetValueOrDefault(px) + t.Size;
+                else if (t.Side == AggressorSide.Sell) sell[px] = sell.GetValueOrDefault(px) + t.Size;
+            }
+            var cx = x(i);
+            foreach (var px in buy.Keys.Union(sell.Keys))
+            {
+                var b = buy.GetValueOrDefault(px);
+                var s = sell.GetValueOrDefault(px);
+                maxVol = Math.Max(maxVol, b + s);
+                buckets.Add((cx, px, b, s));
+            }
+        }
+
+        var half = Math.Max(1.0, ColumnWidth / 2.0);
+        var h = Math.Max(2.0, cellH - 0.5);
+        foreach (var (cx, price, buyVol, sellVol) in buckets)
+        {
+            var top = y(price) - h / 2.0;
+            if (sellVol > 0)
+            {
+                var a = (byte)Math.Clamp(40 + 180.0 * sellVol / maxVol, 40, 220);
+                var brush = Freeze(new SolidColorBrush(Color.FromArgb(a, AskColor.R, AskColor.G, AskColor.B)));
+                var rect = new Rectangle { Width = half, Height = h, Fill = brush };
+                Canvas.SetLeft(rect, cx);
+                Canvas.SetTop(rect, top);
+                HeatCanvas.Children.Add(rect);
+            }
+            if (buyVol > 0)
+            {
+                var a = (byte)Math.Clamp(40 + 180.0 * buyVol / maxVol, 40, 220);
+                var brush = Freeze(new SolidColorBrush(Color.FromArgb(a, BidColor.R, BidColor.G, BidColor.B)));
+                var rect = new Rectangle { Width = half, Height = h, Fill = brush };
+                Canvas.SetLeft(rect, cx + half);
+                Canvas.SetTop(rect, top);
+                HeatCanvas.Children.Add(rect);
+            }
+        }
+    }
+
+    /// <summary>
+    /// NewHedge / Hyperion battlefield: each resting size chunk is a soldier on its price,
+    /// projected with <see cref="Projection3"/> (painter's algorithm). Replaces the old 2D band stub.
+    /// </summary>
+    private void DrawBattlefield3D(HeatColumn last, double plotW, double plotH, double axisW)
+    {
+        var tick = InferTick(last);
+        if (tick <= 0) tick = 0.25;
+        var depth = new DepthSnapshot(last.TimeUtc, last.Bids, last.Asks);
+        var soldiers = BattlefieldForces.FromDepth(depth, tick, halfWidthTicks: 22, troopUnit: 5, maxTroopsPerLevel: 10);
+        if (soldiers.Count == 0)
+        {
+            AddText("Forming armies…", axisW + 12, 12, 200, 18, DimText, 12);
+            return;
+        }
+
+        var originX = axisW;
+        var originY = 0d;
+        var corners = new[]
+        {
+            new Vec3(-1.05d, 0d, -0.5d), new Vec3(1.05d, 0d, -0.5d),
+            new Vec3(-1.05d, 0d, 0.5d), new Vec3(1.05d, 0d, 0.5d),
+            new Vec3(-1.05d, 0.6d, -0.5d), new Vec3(1.05d, 0.6d, -0.5d),
+            new Vec3(-1.05d, 0.6d, 0.5d), new Vec3(1.05d, 0.6d, 0.5d),
+        };
+        var seconds = (DateTime.UtcNow - DateTime.UnixEpoch).TotalSeconds;
+        var camera = Camera3.Framing(corners).Orbit(seconds * 0.12d);
+        var projection = Projection3.Of(camera, plotW, plotH);
+
+        // Ground line
+        Projected? prev = null;
+        for (var i = 0; i <= 24; i++)
+        {
+            var x = -1d + (2d * i / 24d);
+            var p = projection.Project(new Vec3(x, 0d, 0d));
+            if (p.InFront && prev is { InFront: true } q)
+            {
+                HeatCanvas.Children.Add(new Line
+                {
+                    X1 = originX + q.X, Y1 = originY + q.Y,
+                    X2 = originX + p.X, Y2 = originY + p.Y,
+                    Stroke = GridPen, StrokeThickness = 1,
+                });
+            }
+            prev = p;
+        }
+
+        // Front line at mid
+        var fa = projection.Project(new Vec3(0d, 0d, -0.35d));
+        var fb = projection.Project(new Vec3(0d, 0.55d, 0.35d));
+        if (fa.InFront && fb.InFront)
+        {
+            HeatCanvas.Children.Add(new Line
+            {
+                X1 = originX + fa.X, Y1 = originY + fa.Y,
+                X2 = originX + fb.X, Y2 = originY + fb.Y,
+                Stroke = MicroLine, StrokeThickness = 2.2,
+            });
+        }
+
+        var drawn = new List<(double Depth, double X, double Y, bool Bid)>(soldiers.Count);
+        foreach (var s in soldiers)
+        {
+            var p = projection.Project(new Vec3(s.X, s.Y, s.Z));
+            if (!p.InFront) continue;
+            drawn.Add((p.Depth, originX + p.X, originY + p.Y, s.IsBid));
+        }
+        drawn.Sort((a, b) => b.Depth.CompareTo(a.Depth));
+
+        foreach (var s in drawn)
+        {
+            var brush = s.Bid ? BuyDot : SellDot;
+            // Triangle-ish soldiers: small diamond polygons via rotated ellipse + size cue.
+            var r = 3.2;
+            var elli = new Ellipse
+            {
+                Width = r * 2, Height = r * 2,
+                Fill = brush,
+                Stroke = s.Bid ? BidLine : AskLine,
+                StrokeThickness = 0.8,
+            };
+            Canvas.SetLeft(elli, s.X - r);
+            Canvas.SetTop(elli, s.Y - r);
+            HeatCanvas.Children.Add(elli);
+        }
+
+        // Strikes from recent trades in this column
+        if (last.Trades is { Count: > 0 } trades)
+        {
+            var mid = (last.BestBid + last.BestAsk) * 0.5;
+            var strikeInput = trades.Select(t => (t.Price, t.Size, t.Side == AggressorSide.Buy));
+            foreach (var strike in BattlefieldForces.FromTrades(strikeInput, mid, tick, 22, minSize: 5))
+            {
+                var a = projection.Project(new Vec3(strike.X0, strike.Y0, strike.Z0));
+                var b = projection.Project(new Vec3(strike.X1, strike.Y1, strike.Z1));
+                if (!a.InFront || !b.InFront) continue;
+                HeatCanvas.Children.Add(new Line
+                {
+                    X1 = originX + a.X, Y1 = originY + a.Y,
+                    X2 = originX + b.X, Y2 = originY + b.Y,
+                    Stroke = strike.IsBuy ? BuyDot : SellDot,
+                    StrokeThickness = 2,
+                });
+            }
+        }
+
+        var bulls = soldiers.Count(s => s.IsBid);
+        var bears = soldiers.Count - bulls;
+        var total = Math.Max(1, bulls + bears);
+        AddText($"BATTLEFIELD  ·  BULLS {bulls} ({bulls / (double)total:P0})  ·  BEARS {bears} ({bears / (double)total:P0})",
+            axisW + 8, 6, plotW - 16, 16, DimText, 11);
+        AddText($"front {((last.BestBid + last.BestAsk) * 0.5).ToString("N" + DecimalsFor(tick), CultureInfo.InvariantCulture)}   soldiers {soldiers.Count}",
+            axisW + 8, 22, plotW - 16, 14, DimText, 10);
     }
 
     private void DrawImbalanceLane(IReadOnlyList<HeatColumn> columns, int start,

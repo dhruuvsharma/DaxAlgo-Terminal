@@ -132,6 +132,8 @@
                             <CheckBox Content="EMA (50)" IsChecked="{Binding ShowEma}" Margin="0,0,0,4" />
                             <CheckBox Content="RSI (14)" IsChecked="{Binding ShowRsi}" Margin="0,0,0,4" />
                             <CheckBox Content="MACD (12·26·9)" IsChecked="{Binding ShowMacd}" Margin="0,0,0,4" />
+                            <CheckBox Content="Lux-style signals" IsChecked="{Binding ShowLuxSignals}" Margin="0,0,0,4"
+                                      ToolTip="Confirmation / contrarian markers + ATR smart trail (LuxAlgo-inspired)." />
                             <TextBlock Text="RSI and MACD open their own panes below the price."
                                        FontSize="10" Foreground="{DynamicResource Text.Secondary}"
                                        TextWrapping="Wrap" Margin="0,3,0,0" />

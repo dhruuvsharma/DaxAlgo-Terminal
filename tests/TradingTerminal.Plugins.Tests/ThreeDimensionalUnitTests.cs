@@ -49,15 +49,23 @@ public sealed class ThreeDimensionalUnitTests
     }
 
     [Theory]
-    [InlineData("an order book as a 3D battlefield with soldiers as live orders")]
-    [InlineData("a three-dimensional surface of resting liquidity over time")]
-    [InlineData("plot the book in 3d")]
-    public void A_brief_that_asks_for_depth_in_space_gets_the_3D_exemplar(string brief)
+    [InlineData("an order book as a 3D battlefield with soldiers as live orders", "OrderBookBattlefieldVisualizer")]
+    [InlineData("a three-dimensional surface of resting liquidity over time", "DepthLandscapeVisualizer")]
+    [InlineData("plot the book in 3d", "DepthLandscapeVisualizer")]
+    public void A_brief_that_asks_for_depth_in_space_gets_the_3D_exemplar(string brief, string exemplar)
     {
-        // 3D wins over the order-flow exemplar on a brief that is both, because the landscape teaches
-        // depth handling as well and 3D is the half a model has no other worked example of.
         AuthoringExemplar.For(AuthoringKind.Visualizer, brief)
-            .Should().Contain("DepthLandscapeVisualizer");
+            .Should().Contain(exemplar);
+    }
+
+    [Fact]
+    public void The_battlefield_exemplar_clears_the_ladder()
+    {
+        var report = AuthoredUnitVerifier.Verify(
+            new AuthoredUnit(AuthoringKind.Visualizer, typeof(OrderBookBattlefieldVisualizer)));
+
+        report.Passed.Should().BeTrue(
+            string.Join(" | ", report.Findings.Select(f => f.ToString())));
     }
 
     [Theory]

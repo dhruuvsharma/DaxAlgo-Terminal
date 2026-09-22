@@ -88,6 +88,16 @@ window.dax = {
 
     if (p.sma) { const s = chart.addSeries(LWC.LineSeries, { color: '#42a5f5', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.sma); extra.push(s); }
     if (p.ema) { const s = chart.addSeries(LWC.LineSeries, { color: '#e0a000', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0); s.setData(p.ema); extra.push(s); }
+    if (p.trail) { const t = chart.addSeries(LWC.LineSeries, { color: '#ab47bc', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false }, 0); t.setData(p.trail); extra.push(t); }
+
+    if (p.signals && p.signals.length && candleSeries && candleSeries.setMarkers) {
+      try {
+        candleSeries.setMarkers(p.signals.map(m => ({
+          time: m.time, position: (m.shape === 'arrowDown' ? 'aboveBar' : 'belowBar'),
+          color: m.color, shape: m.shape, text: m.text || undefined,
+        })));
+      } catch (e) {}
+    }
 
     if (p.rsi) {
       const r = chart.addSeries(LWC.LineSeries, { color: '#ab47bc', lineWidth: 1 }, 1);

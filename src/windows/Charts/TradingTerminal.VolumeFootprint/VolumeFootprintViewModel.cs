@@ -67,10 +67,9 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     // ── Per-bar accumulator ────────────────────────────────────────────────────────────────
     // The bucketer keeps the raw prints for the forming bar and calls FootprintFeatures.BuildBar
-    // (Core) to seal buckets / rebuild the forming bar once per render tick. The same bucketer
-    // implementation drives the ML warm-start backfill, so historical training bars are built
-    // through the exact same path as live ones.
-    private FootprintTimeBucketer? _bucketer;
+    // (Core) to seal buckets / rebuild the forming bar once per render tick. The same factory
+    // drives live bars for every Bookmap-style bar kind (time / reversal / range / volume).
+    private IFootprintBucketer? _bucketer;
 
     /// <summary>Online RLS fallback. Recreated on every <see cref="Restart"/> (it is
     /// instrument/interval/tick scoped); null while the warm-start backfill is still training it.</summary>
@@ -126,12 +125,23 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     /// <summary>Selectable bar intervals — label + the time bucket each footprint bar spans.</summary>
     public sealed record FootprintInterval(string Label, TimeSpan Span);
 
+    /// <summary>Bookmap-style bar type shown in the toolbar.</summary>
+    public sealed record FootprintBarKindOption(string Label, FootprintBarKind Kind);
+
     private static readonly IReadOnlyList<FootprintInterval> AllIntervals = new[]
     {
         new FootprintInterval("15s", TimeSpan.FromSeconds(15)),
         new FootprintInterval("30s", TimeSpan.FromSeconds(30)),
         new FootprintInterval("1m",  TimeSpan.FromMinutes(1)),
         new FootprintInterval("5m",  TimeSpan.FromMinutes(5)),
+    };
+
+    private static readonly IReadOnlyList<FootprintBarKindOption> AllBarKinds = new[]
+    {
+        new FootprintBarKindOption("Time", FootprintBarKind.Time),
+        new FootprintBarKindOption("Reversal", FootprintBarKind.Reversal),
+        new FootprintBarKindOption("Range", FootprintBarKind.Range),
+        new FootprintBarKindOption("Volume", FootprintBarKind.Volume),
     };
 
     public VolumeFootprintViewModel(
@@ -166,6 +176,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         // Hide-until-search: empty visible list; ApplyFilter (below) collapses it to the selection.
         Instruments = new ObservableCollection<SignalInstrument>();
         Intervals = new ObservableCollection<FootprintInterval>(AllIntervals);
+        BarKinds = new ObservableCollection<FootprintBarKindOption>(AllBarKinds);
 
         // Embedded (inside a strategy window): the host pins the instrument and decides about ML BEFORE
         // the first Restart(), so a gated-off forecaster is never constructed and the persisted
@@ -177,6 +188,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
                 () => _allInstruments.FirstOrDefault(i => i.Contract.Symbol == "SPY") ?? _allInstruments.FirstOrDefault());
         ApplyFilter();
         SelectedInterval = Intervals.First(i => i.Label == "1m");
+        SelectedBarKind = BarKinds.First(k => k.Kind == FootprintBarKind.Time);
+        ThresholdText = "4";
         PresetNames = new ObservableCollection<string>(_presetStore.Names);
 
         // Coalesced render tick (~12 fps) via the portable timer seam. IDisposable, owned by this VM.
@@ -191,10 +204,31 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     public ObservableCollection<SignalInstrument> Instruments { get; }
     public ObservableCollection<FootprintInterval> Intervals { get; }
+    public ObservableCollection<FootprintBarKindOption> BarKinds { get; }
 
-    /// <summary>Cell rendering modes shown in the toolbar combo (Bid×Ask / Delta / Volume).</summary>
+    /// <summary>Cell background modes (Bookmap-style) shown in the toolbar combo.</summary>
     public IReadOnlyList<CellDisplayMode> DisplayModes { get; } =
-        new[] { CellDisplayMode.BidAsk, CellDisplayMode.Delta, CellDisplayMode.Volume };
+        new[]
+        {
+            CellDisplayMode.BidAsk,
+            CellDisplayMode.Delta,
+            CellDisplayMode.Volume,
+            CellDisplayMode.Histogram,
+            CellDisplayMode.HistogramDelta,
+            CellDisplayMode.HistogramDiagonalDelta,
+            CellDisplayMode.FullBackground,
+            CellDisplayMode.FullBackgroundDelta,
+        };
+
+    /// <summary>Bookmap cell text formats.</summary>
+    public IReadOnlyList<CellTextMode> TextModes { get; } =
+        new[]
+        {
+            CellTextMode.BxS,
+            CellTextMode.Sum,
+            CellTextMode.HorizontalDelta,
+            CellTextMode.DiagonalDelta,
+        };
 
     /// <summary>Most recent footprint bars, oldest first (rendered left → right).</summary>
     public ObservableCollection<RenderBar> Bars { get; }
@@ -204,6 +238,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     [ObservableProperty] private SignalInstrument? _selectedInstrument;
     [ObservableProperty] private FootprintInterval? _selectedInterval;
+    [ObservableProperty] private FootprintBarKindOption? _selectedBarKind;
+    [ObservableProperty] private string _thresholdText = "4";
     [ObservableProperty] private string _instrumentSearchText = string.Empty;
     [ObservableProperty] private string _tickSizeText = "0.25";
     [ObservableProperty] private int _maxBars = 14;
@@ -238,6 +274,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     // ── Cell display + analytics overlays (redraw-only; no stream restart) ────────────────────
     [ObservableProperty] private CellDisplayMode _selectedDisplayMode = CellDisplayMode.BidAsk;
+    [ObservableProperty] private CellTextMode _selectedTextMode = CellTextMode.BxS;
+    [ObservableProperty] private bool _showBarStats = true;
+    [ObservableProperty] private bool _autoScaleTicks = true;
+    /// <summary>Bookmap crypto rounding decimals (−1 = off / futures tick-only snap).</summary>
+    [ObservableProperty] private int _cryptoDecimals = -1;
     /// <summary>Highlight Core's diagonal bid/ask imbalances and stacked runs on the cells.</summary>
     [ObservableProperty] private bool _showImbalances = true;
     /// <summary>Shade each bar's 70% value area (VAH↔VAL band).</summary>
@@ -333,6 +374,36 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     private double TickSize => double.TryParse(TickSizeText, out var t) && t > 0 ? t : 0.25;
 
+    private long SealThreshold
+    {
+        get
+        {
+            if (!long.TryParse(ThresholdText, out var n) || n <= 0)
+            {
+                return SelectedBarKind?.Kind switch
+                {
+                    FootprintBarKind.Reversal => 4,
+                    FootprintBarKind.Range => 10,
+                    FootprintBarKind.Volume => 1_000,
+                    _ => 0,
+                };
+            }
+            return n;
+        }
+    }
+
+    /// <summary>True when Bookmap Time Interval bars are selected (interval combo applies).</summary>
+    public bool IsTimeBars => SelectedBarKind?.Kind is null or FootprintBarKind.Time;
+
+    /// <summary>Short label for the threshold box (ticks vs volume).</summary>
+    public string ThresholdHint => SelectedBarKind?.Kind switch
+    {
+        FootprintBarKind.Reversal => "rev ticks",
+        FootprintBarKind.Range => "range ticks",
+        FootprintBarKind.Volume => "volume",
+        _ => "—",
+    };
+
     /// <summary>Key under which this window remembers the last selected instrument (see
     /// <see cref="LastInstrumentStore"/>).</summary>
     private const string InstrumentPersistKey = "tool.volumefootprint";
@@ -340,6 +411,14 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
     partial void OnInstrumentSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedInstrumentChanged(SignalInstrument? value) { if (_ready) Restart(); }
     partial void OnSelectedIntervalChanged(FootprintInterval? value) { if (_ready) Restart(); }
+    partial void OnSelectedBarKindChanged(FootprintBarKindOption? value)
+    {
+        if (!_ready) return;
+        OnPropertyChanged(nameof(IsTimeBars));
+        OnPropertyChanged(nameof(ThresholdHint));
+        Restart();
+    }
+    partial void OnThresholdTextChanged(string value) { if (_ready) Restart(); }
     partial void OnTickSizeTextChanged(string value) { if (_ready) Restart(); }
 
     partial void OnShowLinearFitChanged(bool value) => RefreshFitCurves();
@@ -366,8 +445,11 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
     partial void OnSelectedLearnerChanged(LearnerOption value) { if (_ready) Restart(); }
 
-    // Display-mode / overlay / zoom toggles only change presentation — redraw, don't restart.
     partial void OnSelectedDisplayModeChanged(CellDisplayMode value) => RaiseRedraw();
+    partial void OnSelectedTextModeChanged(CellTextMode value) => RaiseRedraw();
+    partial void OnShowBarStatsChanged(bool value) => RaiseRedraw();
+    partial void OnAutoScaleTicksChanged(bool value) => RaiseRedraw();
+    partial void OnCryptoDecimalsChanged(int value) { if (_ready) Restart(); }
     partial void OnShowImbalancesChanged(bool value) => RaiseRedraw();
     partial void OnShowValueAreaChanged(bool value) => RaiseRedraw();
     partial void OnShowVolumeProfileChanged(bool value) => RaiseRedraw();
@@ -429,6 +511,7 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         SaveModelCheckpoint();
         var instrument = SelectedInstrument;
         var interval = SelectedInterval;
+        var kind = SelectedBarKind?.Kind ?? FootprintBarKind.Time;
         if (instrument is null || interval is null) return;
 
         BrokerKind broker;
@@ -437,8 +520,9 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
 
         _useSynthetic = !BrokerSupportsTradeTape(broker);
         _synth.Reset();
-        _bucketer = new FootprintTimeBucketer(interval.Span, TickSize,
-            _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape);
+        var quality = _useSynthetic ? FeedQuality.SyntheticL1 : FeedQuality.RealTape;
+        _bucketer = FootprintBucketerFactory.Create(
+            kind, TickSize, quality, interval.Span, SealThreshold, CryptoDecimals);
         _ml = null;
         _forecastCoordinate = null;
         _forecastHistory.Clear();
@@ -454,12 +538,20 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         ClearBars();
 
         var tape = _useSynthetic ? "synthetic L1-derived" : "real trade tape";
-        Status = $"Streaming {instrument.DisplayName} ({BrokerLabel(broker)}) — {tape}, {interval.Label} bars @ {TickSize} tick…";
+        var modeLabel = kind switch
+        {
+            FootprintBarKind.Time => $"{interval.Label} bars",
+            FootprintBarKind.Reversal => $"reversal {SealThreshold}t",
+            FootprintBarKind.Range => $"range {SealThreshold}t",
+            FootprintBarKind.Volume => $"volume {SealThreshold}",
+            _ => kind.ToString(),
+        };
+        Status = $"Streaming {instrument.DisplayName} ({BrokerLabel(broker)}) — {tape}, {modeLabel} @ {TickSize} tick…";
         _log.Append(LogSource, _useSynthetic ? "WARN" : "INFO",
-            $"Footprint on {instrument.DisplayName} [{BrokerLabel(broker)}] — {tape}, {interval.Label} bars, tick {TickSize}");
+            $"Footprint on {instrument.DisplayName} [{BrokerLabel(broker)}] — {tape}, {modeLabel}, tick {TickSize}");
 
         _streamCts = new CancellationTokenSource();
-        _ = RunStreamAsync(instrument.Contract, broker, interval.Span, interval.Label, TickSize, _streamCts.Token);
+        _ = RunStreamAsync(instrument.Contract, broker, interval.Span, modeLabel, TickSize, _streamCts.Token);
     }
 
     private async Task RunStreamAsync(Contract contract, BrokerKind broker, TimeSpan span,
@@ -1086,7 +1178,8 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         if (name.Length == 0) return;
         _presetStore.Save(name, new FootprintPreset(
             SelectedInterval?.Label ?? "1m", TickSizeText, MaxBars,
-            SelectedDisplayMode.ToString(), ShowImbalances, ShowValueArea, ShowVolumeProfile,
+            SelectedDisplayMode.ToString(), SelectedTextMode.ToString(),
+            ShowImbalances, ShowValueArea, ShowVolumeProfile,
             ShowCellText, Zoom,
             ShowLinearFit, ShowQuadraticFit, ShowCubicFit, ShowTheilSenFit,
             ShowExponentialFit, ShowLogarithmicFit, ShowLowessFit,
@@ -1117,6 +1210,10 @@ public sealed partial class VolumeFootprintViewModel : ViewModelBase, IDisposabl
         MaxBars = Math.Clamp(preset.MaxBars, 2, 40);
         if (Enum.TryParse<CellDisplayMode>(preset.DisplayMode, out var mode) && DisplayModes.Contains(mode))
             SelectedDisplayMode = mode;
+        if (!string.IsNullOrEmpty(preset.TextMode)
+            && Enum.TryParse<CellTextMode>(preset.TextMode, out var textMode)
+            && TextModes.Contains(textMode))
+            SelectedTextMode = textMode;
         ShowImbalances = preset.ShowImbalances;
         ShowValueArea = preset.ShowValueArea;
         ShowVolumeProfile = preset.ShowVolumeProfile;
@@ -1232,6 +1329,7 @@ public sealed record FootprintPreset(
     string TickSize,
     int MaxBars,
     string DisplayMode,
+    string? TextMode,
     bool ShowImbalances,
     bool ShowValueArea,
     bool ShowVolumeProfile,

@@ -5,11 +5,13 @@
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                  xmlns:uic="clr-namespace:TradingTerminal.UI.Controls;assembly=TradingTerminal.UI"
+                 xmlns:conv="clr-namespace:TradingTerminal.UI.Converters;assembly=TradingTerminal.UI"
                  mc:Ignorable="d"
                  Background="{DynamicResource Background.Primary}"
                  Foreground="{DynamicResource Text.Primary}">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBooleanToVisibilityConverter x:Key="InvBoolToVis" />
     </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -85,11 +87,25 @@
                                       SearchText="{Binding InstrumentSearchText, Mode=TwoWay}"
                                       MaxDropDownHeight="460" Margin="0,0,12,0" />
 
-                <TextBlock Text="Interval" Style="{StaticResource ToolLabel}" />
+                <TextBlock Text="Bar type" Style="{StaticResource ToolLabel}" />
+                <ComboBox Width="88" VerticalAlignment="Center" Margin="0,0,8,0"
+                          ItemsSource="{Binding BarKinds}"
+                          SelectedItem="{Binding SelectedBarKind}"
+                          DisplayMemberPath="Label" />
+
+                <TextBlock Text="Interval" Style="{StaticResource ToolLabel}"
+                           Visibility="{Binding IsTimeBars, Converter={StaticResource BoolToVis}}" />
                 <ComboBox Width="70" VerticalAlignment="Center"
                           ItemsSource="{Binding Intervals}"
                           SelectedItem="{Binding SelectedInterval}"
-                          DisplayMemberPath="Label" />
+                          DisplayMemberPath="Label"
+                          Visibility="{Binding IsTimeBars, Converter={StaticResource BoolToVis}}" />
+
+                <TextBlock Text="{Binding ThresholdHint}" Style="{StaticResource ToolLabel}"
+                           Visibility="{Binding IsTimeBars, Converter={StaticResource InvBoolToVis}}" />
+                <TextBox Width="64" VerticalAlignment="Center" Margin="0,0,0,0"
+                         Text="{Binding ThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                         Visibility="{Binding IsTimeBars, Converter={StaticResource InvBoolToVis}}" />
 
                 <Border Style="{StaticResource ToolDivider}" />
 
@@ -144,6 +160,19 @@
                         <MenuItem Header="Value area" IsCheckable="True" IsChecked="{Binding ShowValueArea}" />
                         <MenuItem Header="Volume profile" IsCheckable="True" IsChecked="{Binding ShowVolumeProfile}" />
                         <MenuItem Header="Cell volumes" IsCheckable="True" IsChecked="{Binding ShowCellText}" />
+                        <MenuItem Header="Bar stats strip" IsCheckable="True" IsChecked="{Binding ShowBarStats}" />
+                        <MenuItem Header="Auto-scale ticks" IsCheckable="True" IsChecked="{Binding AutoScaleTicks}"
+                                  ToolTip="Bookmap-style vertical smart scaling: merge price rows when zoomed out." />
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Crypto decimals" Style="{StaticResource MenuItemLabel}" />
+                                    <mah:NumericUpDown Width="72" Minimum="-1" Maximum="8"
+                                                       Value="{Binding CryptoDecimals}"
+                                                       ToolTip="−1 = off (futures). ≥0 rounds prices before tick snap (crypto)." />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
                     </MenuItem>
 
                     <!-- Display: cell rendering + sizing tuners hosted inline in the dropdown. -->
@@ -152,8 +181,17 @@
                             <MenuItem.Header>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Cell mode" Style="{StaticResource MenuItemLabel}" />
-                                    <ComboBox Width="110" ItemsSource="{Binding DisplayModes}"
+                                    <ComboBox Width="150" ItemsSource="{Binding DisplayModes}"
                                               SelectedItem="{Binding SelectedDisplayMode}" />
+                                </StackPanel>
+                            </MenuItem.Header>
+                        </MenuItem>
+                        <MenuItem StaysOpenOnClick="True">
+                            <MenuItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Cell text" Style="{StaticResource MenuItemLabel}" />
+                                    <ComboBox Width="130" ItemsSource="{Binding TextModes}"
+                                              SelectedItem="{Binding SelectedTextMode}" />
                                 </StackPanel>
                             </MenuItem.Header>
                         </MenuItem>

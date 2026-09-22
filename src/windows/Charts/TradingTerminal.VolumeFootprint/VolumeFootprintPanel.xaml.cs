@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Quant;
 
 namespace TradingTerminal.VolumeFootprint;
@@ -42,7 +43,7 @@ public partial class VolumeFootprintPanel : UserControl
     private const double ColumnWidth = 104;
     private const double BaseRowHeight = 17;
     private const double HeaderHeight = 22;
-    private const double FooterHeight = 40;
+    private const double FooterHeight = 48;
     private const double ProfileWidth = 96; // right-edge composite-profile gutter
 
     // Fixed palette (canvas drawing is theme-independent).
@@ -194,6 +195,7 @@ public partial class VolumeFootprintPanel : UserControl
 
         _rowH = BaseRowHeight * Math.Clamp(_vm.Zoom, 0.4, 4.0);
         var mode = _vm.SelectedDisplayMode;
+        var footerH = _vm.ShowBarStats ? 56 : 36;
 
         var bars = _vm.Bars.ToList();
         _renderBars = bars;
@@ -233,32 +235,65 @@ public partial class VolumeFootprintPanel : UserControl
         var ghostCols = Math.Max(predicted.Count, mlPredicted.Count);
         var tick = ParseTick(_vm.TickSizeText);
         _tick = tick;
+
+        // Bookmap vertical smart scaling: coarser display tick when zoomed out.
+        var displayTick = tick;
+        if (_vm.AutoScaleTicks && prices.Count > 1)
+        {
+            var span = prices.Max - prices.Min;
+            var targetRows = (int)Math.Clamp(Math.Round(220.0 / Math.Max(_rowH, 4.0)), 8, 64);
+            displayTick = FootprintPriceSnap.AutoScaleTick(span, tick, targetRows);
+            if (displayTick > tick)
+            {
+                prices.Clear();
+                profileBuy.Clear();
+                profileSell.Clear();
+                maxCellVol = 1;
+                maxProfileVol = 1;
+                foreach (var bar in bars)
+                {
+                    var merged = FootprintDisplayAggregate.MergeRows(
+                        bar.Cells, displayTick, _vm.CryptoDecimals);
+                    foreach (var cell in merged)
+                    {
+                        prices.Add(cell.Price);
+                        if (cell.TotalVolume > maxCellVol) maxCellVol = cell.TotalVolume;
+                        var pb = profileBuy.GetValueOrDefault(cell.Price) + cell.BuyVolume;
+                        var ps = profileSell.GetValueOrDefault(cell.Price) + cell.SellVolume;
+                        profileBuy[cell.Price] = pb;
+                        profileSell[cell.Price] = ps;
+                        if (pb + ps > maxProfileVol) maxProfileVol = pb + ps;
+                    }
+                }
+            }
+        }
+
         foreach (var p in predicted)
             foreach (var v in new[] { p.Poc, p.BuyPoc, p.SellPoc })
                 if (double.IsFinite(v))
-                    prices.Add(Math.Round(Math.Round(v / tick) * tick, 10));
+                    prices.Add(Math.Round(Math.Round(v / displayTick) * displayTick, 10));
         foreach (var p in mlPredicted)
             foreach (var v in new[] { p.Poc, p.BuyPoc, p.SellPoc })
                 if (double.IsFinite(v))
-                    prices.Add(Math.Round(Math.Round(v / tick) * tick, 10));
+                    prices.Add(Math.Round(Math.Round(v / displayTick) * displayTick, 10));
 
         var rows = prices.Reverse().ToList(); // descending price (top = highest)
         _rows = rows;
         var rowIndex = new Dictionary<double, int>(rows.Count);
         for (var i = 0; i < rows.Count; i++) rowIndex[rows[i]] = i;
 
-        var decimals = DecimalsFor(tick);
+        var decimals = DecimalsFor(displayTick);
         _decimals = decimals;
 
         var showProfile = _vm.ShowVolumeProfile;
         FootprintCanvas.Width = LeftAxisWidth + (bars.Count + ghostCols) * ColumnWidth
                                 + (showProfile ? ProfileWidth : 0);
-        FootprintCanvas.Height = HeaderHeight + rows.Count * _rowH + FooterHeight;
+        FootprintCanvas.Height = HeaderHeight + rows.Count * _rowH + footerH;
 
         DrawPriceAxis(rows, decimals);
 
         for (var b = 0; b < bars.Count; b++)
-            DrawBar(bars[b], b, rowIndex, maxCellVol, decimals, mode);
+            DrawBar(bars[b], b, rowIndex, maxCellVol, decimals, mode, displayTick);
 
         if (showProfile)
             DrawCompositeProfile(bars, rows, rowIndex, profileBuy, profileSell, maxProfileVol);
@@ -625,10 +660,14 @@ public partial class VolumeFootprintPanel : UserControl
     }
 
     private void DrawBar(RenderBar bar, int colIndex, IReadOnlyDictionary<double, int> rowIndex,
-        long maxCellVol, int decimals, CellDisplayMode mode)
+        long maxCellVol, int decimals, CellDisplayMode mode, double displayTick)
     {
         var x = LeftAxisWidth + colIndex * ColumnWidth;
         var showText = _vm!.ShowCellText;
+        var textMode = _vm.SelectedTextMode;
+        var cells = displayTick > _tick + 1e-12
+            ? FootprintDisplayAggregate.MergeRows(bar.Cells, displayTick, _vm.CryptoDecimals)
+            : bar.Cells;
 
         // Column header: bar start time.
         AddText(bar.StartUtc.ToLocalTime().ToString("HH:mm:ss"), x, 0, ColumnWidth, HeaderHeight,
@@ -648,48 +687,113 @@ public partial class VolumeFootprintPanel : UserControl
             }, x + 1, yTop));
         }
 
+        // Neighbour lookup for diagonal delta text / histogram (rows are high → low).
+        var byPrice = new Dictionary<double, FootprintFeatureRow>(cells.Count);
+        foreach (var c in cells) byPrice[SnapPrice(c.Price, displayTick)] = c;
+
         var halfW = (ColumnWidth - 2) / 2.0;
+        var fullW = ColumnWidth - 2;
         var showImb = _vm.ShowImbalances;
-        foreach (var cell in bar.Cells)
+        foreach (var cell in cells)
         {
-            if (!rowIndex.TryGetValue(cell.Price, out var r)) continue;
+            if (!rowIndex.TryGetValue(cell.Price, out var r)
+                && !rowIndex.TryGetValue(SnapPrice(cell.Price, displayTick), out r))
+                continue;
             var y = HeaderHeight + r * _rowH;
+            var sellAbove = byPrice.TryGetValue(SnapPrice(cell.Price + displayTick, displayTick), out var above) ? above.BuyVolume : 0L;
+            var buyBelow = byPrice.TryGetValue(SnapPrice(cell.Price - displayTick, displayTick), out var below) ? below.SellVolume : 0L;
+            // Diagonal ask Δ: this ask (buy) vs bid (sell) one tick below; diagonal bid Δ: this bid vs ask above.
+            var diagAsk = cell.BuyVolume - buyBelow;
+            var diagBid = cell.SellVolume - sellAbove;
+            var diagDelta = Math.Abs(diagAsk) >= Math.Abs(diagBid) ? diagAsk : -diagBid;
 
             switch (mode)
             {
                 case CellDisplayMode.BidAsk:
-                    // Sell volume on the left (red), buy volume on the right (green).
-                    AddCellHalf(x + 1, y, halfW, cell.SellVolume, maxCellVol, SellColor, isLeft: true, showText);
-                    AddCellHalf(x + 1 + halfW, y, halfW, cell.BuyVolume, maxCellVol, BuyColor, isLeft: false, showText);
-                    // Imbalance flags outline the dominant half so stacked runs read as columns.
-                    if (showImb && cell.AskImbalance)
-                        FootprintCanvas.Children.Add(Place(new Rectangle
-                        { Width = halfW, Height = _rowH, Stroke = ImbBuyPen, StrokeThickness = 1.6, Fill = Brushes.Transparent }, x + 1 + halfW, y));
-                    if (showImb && cell.BidImbalance)
-                        FootprintCanvas.Children.Add(Place(new Rectangle
-                        { Width = halfW, Height = _rowH, Stroke = ImbSellPen, StrokeThickness = 1.6, Fill = Brushes.Transparent }, x + 1, y));
+                    AddCellHalf(x + 1, y, halfW, cell.SellVolume, maxCellVol, SellColor, isLeft: true, showText: false);
+                    AddCellHalf(x + 1 + halfW, y, halfW, cell.BuyVolume, maxCellVol, BuyColor, isLeft: false, showText: false);
                     break;
 
                 case CellDisplayMode.Delta:
                 {
                     var delta = cell.Delta;
-                    var baseColor = delta >= 0 ? BuyColor : SellColor;
-                    AddFullCell(x + 1, y, ColumnWidth - 2, Math.Abs(delta), maxCellVol, baseColor,
-                        showText ? (delta).ToString("+#;-#;0", CultureInfo.InvariantCulture) : null);
-                    if (showImb && (cell.AskImbalance || cell.BidImbalance))
-                        FootprintCanvas.Children.Add(Place(new Rectangle
-                        { Width = ColumnWidth - 2, Height = _rowH, Stroke = cell.AskImbalance ? ImbBuyPen : ImbSellPen, StrokeThickness = 1.4, Fill = Brushes.Transparent }, x + 1, y));
+                    AddFullCell(x + 1, y, fullW, Math.Abs(delta), maxCellVol, delta >= 0 ? BuyColor : SellColor, null);
                     break;
                 }
 
-                default: // Volume
-                {
-                    AddFullCell(x + 1, y, ColumnWidth - 2, cell.TotalVolume, maxCellVol, RegLineColor,
-                        showText ? cell.TotalVolume.ToString("N0", CultureInfo.InvariantCulture) : null);
-                    if (showImb && (cell.AskImbalance || cell.BidImbalance))
-                        FootprintCanvas.Children.Add(Place(new Rectangle
-                        { Width = ColumnWidth - 2, Height = _rowH, Stroke = cell.AskImbalance ? ImbBuyPen : ImbSellPen, StrokeThickness = 1.4, Fill = Brushes.Transparent }, x + 1, y));
+                case CellDisplayMode.Volume:
+                    AddFullCell(x + 1, y, fullW, cell.TotalVolume, maxCellVol, RegLineColor, null);
                     break;
+
+                case CellDisplayMode.Histogram:
+                {
+                    var w = fullW * Math.Min(1.0, (double)cell.TotalVolume / Math.Max(1, maxCellVol));
+                    if (w > 0) AddVolumeRect(x + 1, y, w, cell.TotalVolume, maxCellVol, RegLineColor);
+                    break;
+                }
+
+                case CellDisplayMode.HistogramDelta:
+                {
+                    var mag = Math.Abs(cell.Delta);
+                    var w = halfW * Math.Min(1.0, (double)mag / Math.Max(1, maxCellVol));
+                    if (w > 0)
+                    {
+                        if (cell.Delta >= 0)
+                            AddVolumeRect(x + 1 + halfW, y, w, mag, maxCellVol, BuyColor);
+                        else
+                            AddVolumeRect(x + 1 + halfW - w, y, w, mag, maxCellVol, SellColor);
+                    }
+                    break;
+                }
+
+                case CellDisplayMode.HistogramDiagonalDelta:
+                {
+                    var mag = Math.Abs(diagDelta);
+                    var w = halfW * Math.Min(1.0, (double)mag / Math.Max(1, maxCellVol));
+                    if (w > 0)
+                    {
+                        if (diagDelta >= 0)
+                            AddVolumeRect(x + 1 + halfW, y, w, mag, maxCellVol, BuyColor);
+                        else
+                            AddVolumeRect(x + 1 + halfW - w, y, w, mag, maxCellVol, SellColor);
+                    }
+                    break;
+                }
+
+                case CellDisplayMode.FullBackground:
+                    if (cell.TotalVolume > 0)
+                        AddVolumeRect(x + 1, y, fullW, cell.TotalVolume, maxCellVol, RegLineColor);
+                    break;
+
+                case CellDisplayMode.FullBackgroundDelta:
+                    if (cell.Delta != 0)
+                        AddVolumeRect(x + 1, y, fullW, Math.Abs(cell.Delta), maxCellVol,
+                            cell.Delta >= 0 ? BuyColor : SellColor);
+                    break;
+            }
+
+            if (showText)
+            {
+                var label = FormatCellText(cell, textMode, diagDelta);
+                if (label is not null)
+                    AddText(label, x + 1, y, fullW - 4, _rowH, TextBrush, 10, TextAlignment.Center);
+            }
+
+            if (showImb && (cell.AskImbalance || cell.BidImbalance))
+            {
+                if (mode == CellDisplayMode.BidAsk)
+                {
+                    if (cell.AskImbalance)
+                        FootprintCanvas.Children.Add(Place(new Rectangle
+                        { Width = halfW, Height = _rowH, Stroke = ImbBuyPen, StrokeThickness = 1.6, Fill = Brushes.Transparent }, x + 1 + halfW, y));
+                    if (cell.BidImbalance)
+                        FootprintCanvas.Children.Add(Place(new Rectangle
+                        { Width = halfW, Height = _rowH, Stroke = ImbSellPen, StrokeThickness = 1.6, Fill = Brushes.Transparent }, x + 1, y));
+                }
+                else
+                {
+                    FootprintCanvas.Children.Add(Place(new Rectangle
+                    { Width = fullW, Height = _rowH, Stroke = cell.AskImbalance ? ImbBuyPen : ImbSellPen, StrokeThickness = 1.4, Fill = Brushes.Transparent }, x + 1, y));
                 }
             }
 
@@ -699,7 +803,7 @@ public partial class VolumeFootprintPanel : UserControl
             if (isPoc)
                 FootprintCanvas.Children.Add(Place(new Rectangle
                 {
-                    Width = ColumnWidth - 2,
+                    Width = fullW,
                     Height = _rowH,
                     Stroke = PocPen,
                     StrokeThickness = 1.4,
@@ -707,7 +811,7 @@ public partial class VolumeFootprintPanel : UserControl
                 }, x + 1, y));
         }
 
-        // Footer: bar delta, total volume, and stacked-imbalance markers.
+        // Footer: Bookmap-style bar stats strip.
         var fy = HeaderHeight + rowIndex.Count * _rowH;
         FootprintCanvas.Children.Add(Place(new Line
         {
@@ -716,21 +820,44 @@ public partial class VolumeFootprintPanel : UserControl
         }, 0, 0));
 
         var deltaBrush = bar.Delta >= 0 ? UpBrush : DownBrush;
-        AddText($"Δ {bar.Delta:+#;-#;0}", x, fy + 3, ColumnWidth, 16, deltaBrush, 11, TextAlignment.Center);
+        AddText($"Δ {bar.Delta:+#;-#;0}", x, fy + 3, ColumnWidth, 13, deltaBrush, 10, TextAlignment.Center);
 
-        if (_vm.ShowImbalances && (bar.StackedBuy > 0 || bar.StackedSell > 0))
+        if (_vm.ShowBarStats)
         {
-            var sb = bar.StackedBuy > 0 ? $"▲{bar.StackedBuy}" : "";
-            var ss = bar.StackedSell > 0 ? $"▼{bar.StackedSell}" : "";
-            var stackedBrush = bar.StackedBuy >= bar.StackedSell ? ImbBuyPen : ImbSellPen;
-            AddText($"Σ {bar.TotalVolume:N0}  {sb}{(sb.Length > 0 && ss.Length > 0 ? " " : "")}{ss}",
-                x, fy + 19, ColumnWidth, 14, stackedBrush, 10, TextAlignment.Center);
+            AddText($"max {bar.Core.MaxDelta:+#;-#;0}  min {bar.Core.MinDelta:+#;-#;0}",
+                x, fy + 15, ColumnWidth, 11, DimText, 8.5, TextAlignment.Center);
+            AddText($"pb {bar.Core.PullbackDelta:+#;-#;0}  h {bar.Core.BarHeightTicks}t",
+                x, fy + 26, ColumnWidth, 11, DimText, 8.5, TextAlignment.Center);
+            var trades = bar.Core.AskTrades + bar.Core.BidTrades;
+            var stacked = (_vm.ShowImbalances && (bar.StackedBuy > 0 || bar.StackedSell > 0))
+                ? $"  ▲{bar.StackedBuy}▼{bar.StackedSell}"
+                : "";
+            AddText($"Σ{bar.TotalVolume:N0}  n{trades}{stacked}",
+                x, fy + 37, ColumnWidth, 11, DimText, 8.5, TextAlignment.Center);
         }
         else
         {
-            AddText($"Σ {bar.TotalVolume:N0}", x, fy + 19, ColumnWidth, 14, DimText, 10, TextAlignment.Center);
+            AddText($"Σ {bar.TotalVolume:N0}", x, fy + 16, ColumnWidth, 12, DimText, 9, TextAlignment.Center);
         }
     }
+
+    private static string? FormatCellText(FootprintFeatureRow cell, CellTextMode mode, long diagDelta) =>
+        mode switch
+        {
+            CellTextMode.BxS => cell.TotalVolume == 0
+                ? null
+                : $"{cell.BuyVolume.ToString("N0", CultureInfo.InvariantCulture)}x{cell.SellVolume.ToString("N0", CultureInfo.InvariantCulture)}",
+            CellTextMode.Sum => cell.TotalVolume == 0
+                ? null
+                : cell.TotalVolume.ToString("N0", CultureInfo.InvariantCulture),
+            CellTextMode.HorizontalDelta => cell.Delta == 0
+                ? null
+                : cell.Delta.ToString("+#;-#;0", CultureInfo.InvariantCulture),
+            CellTextMode.DiagonalDelta => diagDelta == 0
+                ? null
+                : diagDelta.ToString("+#;-#;0", CultureInfo.InvariantCulture),
+            _ => null,
+        };
 
     private static readonly Color RegLineColor = Color.FromRgb(0x29, 0xB6, 0xF6);
 
@@ -869,6 +996,18 @@ public partial class VolumeFootprintPanel : UserControl
     private void OnCanvasMouseLeave(object sender, MouseEventArgs e) => ClearCrosshair();
 
     private static bool AreClose(double a, double b) => Math.Abs(a - b) < 1e-9;
+
+    private double SnapTick(double price)
+    {
+        var tick = _tick > 0 ? _tick : 0.25;
+        return SnapPrice(price, tick);
+    }
+
+    private static double SnapPrice(double price, double tick)
+    {
+        if (tick <= 0) tick = 0.25;
+        return Math.Round(Math.Round(price / tick) * tick, 10);
+    }
 
     private static double ParseTick(string s) =>
         double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var t) && t > 0 ? t : 0.25;
