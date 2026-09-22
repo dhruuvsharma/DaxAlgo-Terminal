@@ -109,6 +109,16 @@ public sealed class ModernIchimokuVisualizer : IVisualizer
         var thick = double.IsFinite(series.LastThicknessAtr) ? series.LastThicknessAtr.ToString("0.00") : "—";
         var dist = double.IsFinite(series.LastPriceToCloudAtr) ? series.LastPriceToCloudAtr.ToString("0.00") : "—";
         Plot.Caption(surface, layout.Price, $"Kumo {grade} · thick {thick} ATR · dist {dist} ATR");
-    }
 
+        // Readout under the pointer — a chart without a hover value is half a window.
+        var cursor = surface.Cursor;
+        if (cursor.IsInside && layout.IsHovering && layout.HoveredIndex >= 0 && layout.HoveredIndex < slice.Count)
+        {
+            var bar = slice[layout.HoveredIndex];
+            Plot.Caption(
+                surface,
+                new PlotArea(layout.Price.X, layout.Price.Y + 14, layout.Price.Width, 16),
+                $"bar {layout.HoveredIndex}  C {bar.Close:0.####}");
+        }
+    }
 }

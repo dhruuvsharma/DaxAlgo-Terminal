@@ -128,6 +128,26 @@ public sealed class OrderBookBattlefieldVisualizer : IVisualizer
 
         DrawStrikes(surface, area, projection, mid);
         DrawHud(surface, area, soldiers, depth);
+
+        // Nearest soldier under the pointer — same hover contract as the landscape exemplar.
+        var cursor = surface.Cursor;
+        if (cursor.IsInside && drawn.Count > 0)
+        {
+            var nearest = drawn[0];
+            var best = double.MaxValue;
+            foreach (var s in drawn)
+            {
+                var dx = s.X - cursor.X;
+                var dy = s.Y - cursor.Y;
+                var d2 = dx * dx + dy * dy;
+                if (d2 >= best) continue;
+                best = d2;
+                nearest = s;
+            }
+            surface.SetStyle(new RenderStyle(surface.Theme(RenderThemeColor.TextSecondary), FontSize: 10d));
+            surface.Text(area.X + 8d, area.Y + area.Height - 12d,
+                $"{(nearest.Bid ? "Bid" : "Ask")} troop  size {nearest.Size:0}");
+        }
     }
 
     private void DrawStrikes(IRenderSurface surface, PlotArea area, Projection3 projection, double mid)

@@ -152,6 +152,8 @@ public sealed class AuthoringExemplarTests
         // silently cover nothing -- which is the rot The_compile_gate_covers_every_exemplar_that_ships
         // exists to catch.
         { AuthoringKind.Visualizer, "a volume footprint cluster with the point of control marked" },
+        { AuthoringKind.Visualizer, "bulls vs bears battlefield with soldiers on the order book" },
+        { AuthoringKind.Visualizer, "modern ichimoku cloud with kumo and tenkan kijun" },
         { AuthoringKind.Strategy, "score every indicator into a regime matrix and rank the rows" },
     };
 
