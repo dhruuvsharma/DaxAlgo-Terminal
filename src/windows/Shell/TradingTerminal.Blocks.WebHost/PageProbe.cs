@@ -111,6 +111,15 @@ public static class PageProbe
 
             var findings = new List<DriveFinding>(drive.Findings);
 
+            // A page that never became ready says why, when the page can tell: the bridge replaced, or an
+            // error it logged. The page is still open here; the unit has stopped.
+            if (findings.FindIndex(f => f.Code == "page.never-ready") is var notReady and >= 0)
+            {
+                var seen = await sta.InvokeAsync(() => view.EvaluateAsync(PageLayoutAudit.NeverReadyScript, ct)).ConfigureAwait(false);
+                if (PageLayoutAudit.ExplainNeverReady(seen) is { Length: > 0 } why)
+                    findings[notReady] = findings[notReady] with { Message = findings[notReady].Message + " " + why };
+            }
+
             if (errors.Count > 0)
                 findings.Add(new DriveFinding(DriveSeverity.Failure, "page.threw",
                     $"{errors.Count} script error(s) on the page; the first: {Describe(errors[0])}",

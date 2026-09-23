@@ -401,6 +401,27 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
         retry.Last.Should().Contain("public int Z => 9;").And.Contain("COMPLETE");
     }
 
+    [Fact]
+    public void A_page_that_makes_its_own_dax_is_found_by_file_and_line_and_an_alias_is_not()
+    {
+        // NIM's Nemotron 3 Ultra, 2026-09-24: app.js built its own bridge and assigned it over the real one.
+        const string app = """
+            import { mountScene } from './scene.js';
+
+            // ── DAX bridge ──
+            const dax = {
+              ready() { window.daxHost?.postMessage({ topic: 'ready' }, '*'); }
+            };
+            window.dax = dax;
+            dax.ready();
+            """;
+
+        var found = PageAssets.OwnBridges([new StrategyFile("ui/app.js", app), new StrategyFile("ui/ok.js", "const dax = window.dax;\ndax.on('x', () => {});\nconst daxBridge = {};\nif (window.dax === undefined) {}")]);
+
+        found.Select(b => (b.File, b.Line)).Should().Equal(("ui/app.js", 4), ("ui/app.js", 7));
+        found[0].Text.Should().StartWith("const dax = {");
+    }
+
     // ── what the gate measured on the page ──────────────────────────────────────────────────────
 
     [Fact]

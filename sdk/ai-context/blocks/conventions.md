@@ -71,6 +71,10 @@ Plain HTML/CSS/JS, or libraries loaded from an https CDN.
 </script>
 ```
 
+- **`dax` is the terminal's, and it is already there** — a global the window injects before any of the
+  page's scripts run, in every file and every module. Never define, wrap, shim or assign your own
+  `dax` (`const dax = …`, `window.dax = …`): a page's own copy talks to nothing, so the page never
+  becomes ready and the unit never sends it a thing.
 - The unit sends whole state per topic (`context.Ui.Send`). Only the latest payload per topic reaches
   the page, so never send deltas that must all arrive.
 - The page sends intents back (`dax.send`), and the unit handles them with `context.Ui.On`.

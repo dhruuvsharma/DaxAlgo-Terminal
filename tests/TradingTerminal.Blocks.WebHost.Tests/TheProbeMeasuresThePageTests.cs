@@ -151,6 +151,28 @@ public sealed class TheProbeMeasuresThePageTests
     }
 
     [Fact]
+    public async Task A_page_that_replaces_the_bridge_is_told_so_when_it_never_becomes_ready()
+    {
+        if (!WebUnitView.RuntimeAvailable) return;
+
+        // The Nemotron page's app.js, reduced: its own dax, whose ready() posts to nothing.
+        const string page = """
+            <body style="background:#123;color:#fff"><p>battlefield</p>
+            <script type="module">
+              const dax = { on() {}, ready() { window.daxHost?.postMessage({ topic: 'ready' }, '*'); } };
+              window.dax = dax;
+              dax.ready();
+            </script></body>
+            """;
+
+        var report = await PageProbe.RunAsync(Unit(), [new StrategyFile("ui/index.html", page)], "own-bridge",
+            new PageProbeOptions(Drive: Quick with { PageReadyTimeout = TimeSpan.FromSeconds(4) }));
+
+        var notReady = report.Findings.Single(f => f.Code == "page.never-ready");
+        notReady.Message.Should().Contain("no longer the terminal's bridge");
+    }
+
+    [Fact]
     public void What_the_page_reported_is_read_whether_WebView2_returns_it_as_an_object_or_a_string()
     {
         const string measured = """

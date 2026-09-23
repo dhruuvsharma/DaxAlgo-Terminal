@@ -89,6 +89,16 @@ public sealed class BlocksGate(
                 $"{m.From} loads '{m.Reference}', but {m.Path} is not one of the unit's files, so it never loads.",
                 $"Write {m.Path}, or stop loading it.",
                 m.Path)),
+
+            // A page that never became ready AND makes its own dax: that is why, named by file and line.
+            // Only then — an alias or a wrapper on a page that works is nobody's problem.
+            .. (failures.Any(f => f.Code == "page.never-ready") ? PageAssets.OwnBridges(pages) : []).Select(b => new VerificationFinding(
+                "page.own-bridge",
+                $"{b.File} line {b.Line} makes its own dax (`{b.Text}`). The terminal injects dax — on, send, ready — "
+                + "before any page script runs; a page's own copy talks to nothing, so the page never became ready "
+                + "and the unit never sent it anything.",
+                "Delete that object and every assignment to window.dax; call the global dax.on / dax.send / dax.ready directly.",
+                b.File)),
         ];
 
         var verdict = new VerificationReport(

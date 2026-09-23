@@ -164,4 +164,47 @@ public static partial class PageAssets
 
     private static bool IsHtml(string name) =>
         name.EndsWith(".html", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".htm", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A page script that makes its own <c>dax</c>: where, and the line that does it.</summary>
+    public sealed record OwnBridge(string File, int Line, string Text);
+
+    /// <summary>
+    /// Declares, defines or assigns a <c>dax</c> of its own. An alias of the terminal's
+    /// (<c>const dax = window.dax</c>) is not one.
+    /// </summary>
+    [GeneratedRegex("""^\s*(?:(?:export\s+)?(?:const|let|var)\s+dax\s*=(?!=)(?!\s*(?:window|globalThis|self)\.dax\b)|(?:export\s+)?(?:async\s+)?function\s+dax\s*\(|class\s+dax\b)|\b(?:window|globalThis|self)\.dax\s*=(?!=)""")]
+    private static partial Regex BridgeDefinition();
+
+    /// <summary>
+    /// Every place a page makes its own <c>dax</c> instead of using the one the terminal injects.
+    ///
+    /// <para><b>A page that does this never becomes ready, and says nothing.</b> Measured 2026-09-24 on
+    /// NVIDIA NIM's Nemotron 3 Ultra: <c>ui/app.js</c> built a <c>dax</c> object whose <c>ready()</c>
+    /// posted to a <c>window.daxHost</c> that does not exist, and assigned it over the real one. No
+    /// script error, so the gate could only say "the page did not call dax.ready()" — which the page
+    /// believed it had — and four repair rounds rewrote everything except that object.</para>
+    /// </summary>
+    public static IReadOnlyList<OwnBridge> OwnBridges(IReadOnlyList<StrategyFile> pageFiles)
+    {
+        ArgumentNullException.ThrowIfNull(pageFiles);
+
+        var found = new List<OwnBridge>();
+        foreach (var file in pageFiles)
+        {
+            var name = Normalise(file.Name);
+            if (!IsHtml(name) && !name.EndsWith(".js", StringComparison.OrdinalIgnoreCase) && !name.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var lines = (file.Content ?? string.Empty).Replace("\r\n", "\n").Split('\n');
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (!BridgeDefinition().IsMatch(lines[i])) continue;
+                var text = lines[i].Trim();
+                found.Add(new OwnBridge(name, i + 1, text.Length > 100 ? text[..100] + " …" : text));
+                if (found.Count == 5) return found;
+            }
+        }
+
+        return found;
+    }
 }

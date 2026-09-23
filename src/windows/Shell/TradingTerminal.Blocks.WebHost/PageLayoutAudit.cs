@@ -193,6 +193,50 @@ public static class PageLayoutAudit
         })();
         """;
 
+    /// <summary>Run on a page that never called <c>dax.ready()</c>: is the bridge still the terminal's, and
+    /// what did the page log.</summary>
+    public const string NeverReadyScript = """
+        (() => ({
+          bridge: !!(window.dax && Object.isFrozen(window.dax) && typeof window.dax.ready === 'function'),
+          console: (window.__daxProbeConsole || []).slice(0, 5),
+          readyState: document.readyState
+        }))()
+        """;
+
+    /// <summary>
+    /// Why a page never became ready, from what <see cref="NeverReadyScript"/> saw — or empty when it saw
+    /// nothing that explains it. Appended to <c>page.never-ready</c>, whose own words ("attach the
+    /// listeners, call dax.ready()") are exactly what a page that replaced the bridge believes it did.
+    /// </summary>
+    public static string ExplainNeverReady(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json) || json.Trim() == "null") return string.Empty;
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.String) return ExplainNeverReady(root.GetString());
+            if (root.ValueKind != JsonValueKind.Object) return string.Empty;
+
+            var why = new List<string>();
+            if (root.TryGetProperty("bridge", out var bridge) && bridge.ValueKind == JsonValueKind.False)
+                why.Add("window.dax is no longer the terminal's bridge: a page script replaced it, so its dax.ready() reached nothing.");
+
+            var logged = Items(root, "console").Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).ToArray();
+            if (logged.Length > 0) why.Add($"The page logged: {string.Join(" | ", logged.Take(3))}");
+
+            if (root.TryGetProperty("readyState", out var state) && state.GetString() is "loading")
+                why.Add("The document never finished loading.");
+
+            return string.Join(" ", why);
+        }
+        catch (JsonException)
+        {
+            return string.Empty;
+        }
+    }
+
     /// <summary>The findings in what <see cref="Script"/> returned — the JSON WebView2 hands back.</summary>
     public static IReadOnlyList<DriveFinding> Read(string? json)
     {
