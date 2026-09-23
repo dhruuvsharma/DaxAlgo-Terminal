@@ -152,6 +152,11 @@ public static partial class CodegenCodeExtractor
             if (!CSharpLanguages.Contains(language)) continue;
 
             var body = match.Groups["body"].Value;
+
+            // Search/replace edits are a change to a file, not the file. Read as one, a two-line fix
+            // would replace the whole unit with its own diff. See Swarm.EditBlocks.
+            if (IsEdit(body)) continue;
+
             var name = NameFor(match, reply, body, out var strippedBody);
             body = strippedBody.Trim();
             if (body.Length == 0) continue;
@@ -183,6 +188,8 @@ public static partial class CodegenCodeExtractor
             if (!PageLanguages.TryGetValue(language, out var fallback)) continue;
 
             var body = match.Groups["body"].Value;
+            if (IsEdit(body)) continue;
+
             var name = PageNameFor(match, reply, body, out var stripped);
             body = stripped.Trim();
             if (body.Length == 0) continue;
@@ -217,7 +224,7 @@ public static partial class CodegenCodeExtractor
 
             // A stray fence around the lot, and any closing fence, are not part of the file.
             var body = reply[start..end].Trim().Trim('`').Trim();
-            if (body.Length == 0) continue;
+            if (body.Length == 0 || IsEdit(body)) continue;
 
             var written = headers[at].Groups["name"].Value.Trim();
             var name = written.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
@@ -302,6 +309,10 @@ public static partial class CodegenCodeExtractor
 
         return null;
     }
+
+    /// <summary>True when a block holds search/replace edits rather than a file.</summary>
+    internal static bool IsEdit(string body) =>
+        body.Contains("<<<<<<< SEARCH", StringComparison.Ordinal) && body.Contains(">>>>>>> REPLACE", StringComparison.Ordinal);
 
     private static string PositionalName(int index) =>
         index == 0 ? StrategyFile.DefaultName : $"Strategy{index + 1}.cs";

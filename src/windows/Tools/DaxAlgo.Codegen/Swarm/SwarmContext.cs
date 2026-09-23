@@ -31,8 +31,12 @@ public sealed class SwarmContext
         foreach (var file in existing ?? []) _files[file.Name] = file;
     }
 
-    /// <summary>What the user asked for, verbatim. Given to the planner and to nobody else.</summary>
+    /// <summary>What the user asked for, verbatim. Given to the planner, and to every builder writing a
+    /// file for the first time — never to a repair, which has findings to work from instead.</summary>
     public string Brief { get; }
+
+    /// <summary>The most of the brief a builder is shown, in characters.</summary>
+    public const int MaximumBriefCharacters = 16_000;
 
     /// <summary>The current files, one per name. Replaced on every write, never appended to.</summary>
     public IReadOnlyList<StrategyFile> Files => [.. _files.Values];
@@ -156,6 +160,28 @@ public sealed class SwarmContext
         var text = new StringBuilder();
         Section(text, "WHAT THIS FILE MUST DO", task.Intent);
 
+        // THE BRIEF, BESIDE THE TASK. A builder used to get only the planner's paragraph, and a
+        // paragraph is a summary: measured 2026-09-20 on the Battlefield brief, the depth panel's
+        // "bottom-left, collapsible" and every colour in the Look section appeared in no task's intent,
+        // and the delivered page was a depth chart filling the whole window over the 3D scene. What the
+        // user specified about a part is the builder's to honour, so the builder reads it. The fallback
+        // task's intent already IS the brief.
+        if (!task.OwnsAllFiles && !string.Equals(Brief.Trim(), task.Intent.Trim(), StringComparison.Ordinal))
+        {
+            var brief = Brief.Length <= MaximumBriefCharacters
+                ? Brief
+                : Brief[..MaximumBriefCharacters] + Environment.NewLine + "[… the rest of the brief is not shown]";
+
+            Section(
+                text,
+                "THE BRIEF — the user's words; your task above is your part of it",
+                brief.Trim()
+                + Environment.NewLine + Environment.NewLine
+                + "Write ONLY your file. Everything the brief says about the part your file owns — where it "
+                + "sits, how it looks, its colours, labels, units and behaviour — is yours to honour exactly. "
+                + "The other parts are other builders' work.");
+        }
+
         foreach (var id in task.DependsOn)
         {
             if (plan.Tasks.FirstOrDefault(t => t.Id == id) is not { } upstream) continue;
@@ -217,12 +243,31 @@ public sealed class SwarmContext
 
             if (neighbours.Length > 0)
             {
-                var exports = plan.Contract.PageModules.ToDictionary(m => m.File, m => m.Exports, StringComparer.OrdinalIgnoreCase);
+                var exports = plan.Contract.PageModules
+                    .GroupBy(m => m.File, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First().Exports, StringComparer.OrdinalIgnoreCase);
+
+                // THE SHELL CALLS WHAT WAS WRITTEN, NOT WHAT WAS PROMISED, when a module is already there.
+                // The runner builds a split page's modules before its shell, so on a provider that answers
+                // one call at a time — every NIM run so far — the shell can read the real signatures. A
+                // module that took (canvas, getState) where the contract said (el) is a shell that mounts
+                // nothing, and nobody sees it until a critic does.
+                string Line(string file)
+                {
+                    var promised = exports.TryGetValue(file, out var e) && e.Length > 0 ? $"- {file}: {e}" : $"- {file}";
+                    if (!task.OwnsPageShell || File(file) is not { } written) return promised;
+
+                    var actual = ExportsOf(written.Content);
+                    return actual.Count == 0
+                        ? promised
+                        : $"- {file} — ALREADY WRITTEN; its exports as written:" + Environment.NewLine
+                          + string.Join(Environment.NewLine, actual.Select(a => "    " + a));
+                }
+
                 Section(
                     text,
-                    "OTHER PAGE FILES — written by other builders at the same time, not by you",
-                    string.Join(Environment.NewLine, neighbours.Select(f =>
-                        exports.TryGetValue(f, out var e) && e.Length > 0 ? $"- {f}: {e}" : $"- {f}"))
+                    "OTHER PAGE FILES — written by other builders, not by you",
+                    string.Join(Environment.NewLine, neighbours.Select(Line))
                     + Environment.NewLine
                     + (task.OwnsPageShell
                         ? "Load each of them from index.html (or your own script) and call them exactly through those exports."
@@ -314,11 +359,42 @@ public sealed class SwarmContext
             .Where(t => File(t.OwnedFile) is null)
             .Select(t => t.OwnedFile)];
 
-    /// <summary>The files this task may rewrite: its own, or all of them for the fallback task.</summary>
-    private IReadOnlyList<StrategyFile> Owned(BuildTask task) =>
+    /// <summary>
+    /// The files this task may rewrite: its own, all of them for the fallback task, and for a page task
+    /// exactly the page files it owns.
+    ///
+    /// <para><b>Owned, not merely "on the page".</b> This used to hand every page task every page file,
+    /// which was right when one task wrote the whole page and wrong the day a page could be split.
+    /// Measured on the 2026-09-20 Nemotron Battlefield run: each module builder was shown every other
+    /// module as "YOUR CURRENT … — revise this" (28k, 33k, 39k input tokens for modules that needed
+    /// about 6k), the scene's repair was sent 42k, and the shell's repair — shown five files as "YOUR
+    /// FILE" — rewrote all five, 40,276 output tokens of which Accept then kept one.</para>
+    /// </summary>
+    internal IReadOnlyList<StrategyFile> Owned(BuildTask task) =>
         task.OwnsAllFiles ? Files
-        : task.OwnsPage ? [.. _files.Values.Where(f => CodegenCodeExtractor.IsPageFile(f.Name))]
+        : task.OwnsPage ? [.. _files.Values.Where(f => task.Owns(f.Name))]
         : File(task.OwnedFile) is { } mine ? [mine] : [];
+
+    /// <summary>The declaration line of every <c>export</c> in a page script, bodies left out.</summary>
+    internal static IReadOnlyList<string> ExportsOf(string script)
+    {
+        if (string.IsNullOrEmpty(script)) return [];
+
+        var exports = new List<string>();
+        foreach (var raw in script.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (!line.StartsWith("export ", StringComparison.Ordinal)) continue;
+
+            // The signature, not the body: cut at the opening brace of a function or class body.
+            var brace = line.IndexOf('{', StringComparison.Ordinal);
+            if (brace > 0 && !line.StartsWith("export {", StringComparison.Ordinal)) line = line[..brace].TrimEnd();
+            exports.Add(line.Length > 200 ? line[..200] + " …" : line);
+            if (exports.Count == 20) break;
+        }
+
+        return exports;
+    }
 
     private static void Section(StringBuilder text, string heading, string body)
     {

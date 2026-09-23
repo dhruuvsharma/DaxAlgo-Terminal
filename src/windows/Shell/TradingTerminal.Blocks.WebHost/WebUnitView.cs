@@ -16,7 +16,10 @@ public sealed record PageError(string Message, string Source, int Line);
 /// must be created with the same arguments, which is why the probe uses a folder of its own.</param>
 /// <param name="AdditionalBrowserArguments">Chromium switches, e.g. to keep rendering while off-screen.</param>
 /// <param name="DevTools">Whether F12 opens the developer tools.</param>
-public sealed record WebUnitViewOptions(string UserDataFolder, string? AdditionalBrowserArguments = null, bool DevTools = false)
+/// <param name="ProbeScript">A script of the page probe's own, run before the page's scripts — never set for
+/// a window the user sees.</param>
+public sealed record WebUnitViewOptions(
+    string UserDataFolder, string? AdditionalBrowserArguments = null, bool DevTools = false, string? ProbeScript = null)
 {
     /// <summary>The terminal's windows: <c>%LocalAppData%\DaxAlgo Terminal\webview2\units</c>.</summary>
     public static WebUnitViewOptions Default { get; } = new(Path.Combine(
@@ -112,6 +115,7 @@ public sealed class WebUnitView : ContentControl, IUnitUiEndpoint, IDisposable
 
         core.SetVirtualHostNameToFolderMapping(DaxPageScript.HostName, pageFolder, CoreWebView2HostResourceAccessKind.DenyCors);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DaxPageScript.Source);
+        if (_options.ProbeScript is { Length: > 0 } probe) await core.AddScriptToExecuteOnDocumentCreatedAsync(probe);
 
         core.WebMessageReceived += OnWebMessage;
         core.NavigationStarting += OnNavigationStarting;
@@ -136,6 +140,27 @@ public sealed class WebUnitView : ContentControl, IUnitUiEndpoint, IDisposable
                 // The page is navigating or the browser is going away; the next open resends state.
             }
         });
+    }
+
+    /// <summary>
+    /// Runs a script in the page and returns its result as JSON, or null when there is no page. For the
+    /// probe's own measurements only — never anything a unit supplied. Call on this control's dispatcher.
+    /// </summary>
+    internal async Task<string?> EvaluateAsync(string script, CancellationToken ct = default)
+    {
+        if (_disposed || _web.CoreWebView2 is not { } core) return null;
+
+        try
+        {
+            var result = await core.ExecuteScriptAsync(script);
+            ct.ThrowIfCancellationRequested();
+            return result;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            // The page is navigating or the browser is going away: nothing to measure.
+            return null;
+        }
     }
 
     /// <summary>A PNG of what the page shows right now, or null when there is nothing to capture.</summary>

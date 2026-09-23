@@ -218,8 +218,8 @@ public sealed class BlocksSwarmDialect(BlockCatalog? catalog = null) : ISwarmDia
 
               RULES:
 
-              1. Return the COMPLETE file set — every C# file and every page file, each in its own fenced
-                 block with its path on the first line. A file you leave out is a file that disappears.
+              1. Return ONLY the files you change. A file you do not mention stays exactly as it is.
+              {EditForms("each file you change", "Unit.cs")}
               2. Change as little as possible. You are repairing, not rewriting.
 
               {Contract(contract)}
@@ -229,13 +229,36 @@ public sealed class BlocksSwarmDialect(BlockCatalog? catalog = null) : ISwarmDia
 
               RULES:
 
-              1. Return ONLY {(task.PageModuleOnly ? $"{task.OwnedFile}, complete, in one fenced block with its `file:` header" : task.OwnsPage ? "the page files you own, complete, each in its own fenced block with its path on the first line" : $"{task.OwnedFile}, complete, in one ```csharp block with its `// file:` header")}.
+              1. Return ONLY your changes to {(task.PageModuleOnly ? task.OwnedFile : task.OwnsPage ? "the page files you own" : task.OwnedFile)} — nothing else is yours to change.
+              {EditForms(task.OwnsPage && !task.PageModuleOnly ? "each page file you change" : task.OwnedFile, task.OwnedFile)}
               2. Change as little as possible. You are repairing, not rewriting.
               3. If a finding points at a file that is not yours, the fault is a mismatch with the contract —
                  change YOUR file to match the contract, never the contract to match your file.
 
               {Contract(contract)}
               """;
+
+    /// <summary>
+    /// The two ways a repair may answer: edits, or the whole file.
+    ///
+    /// <para><b>Edits first</b>, because a fix is usually a few lines and a whole file is the size of the
+    /// file — measured on the 2026-09-20 Nemotron Battlefield run, repairs re-sent up to 72,000 characters
+    /// for faults a handful of lines wide. The whole file stays available for a fix that changes most of
+    /// it, and is what a fixer is asked for when one of its edits matches nothing.</para>
+    /// </summary>
+    private static string EditForms(string what, string example) =>
+        $"""
+           For {what}, EITHER
+           - EDITS, best when the fix touches a few places: one ```edit block per file, its path on the
+             first line (`// file: {example}`), then one or more of
+             <<<<<<< SEARCH
+             lines copied EXACTLY from the current file — enough of them to be found only once
+             =======
+             the lines that replace them
+             >>>>>>> REPLACE
+           - or THE COMPLETE FILE, when most of it changes: one fenced block with its `file:` header on the
+             first line, exactly as when it was built.
+        """;
 
     public string ComposeBuild(SwarmContext context, BuildTask task, BuildPlan plan)
     {
@@ -273,7 +296,21 @@ public sealed class BlocksSwarmDialect(BlockCatalog? catalog = null) : ISwarmDia
     {
         ArgumentNullException.ThrowIfNull(verdict);
         return Task.FromResult<GauntletSubject?>(
-            new GauntletSubject(files, verdict.Picture, PageDescription, verdict.Report, Layout: null, kind));
+            new GauntletSubject(files, verdict.Picture, Described(verdict), verdict.Report, Layout: null, kind));
+    }
+
+    /// <summary>
+    /// What the critics are told the picture is: the page, and — when the gate measured it — what the
+    /// browser reported about its layout, stated as fact. A critic reading the source cannot tell that a
+    /// panel covers the scene; the browser can, and a critic that sees does not need to guess either.
+    /// </summary>
+    internal static string Described(GateResult verdict)
+    {
+        if (verdict.Advisories.Count == 0) return PageDescription;
+
+        return PageDescription + Environment.NewLine
+               + "MEASURED ON THE PAGE by the gate's browser (facts, not opinions):" + Environment.NewLine
+               + string.Join(Environment.NewLine, verdict.Advisories.Select(a => "- " + a.Message));
     }
 
     /// <summary>

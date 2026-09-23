@@ -60,7 +60,7 @@ public static class PageProbe
 
         var root = options.WorkRoot ?? Path.Combine(Path.GetTempPath(), "DaxAlgo", "page-probe");
         var pageFolder = UnitPageFolder.Write(Path.Combine(root, "pages"), $"{unitId}-{Guid.NewGuid():N}", pageFiles);
-        var viewOptions = new WebUnitViewOptions(Path.Combine(root, "webview2"), BrowserArguments);
+        var viewOptions = new WebUnitViewOptions(Path.Combine(root, "webview2"), BrowserArguments, ProbeScript: PageLayoutAudit.ConsoleRecorder);
 
         using var sta = await StaHost.StartAsync("DaxAlgo page probe").ConfigureAwait(false);
 
@@ -87,6 +87,7 @@ public static class PageProbe
         }).ConfigureAwait(false);
 
         byte[]? png = null;
+        string? layout = null;
         try
         {
             var driveOptions = (options.Drive ?? new DriveOptions()) with
@@ -97,6 +98,9 @@ public static class PageProbe
                 {
                     // Give the page a frame to paint what it was last sent before photographing it.
                     await Task.Delay(250, token).ConfigureAwait(false);
+
+                    // Measured in the same moment as the photo, so the two describe the same page.
+                    layout = await sta.InvokeAsync(() => view.EvaluateAsync(PageLayoutAudit.Script, token)).ConfigureAwait(false);
                     png = await sta.InvokeAsync(() => view.CaptureAsync(token)).ConfigureAwait(false);
                 },
             };
@@ -116,6 +120,9 @@ public static class PageProbe
                 findings.Add(new DriveFinding(DriveSeverity.Failure, "page.blank",
                     "The page is a single flat colour after the unit has been sending it data.",
                     "Render something from the state the unit sends, including an empty state while waiting for data."));
+
+            // What the page looks like, measured: warnings, never failures. See PageLayoutAudit.
+            if (!blank) findings.AddRange(PageLayoutAudit.Read(layout));
 
             return new PageProbeReport(drive, errors, png, blank, findings);
         }

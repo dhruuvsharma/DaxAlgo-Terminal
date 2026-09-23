@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using TradingTerminal.Core.Strategies.Authoring;
@@ -96,8 +97,80 @@ public sealed class ModelCritic(
             return CriticVerdict.Skipped(Id, Panel, $"{client.DisplayName} failed: {response.Error}") with { Usage = reported };
         }
 
-        return Read(response.RawText) with { Usage = reported };
+        return WithoutPhantoms(Read(response.RawText), subject) with { Usage = reported };
     }
+
+    /// <summary>
+    /// Drops the findings the gate has already disproved: a file the unit has, reported as missing, cut
+    /// off or failing to parse; no class implementing the unit's interface, when the unit compiled and ran.
+    ///
+    /// <para><b>Evidence over opinion, the ladder's rule applied to the critics.</b> A critic sees text; the
+    /// gate compiled every C# file, found the hostable class and ran the page without a script error. When
+    /// the two disagree about whether a file is there, the gate is right — and a repair sent to "provide
+    /// the missing hud.js" rewrites a working module to satisfy a note about a view that was cut short.
+    /// Every other finding is kept: a file MISSING from the unit is still reported, and so is anything
+    /// about what a file that exists does.</para>
+    /// </summary>
+    internal static CriticVerdict WithoutPhantoms(CriticVerdict verdict, GauntletSubject subject)
+    {
+        if (verdict.Findings.Count == 0 || subject.Ladder.FailedAt is not null) return verdict;
+
+        var names = subject.Files.Select(f => f.Name).ToArray();
+        bool Exists(string mentioned)
+        {
+            var path = mentioned.Replace('\\', '/').TrimStart('.', '/');
+            var leaf = path[(path.LastIndexOf('/') + 1)..];
+            return names.Any(n => string.Equals(n, path, StringComparison.OrdinalIgnoreCase)
+                                  || string.Equals(n[(n.LastIndexOf('/') + 1)..], leaf, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var kept = verdict.Findings.Where(finding =>
+        {
+            // Codes arrive as slugs ("scenejs-truncated-syntax-error"), so they are read as words.
+            var claim = $"{finding.Code.Replace('-', ' ').Replace('_', ' ')} {finding.Message}";
+            if (NoUnitClass.IsMatch(claim)) return false;
+            if (!AbsentOrCut.IsMatch(claim)) return true;
+
+            // Which files the claim is about: the file it names, and every file in its words.
+            var mentioned = MentionedFile.Matches(claim).Select(m => m.Value)
+                .Concat(finding.File is { Length: > 0 } f ? f.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) : [])
+                .ToArray();
+
+            // A claim about a file the unit does NOT have is a real one.
+            return mentioned.Length == 0 || !mentioned.All(Exists);
+        }).ToArray();
+
+        if (kept.Length == verdict.Findings.Count) return verdict;
+
+        var dropped = verdict.Findings.Count - kept.Length;
+        return verdict with
+        {
+            Findings = kept,
+            Verdict = $"{verdict.Verdict} ({dropped} finding(s) dropped: they called a file that compiled and ran missing or cut off.)",
+        };
+    }
+
+    /// <summary>A claim that a FILE is absent or cut short — not that something inside one is missing,
+    /// which is a real finding about a file that exists ("index.html is missing a viewport tag").</summary>
+    private static readonly System.Text.RegularExpressions.Regex AbsentOrCut = new(
+        @"(?:file|module|script|stylesheet|source)s?\s+(?:is|are|was|were|appears?\s+to\s+be|seems?\s+to\s+be)\s+(?:missing|absent|truncated|cut\s?off|incomplete|not\s+(?:provided|included|present))"
+        + @"|missing\s+(?:\w+\s+){0,2}?(?:file|module|script)s?\b"
+        + @"|(?:truncated|cut\s?off)\s+(?:file|module|script|source)"
+        + @"|\b[\w\-]+\.(?:m?js|cs|html?|css)\s+(?:is\s+|was\s+)?(?:truncated|cut\s?off)"
+        + @"|imported\s+but\s+(?:missing|not\s+(?:provided|present|included))"
+        + @"|but\s+(?:these|those|the)\s+(?:\w+\s+){0,2}?(?:files|modules|scripts)\s+(?:are|were)\s+not"
+        + @"|(?:ends|breaks\s+off|stops)\s+(?:mid|in\s+the\s+middle)|mid\s?statement"
+        + @"|syntax\s+error|does\s+not\s+parse|unterminated"
+        + @"|(?:is|are)\s+not\s+(?:in|among|part\s+of)\s+the\s+(?:source|files|unit)",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex NoUnitClass = new(
+        @"no\s+(?:public\s+)?class\s+(?:that\s+)?implements\s+IUnit|missing\s+unit\s+class|no\s+IUnit\s+implementation",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex MentionedFile = new(
+        @"[\w.\-/\\]*[\w\-]\.(?:cs|m?js|html?|css)\b",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     /// <summary>The picture critic's reading mode: the page's source, judged for what it will look like.</summary>
     private async Task<CriticVerdict> ReadSourceAsync(
@@ -111,7 +184,7 @@ public sealed class ModelCritic(
         if (!response.Success)
             return CriticVerdict.Skipped(Id, Panel, $"{who.DisplayName} failed reading the page: {response.Error}") with { Usage = usage };
 
-        var verdict = Read(response.RawText);
+        var verdict = WithoutPhantoms(Read(response.RawText), subject);
         return verdict with { Verdict = "(read from the source — nothing that sees was available) " + verdict.Verdict, Usage = usage };
     }
 
@@ -165,29 +238,150 @@ public sealed class ModelCritic(
         text.AppendLine();
 
         if (source || Panel == CriticPanel.Quant || !canSeeImages)
+            text.Append(Source(subject, readingThePage: source && NeedsPicture));
+
+        return text.ToString();
+    }
+
+    /// <summary>
+    /// The unit's source as a critic is shown it: a manifest of EVERY file first, then each file either
+    /// whole or as an outline — never cut off part-way.
+    ///
+    /// <para><b>This used to stop at the budget in the middle of whichever file it had reached, and say
+    /// nothing.</b> Measured on the 2026-09-20 Nemotron Battlefield run: the page's scene module alone was
+    /// 72,081 characters against a 60,000 budget, so every critic in every round was shown a scene.js that
+    /// broke off mid-statement and none of the four files after it. They reported exactly that — "scene.js
+    /// is truncated with a syntax error", "hud.js, depthChart.js and feed.js are imported but missing",
+    /// "no class implements IUnit" — about files that existed, compiled and ran; fifteen to nineteen
+    /// findings a round, and each round's repairs rewrote working files to satisfy them.</para>
+    ///
+    /// <para><b>What each critic reads first is what it judges</b>: the page for the critic reading the
+    /// page, the C# for the market-logic, data-contract and book critics, and for the integration critic
+    /// the unit's class and the page's shell — the two ends of every message. A file that does not fit
+    /// whole is shown as its declarations with their line numbers, and the manifest says so.</para>
+    /// </summary>
+    internal string Source(GauntletSubject subject, bool readingThePage)
+    {
+        var files = subject.Files;
+        var ordered = files
+            .Select((file, index) => (file, index))
+            .OrderBy(x => Priority(x.file, readingThePage))
+            .ThenBy(x => x.file.Content.Length)
+            .ThenBy(x => x.index)
+            .Select(x => x.file)
+            .ToArray();
+
+        // Whole where it fits, outline where it does not — decided before anything is written, so the
+        // manifest can say which is which.
+        var budget = MaximumSourceCharacters;
+        var shown = new List<(StrategyFile File, string Body, bool Whole)>();
+        foreach (var file in ordered)
         {
-            text.AppendLine("THE SOURCE");
-            var budget = MaximumSourceCharacters;
-            // A picture critic reading the source reads the PAGE first: the budget is shared, and the C#
-            // is what the other critics already read.
-            var ordered = source && NeedsPicture
-                ? subject.Files.OrderBy(f => CodegenCodeExtractor.IsPageFile(f.Name) ? 0 : 1).ToArray()
-                : subject.Files;
-
-            foreach (var file in ordered)
+            if (file.Content.Length <= budget)
             {
-                if (budget <= 0) break;
-                var body = file.Content.Length <= budget ? file.Content : file.Content[..budget];
-                budget -= body.Length;
-
-                text.AppendLine($"// file: {file.Name}");
-                text.AppendLine(body);
-                text.AppendLine();
+                shown.Add((file, file.Content, true));
+                budget -= file.Content.Length;
+                continue;
             }
+
+            var outline = Outline(file, Math.Min(MaximumOutlineCharacters, Math.Max(0, budget)));
+            shown.Add((file, outline, false));
+            budget -= outline.Length;
+        }
+
+        var passed = subject.Ladder.FailedAt is null;
+        var text = new StringBuilder();
+        text.AppendLine("THE UNIT'S FILES — every one of them exists"
+                        + (passed ? "; the gate compiled all of the C#, loaded the page and drove it without a script error." : "."));
+        foreach (var (file, body, whole) in shown)
+            text.AppendLine($"  - {file.Name} · {file.Content.Length.ToString("N0", CultureInfo.InvariantCulture)} characters · "
+                            + (whole ? "in full below" : body.Length > 0 ? "OUTLINE below (declarations with line numbers); the file is complete" : "not shown (budget); the file is complete"));
+        text.AppendLine("Judge what you are shown. A file shown in outline, or not shown, is not missing, empty or cut off — never report it as such.");
+        text.AppendLine();
+
+        text.AppendLine("THE SOURCE");
+        foreach (var (file, body, whole) in shown)
+        {
+            if (body.Length == 0) continue;
+            text.AppendLine(whole ? $"// file: {file.Name}" : $"// file: {file.Name} — OUTLINE ONLY ({LineCount(file.Content).ToString("N0", CultureInfo.InvariantCulture)} lines; the rest of the file exists)");
+            text.AppendLine(body);
+            text.AppendLine();
         }
 
         return text.ToString();
     }
+
+    /// <summary>How much of the source budget one outline may take, in characters.</summary>
+    public const int MaximumOutlineCharacters = 4_000;
+
+    /// <summary>Lower reads first.</summary>
+    private int Priority(StrategyFile file, bool readingThePage)
+    {
+        var page = CodegenCodeExtractor.IsPageFile(file.Name);
+        var shell = page && file.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase);
+        var unitClass = !page && file.Content.Contains("IUnit", StringComparison.Ordinal);
+
+        if (readingThePage) return shell ? 0 : page ? 1 : 2;
+        return Id switch
+        {
+            Critics.Integration => unitClass ? 0 : shell ? 1 : page ? 3 : 2,
+            _ when Panel == CriticPanel.Quant => unitClass ? 0 : page ? 2 : 1,
+            _ => shell ? 0 : page ? 1 : 2,
+        };
+    }
+
+    /// <summary>
+    /// A file too large to show whole, reduced to what another file could depend on: its declarations,
+    /// exports and wiring, each with its line number.
+    /// </summary>
+    internal static string Outline(StrategyFile file, int maxCharacters)
+    {
+        if (maxCharacters <= 0) return string.Empty;
+
+        var lines = file.Content.Replace("\r\n", "\n").Split('\n');
+        var keep = file.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ? CSharpOutline
+            : file.Name.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ? CssOutline
+            : file.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase) || file.Name.EndsWith(".htm", StringComparison.OrdinalIgnoreCase) ? HtmlOutline
+            : ScriptOutline;
+
+        var text = new StringBuilder();
+        var skipped = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (line.Length == 0 || !keep.IsMatch(line)) continue;
+
+            var entry = $"L{i + 1}: {(line.Length > 160 ? line[..160] + " …" : line)}";
+            if (text.Length + entry.Length + 1 > maxCharacters)
+            {
+                skipped++;
+                continue;
+            }
+
+            text.AppendLine(entry);
+        }
+
+        if (skipped > 0) text.AppendLine($"… {skipped} more declaration(s) not listed");
+        return text.ToString().TrimEnd();
+    }
+
+    private static int LineCount(string content) => content.Count(c => c == '\n') + 1;
+
+    private static readonly System.Text.RegularExpressions.Regex CSharpOutline = new(
+        @"^(?:\[|(?:public|internal|private|protected|sealed|static|abstract|partial|readonly|override|async|file|record|class|struct|interface|enum)\b)|Ui\.(?:Send|On)\(|Settings\.|\.On(?:Quote|Trade|Depth|Bar)s?\(|Schedule\.",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex ScriptOutline = new(
+        @"^(?:export|import|function|async\s+function|class)\b|^(?:const|let|var)\s+[\w$]+\s*=\s*(?:async\s*)?(?:\(|function|[\w$]+\s*=>|new\s)|dax\.(?:on|send|ready)\(|addEventListener\(|requestAnimationFrame\(",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex HtmlOutline = new(
+        @"<(?:script|link|canvas|header|main|aside|section|footer|nav)\b|\bid\s*=",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex CssOutline = new(
+        @"\{\s*$|^@(?:media|keyframes|import)",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
     /// Reads a verdict out of whatever came back.

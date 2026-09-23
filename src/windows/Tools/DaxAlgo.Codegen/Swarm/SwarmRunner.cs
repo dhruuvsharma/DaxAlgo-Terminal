@@ -191,7 +191,13 @@ public sealed class SwarmRunner(
 
                 foreach (var layer in Layers(milestone.Tasks))
                 {
-                    var unbuilt = layer.Where(t => !seeded.Contains(t.Id)).ToArray();
+                    // A split page's modules before its shell, so the shell is written against what the
+                    // modules actually export whenever the provider answers one call at a time. See
+                    // SwarmContext.ComposeBuild. OrderBy is stable: everything else keeps the plan's order.
+                    var unbuilt = layer
+                        .Where(t => !seeded.Contains(t.Id))
+                        .OrderBy(t => t.OwnsPageShell && (t.PageFilesElsewhere?.Count ?? 0) > 0 ? 1 : 0)
+                        .ToArray();
                     if (unbuilt.Length == 0) continue;
 
                     await FanOutAsync(
@@ -326,18 +332,23 @@ public sealed class SwarmRunner(
                     progress?.Report(new SwarmEvent.Reviewed(review, round));
                     Record(TrajectoryLog.GauntletRole, null, CodegenUsage.None, verdict.Report);
 
-                    if (review.Findings.Count == 0 && unfinished.Length == 0)
+                    // WHAT THE GATE MEASURED JOINS WHAT THE CRITICS SAID. A page that scrolls, or a panel
+                    // hiding the main view, is a fact the browser reported rather than an opinion, and on a
+                    // text-only model it is the only report of the look there is. See GateResult.Advisories.
+                    if (review.Findings.Count == 0 && verdict.Advisories.Count == 0 && unfinished.Length == 0)
                         return Done(SwarmOutcome.Delivered, plan, origin, context, verdict, usage, note: note, summary:
                             $"Delivered: {plan.Tasks.Count} task(s), {verdict.Report.RungsCleared} rung(s) "
                             + $"cleared, {review.Summary}.");
 
-                    findings = review.Findings;
+                    findings = [.. verdict.Advisories, .. review.Findings];
                 }
 
                 // Ground gained: rungs cleared, then findings removed at the same height — and a critic's
                 // findings count, or a run could clear the ladder and then circle a picture forever.
                 // A file written since the last round is ground too, so a missing file arriving is progress.
-                var height = LadderScore.HeightOf(verdict.Report) - (review?.Findings.Count ?? 0) - unfinished.Length;
+                var height = LadderScore.HeightOf(verdict.Report)
+                             - (review is null ? 0 : review.Findings.Count + verdict.Advisories.Count)
+                             - unfinished.Length;
                 if (height > best)
                 {
                     best = height;
@@ -711,8 +722,57 @@ public sealed class SwarmRunner(
         // Blocks unit's page is code that is not C#.
         var files = _dialect.FilesIn(response);
 
+        // A REPAIR MAY ANSWER WITH EDITS — the lines that change rather than the whole file. See
+        // EditBlocks: a repair's output used to be the size of the file, not the size of the fix.
+        if (repairing && EditBlocks.Present(response.RawText))
+        {
+            var mine = context.Owned(task);
+            var outcome = EditBlocks.Apply(
+                EditBlocks.Parse(response.RawText), mine, task.OwnsAllFiles ? null : task.OwnedFile);
+
+            // A whole file in the same reply wins for its name; the edits land on the rest.
+            files = Merge(outcome.Edited, files);
+
+            var wanted = outcome.Failed
+                .Where(name => mine.Any(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase)))
+                .Where(name => !files.Any(f => string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+
+            if (wanted.Length > 0)
+            {
+                // AN EDIT THAT MATCHED NOTHING IS ASKED FOR ONCE MORE, WHOLE. The file was left exactly
+                // as it was — never half-edited — and the model that wrote the edit is shown what did not
+                // match, in the same conversation, so the retry costs one file rather than a new turn.
+                if (!lastRecorded) Record(task.Kind.ToString(), task.Id, reported, files: files.Count);
+                lastRecorded = true;
+
+                var again = new StrategyCodegenRequest(
+                    request.SharedContext,
+                    [
+                        opening,
+                        new CodegenMessage(CodegenRole.Assistant, response.RawText ?? string.Empty),
+                        new CodegenMessage(CodegenRole.User, EditBlocks.RetryPrompt(wanted, outcome.Unmatched)),
+                    ],
+                    instruction);
+
+                var (answer, used) = await CodegenStream.DrainAsync(_client, again, beat, ct).ConfigureAwait(false);
+                total = total.Add(used);
+
+                var whole = answer.Success ? _dialect.FilesIn(answer) : [];
+                Record(task.Kind.ToString(), task.Id, used, files: whole.Count, answered: answer.Success);
+                files = Merge(files, whole);
+            }
+        }
+
         if (!lastRecorded) Record(task.Kind.ToString(), task.Id, reported, files: files.Count);
         return new TaskResult(files, total, null);
+    }
+
+    /// <summary>Two sets of files as one, the second winning where both name a file.</summary>
+    private static IReadOnlyList<StrategyFile> Merge(IReadOnlyList<StrategyFile> first, IReadOnlyList<StrategyFile> second)
+    {
+        var names = second.Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return [.. first.Where(f => !names.Contains(f.Name)), .. second];
     }
 
     /// <summary>

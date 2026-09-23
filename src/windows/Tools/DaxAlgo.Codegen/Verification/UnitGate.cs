@@ -25,6 +25,13 @@ public sealed record GateResult(VerificationReport Report, StrategyCompileResult
     /// <summary>What the unit looks like, when the gate photographed it — a Blocks unit's page, taken
     /// while the unit was feeding it. The picture critic judges this.</summary>
     public UnitRaster? Picture { get; init; }
+
+    /// <summary>
+    /// What the gate measured that is wrong without being broken — a page that scrolls, a panel hiding
+    /// the main view, a value printed as "NaN". Never part of <see cref="Report"/>, so it never fails a
+    /// unit; the swarm hands it to the critics as fact and to the page's owner as findings.
+    /// </summary>
+    public IReadOnlyList<VerificationFinding> Advisories { get; init; } = [];
 }
 
 /// <summary>

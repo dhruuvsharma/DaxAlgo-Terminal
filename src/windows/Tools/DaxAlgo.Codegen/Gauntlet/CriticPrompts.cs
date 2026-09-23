@@ -64,6 +64,9 @@ public static class CriticPrompts
         4. `code` is a short stable slug — "no-price-axis", "lookahead-on-close". Never a sentence.
         5. `remedy` says what to change. A finding that only describes the symptom sends a repair
            looking for the problem instead of fixing it.
+        6. Every file listed under THE UNIT'S FILES exists and passed the gate. Never report one as
+           missing, cut off or failing to parse: a file shown as an outline is a complete file shown
+           short, and a finding about what you were not shown is a finding about nothing.
         """;
 
     /// <summary>The panel, in the order they run.</summary>

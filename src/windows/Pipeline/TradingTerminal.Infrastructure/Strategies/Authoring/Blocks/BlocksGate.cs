@@ -103,8 +103,21 @@ public sealed class BlocksGate(
         ]);
 
         if (picture is not null) LatestPicture = picture;
-        return new GateResult(verdict, Compile: null) { Compiled = true, Picture = picture };
+
+        // The page's measured layout: warnings the verdict leaves out, carried beside it. See
+        // GateResult.Advisories.
+        VerificationFinding[] advisories =
+        [
+            .. findings
+                .Where(f => f.Severity == DriveSeverity.Warning && f.Code.StartsWith(LayoutPrefix, StringComparison.Ordinal))
+                .Select(f => ToFinding(f, PageEntry)),
+        ];
+
+        return new GateResult(verdict, Compile: null) { Compiled = true, Picture = picture, Advisories = advisories };
     }
+
+    /// <summary>The code prefix of the page probe's layout measurements.</summary>
+    public const string LayoutPrefix = "page.layout.";
 
     /// <summary>A unit that did not compile, pass the scan or have the right shape, sorted onto the rung
     /// that refused it.</summary>
