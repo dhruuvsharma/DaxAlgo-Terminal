@@ -83,8 +83,9 @@ public sealed class BlocksSwarmDialect(BlockCatalog? catalog = null) : ISwarmDia
            are fixed HERE, exactly. The C# builder and the page builders meet only through `topics`, and
            the shell and the modules only through `pageModules`: anything you leave vague is something
            they will spell differently. Payload field names are camelCase.
-        2a. The SHELL owns the dax bridge — dax.on, dax.send, dax.ready() — and hands state to the modules
-           through their exports. Modules never touch dax and never import each other.
+        2a. The SHELL is the one file that CALLS dax — the terminal's own global dax.on, dax.send, dax.ready(),
+           already injected; no file ever defines or replaces it — and hands state to the modules through
+           their exports. Modules never touch dax and never import each other.
         3. Exactly ONE task has kind "Signal": the one public class implementing IUnit. Other C# tasks
            write helper types.
         4. `kind` is one of: Maths, Signal, Book, Ui.
@@ -297,6 +298,44 @@ public sealed class BlocksSwarmDialect(BlockCatalog? catalog = null) : ISwarmDia
         ArgumentNullException.ThrowIfNull(verdict);
         return Task.FromResult<GauntletSubject?>(
             new GauntletSubject(files, verdict.Picture, Described(verdict), verdict.Report, Layout: null, kind));
+    }
+
+    /// <summary>
+    /// A Blocks plan always has a page. Since 2026-09-15 a unit without <c>ui/index.html</c> is refused at
+    /// install and at load, so a plan without a page task is a plan whose best outcome is a refusal.
+    ///
+    /// <para><b>Measured 2026-09-24</b> on NIM's GLM 5.3 Flash at a low effort: the Battlefield brief —
+    /// most of which describes the page — was planned as ONE task, the unit's class, and nothing that
+    /// would ever write <c>ui/index.html</c>. The page task added here depends on the unit's class, so
+    /// with no topics in the contract its builder still reads the actual <c>Ui.Send</c> calls, and it
+    /// reads the brief like every builder does.</para>
+    /// </summary>
+    public BuildPlan Complete(BuildPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        if (plan.Tasks.Count == 0 || plan.Tasks.Any(t => t.OwnsPage || t.OwnsAllFiles)) return plan;
+
+        var unit = plan.Tasks.FirstOrDefault(t => t.Kind == TaskKind.Signal);
+        var id = "page";
+        for (var n = 2; plan.Tasks.Any(t => string.Equals(t.Id, id, StringComparison.OrdinalIgnoreCase)); n++) id = $"page{n}";
+
+        var page = new BuildTask(
+            id,
+            "The page",
+            TaskKind.Ui,
+            "ui/index.html",
+            "The unit's whole page, ui/index.html with any ui/*.js and ui/*.css beside it: everything the brief says "
+            + "the viewer sees, drawn from the whole state the unit sends. "
+            + (plan.Contract.PageTopics.Count > 0
+                ? "Listen for exactly the topics in the contract."
+                : "The contract names no topics, so read the unit's class below and listen for exactly the topics and fields its context.Ui.Send calls send."),
+            unit is null ? [] : [unit.Id],
+            Blocks: [BlockCatalog.UiBlock]);
+
+        return (plan with
+        {
+            Milestones = [.. plan.Milestones, new Milestone($"{id}-milestone", "The page", [page])],
+        }).WithPageOwnership();
     }
 
     /// <summary>

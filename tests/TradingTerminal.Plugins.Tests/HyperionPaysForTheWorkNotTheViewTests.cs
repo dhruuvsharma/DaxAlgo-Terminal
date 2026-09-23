@@ -236,6 +236,41 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
         shell.Should().Contain("export const mountDepth = (root, options) =>");
     }
 
+    [Fact]
+    public async Task A_plan_with_no_page_gets_one_and_it_is_written_against_the_unit_s_own_sends()
+    {
+        // NIM's GLM 5.3 Flash at a low effort, 2026-09-24: the Battlefield brief planned as ONE task, the
+        // unit's class, and nothing that would ever write ui/index.html.
+        const string unitOnly = """
+            { "contract": { "typeName": "Battlefield" },
+              "milestones": [ { "id": "m1", "title": "Build", "tasks": [
+                { "id": "t1", "title": "The unit", "kind": "Signal", "ownedFile": "Battlefield.cs", "blocks": ["unit", "ui"], "intent": "the unit", "dependsOn": [] }
+              ]} ] }
+            """;
+
+        var client = new Scripted(role =>
+            role.Contains("YOUR ROLE: Planner", StringComparison.Ordinal) ? "```json\n" + unitOnly + "\n```"
+            : role.Contains("PAGE", StringComparison.Ordinal) ? "```html\n<!-- file: ui/index.html -->\n<p>battle</p>\n```"
+            : "```csharp\n// file: Battlefield.cs\npublic sealed class Battlefield { void Tick() => context.Ui.Send(\"battle\", new { price = 1 }); }\n```");
+
+        var run = await new SwarmRunner(client, new Passes(), dialect: new BlocksSwarmDialect())
+            .RunAsync(new SwarmRequest("battlefield brief", "PACK", AuthoringKind.Visualizer, new SwarmBudget(MaxParallel: 1, MaxRounds: 1, MaxTasks: 8)));
+
+        run.Plan.Tasks.Should().Contain(t => t.OwnedFile == "ui/index.html" && t.DependsOn.Contains("t1"));
+        run.Files.Should().Contain(f => f.Name == "ui/index.html");
+
+        var page = client.Calls.Single(c => c.Role.Contains("PAGE", StringComparison.Ordinal));
+        page.Message.Should().Contain("ALREADY WRITTEN — Battlefield.cs").And.Contain("context.Ui.Send(\"battle\"",
+            "with no topics in the contract, the page builder reads what the unit actually sends");
+    }
+
+    [Fact]
+    public void A_plan_that_has_a_page_is_left_as_it_is()
+    {
+        var plan = Split();
+        new BlocksSwarmDialect().Complete(plan).Should().BeSameAs(plan);
+    }
+
     // ── repairs as edits ────────────────────────────────────────────────────────────────────────
 
     private const string Unit = "public sealed class Unit\n{\n    public int A => 1;\n    public int B => 2;\n}";

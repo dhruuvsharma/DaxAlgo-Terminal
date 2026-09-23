@@ -41,6 +41,12 @@ public interface ISwarmDialect
         AuthoringKind kind,
         IUnitRasterizer? rasterizer,
         CancellationToken ct);
+
+    /// <summary>
+    /// A planned plan with anything the unit cannot ship without added — what the dialect's rules make
+    /// mandatory and the planner left out. Unchanged by default.
+    /// </summary>
+    BuildPlan Complete(BuildPlan plan) => plan;
 }
 
 /// <summary>The widget SDK's dialect: <c>IStrategyKernel</c> / <c>IVisualizer</c>, panels and widgets.</summary>

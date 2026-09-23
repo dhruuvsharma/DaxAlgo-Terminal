@@ -502,7 +502,7 @@ public sealed class SwarmRunner(
                     response.Error ?? "The provider returned nothing.");
 
             if (BuildPlanReader.Read(response.RawText, request.Kind) is { } plan)
-                return new Planned(Trim(plan, request.Budget.MaxTasks), PlanOrigin.Planned, usage, null);
+                return new Planned(_dialect.Complete(Trim(plan, request.Budget.MaxTasks)), PlanOrigin.Planned, usage, null);
 
             // NO PLAN. What happens next depends on what came back instead, and the distinction is the
             // whole of the interview.
