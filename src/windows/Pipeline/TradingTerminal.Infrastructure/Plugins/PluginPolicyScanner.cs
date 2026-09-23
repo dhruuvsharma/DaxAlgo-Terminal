@@ -133,7 +133,6 @@ public static class PluginPolicyScanner
         StringComparer.Ordinal,
         "System.Diagnostics.Process",
         "System.Diagnostics.ProcessStartInfo",
-        "System.Environment",
         "System.AppDomain",
         "System.Runtime.InteropServices.Marshal",
         "System.Runtime.InteropServices.NativeLibrary",
@@ -417,8 +416,30 @@ public static class PluginPolicyScanner
                 && name.StartsWith("Load", StringComparison.Ordinal))
                 Add(findings, declared, profile, assembly, "assemblyLoad", PluginScanSeverity.Block,
                     $"{assembly} loads further assemblies at runtime ({type}.{name})");
+
+            if (profile == PluginScanProfile.Sandbox
+                && string.Equals(type, "System.Environment", StringComparison.Ordinal)
+                && !SandboxEnvironmentMembers.Contains(name))
+                Add(findings, declared, profile, assembly, "environment", PluginScanSeverity.Block,
+                    $"{assembly} accesses process environment state ({type}.{name})");
         }
     }
+
+    /// <summary>
+    /// The members of <c>System.Environment</c> a sandboxed unit may touch — both read-only, both saying
+    /// nothing about the machine, the process or the clock.
+    ///
+    /// <para><b>The ban was on the TYPE, and the compiler writes the type.</b> Every C# iterator
+    /// (<c>yield return</c>) compiles to a class whose <c>GetEnumerator</c> reads
+    /// <c>Environment.CurrentManagedThreadId</c>. Measured 2026-09-24 on NIM's DeepSeek V4.1 Flash: a unit
+    /// with one iterator method was refused as "accesses process environment state" for two rounds and
+    /// every repair failed, because no line of its source mentions Environment. The machine name, the
+    /// variables, the tick count, <c>Exit</c> and the rest are still refused, member by member.</para>
+    /// </summary>
+    private static readonly ImmutableHashSet<string> SandboxEnvironmentMembers = ImmutableHashSet.Create(
+        StringComparer.Ordinal,
+        "get_CurrentManagedThreadId",
+        "get_NewLine");
 
     private static void ScanSandboxTypeReference(
         MetadataReader md,

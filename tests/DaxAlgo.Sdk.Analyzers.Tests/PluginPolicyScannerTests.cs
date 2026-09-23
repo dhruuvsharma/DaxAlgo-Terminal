@@ -274,6 +274,33 @@ public sealed class PluginPolicyScannerTests
         Assert.Empty(curated.Findings);
     }
 
+    [Theory]
+    [InlineData("iterator", "public static class Fixture { public static System.Collections.Generic.IEnumerable<int> Use() { yield return 1; yield return 2; } }")]
+    [InlineData("newline", "public static class Fixture { public static string Use() => \"a\" + System.Environment.NewLine + \"b\"; }")]
+    [InlineData("thread-id", "public static class Fixture { public static int Use() => System.Environment.CurrentManagedThreadId; }")]
+    public void Sandbox_allows_what_iterators_and_newlines_need_from_Environment(string capability, string source)
+    {
+        // Every C# iterator compiles to a GetEnumerator that reads Environment.CurrentManagedThreadId.
+        // Measured 2026-09-24: a Blocks unit with one iterator was refused as "accesses process environment
+        // state" and no repair could find the call, because nobody had written it.
+        var report = PluginPolicyScanner.ScanImage(Compile(source), capability + ".dll", profile: PluginScanProfile.Sandbox);
+
+        Assert.DoesNotContain(report.Findings, finding => finding.Rule == "environment");
+    }
+
+    [Theory]
+    [InlineData("tick-count", "public static class Fixture { public static long Use() => System.Environment.TickCount64; }")]
+    [InlineData("variable", "public static class Fixture { public static string? Use() => System.Environment.GetEnvironmentVariable(\"PATH\"); }")]
+    [InlineData("exit", "public static class Fixture { public static void Use() => System.Environment.Exit(0); }")]
+    [InlineData("processors", "public static class Fixture { public static int Use() => System.Environment.ProcessorCount; }")]
+    public void Sandbox_still_blocks_every_other_Environment_member(string capability, string source)
+    {
+        var report = PluginPolicyScanner.ScanImage(Compile(source), capability + ".dll", profile: PluginScanProfile.Sandbox);
+
+        Assert.Equal(PluginScanSeverity.Block, report.Verdict);
+        Assert.Contains(report.Findings, finding => finding.Rule == "environment" && finding.Severity == PluginScanSeverity.Block);
+    }
+
     [Fact]
     public void Sandbox_does_not_block_an_unreferenced_suffix_only_type_definition()
     {
