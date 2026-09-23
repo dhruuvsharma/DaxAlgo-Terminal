@@ -18,9 +18,11 @@ public sealed partial class StrategyPresentationEditorViewModel : ViewModelBase
     public StrategyPresentationEditorViewModel(StrategyCatalogItemViewModel item)
     {
         _item = item;
-        DefaultName = item.Strategy?.DisplayName ?? item.Visualizer!.DisplayName;
-        DefaultDescription = item.Strategy?.Description ?? item.Visualizer!.Description;
-        DefaultLinkUrl = item.Strategy?.LinkUrl ?? string.Empty;
+        // The item's own defaults rather than a re-derivation: this read `item.Visualizer!` and threw
+        // for every authored and hosted card, which have neither a Strategy nor a Visualizer.
+        DefaultName = item.DefaultName;
+        DefaultDescription = item.DefaultDescription;
+        DefaultLinkUrl = item.DefaultLinkUrl ?? string.Empty;
 
         _name = item.Name;
         _description = item.Description;

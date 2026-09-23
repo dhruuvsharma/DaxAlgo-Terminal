@@ -84,6 +84,15 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
     public HostedCatalogUnit? HostedUnit { get; }
 
     public string Id => Strategy?.Id ?? Kernel?.Id ?? HostedUnit?.Id ?? Visualizer!.Id;
+
+    /// <summary>The backing unit's own name — what the card shows when there is no override. Defined
+    /// once for every backing so the card and its editor cannot disagree about what "default" means,
+    /// and a fifth backing is handled in one place rather than found by a crash in another.</summary>
+    public string DefaultName => Strategy?.DisplayName ?? Descriptor?.DisplayName ?? HostedUnit?.DisplayName ?? string.Empty;
+    public string DefaultDescription => Strategy?.Description ?? Descriptor?.Description ?? HostedUnit?.Description ?? string.Empty;
+    public string? DefaultLinkUrl => Strategy?.LinkUrl;
+
+    private VisualizerDescriptor? Descriptor => Visualizer ?? Kernel?.Descriptor;
     public string KindLabel => Kind == CatalogItemKind.Strategy ? "STRATEGY" : "VISUALIZER";
     public string KindForegroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Glow.Brush" : "Accent.Brush";
     public string KindBackgroundResourceKey => Kind == CatalogItemKind.Strategy ? "Ai.Soft" : "Accent.Soft";
@@ -121,21 +130,17 @@ public sealed partial class StrategyCatalogItemViewModel : ViewModelBase
 
     public void Apply(StrategyPresentation presentation)
     {
-        // Three backings now, so the null-forgiving `Visualizer!` that was safe with two is not. An
-        // authored kernel has neither a Strategy nor a Visualizer, and this threw a
+        // Four backings now, so the null-forgiving `Visualizer!` that was safe with two is not. An
+        // authored kernel or a hosted unit has neither a Strategy nor a Visualizer, and this threw a
         // NullReferenceException out of the constructor — meaning the catalog crashed the moment a
-        // user registered a strategy in Hyperion, which is the one path the card exists for.
-        var descriptor = Visualizer ?? Kernel?.Descriptor;
-
-        var defaultName = Strategy?.DisplayName ?? descriptor?.DisplayName ?? HostedUnit?.DisplayName ?? string.Empty;
-        var defaultDescription = Strategy?.Description ?? descriptor?.Description ?? HostedUnit?.Description ?? string.Empty;
-        var defaultImagePath = descriptor?.ImagePath;
-
-        Name = string.IsNullOrWhiteSpace(presentation.Name) ? defaultName : presentation.Name!;
-        Description = string.IsNullOrWhiteSpace(presentation.Description) ? defaultDescription : presentation.Description!;
-        LinkUrl = string.IsNullOrWhiteSpace(presentation.LinkUrl) ? Strategy?.LinkUrl : presentation.LinkUrl.Trim();
+        // user registered a strategy in Hyperion, which is the one path the card exists for. The card
+        // editor then made the same mistake on its own, so the defaults now live in DefaultName and
+        // DefaultDescription and both read them.
+        Name = string.IsNullOrWhiteSpace(presentation.Name) ? DefaultName : presentation.Name!;
+        Description = string.IsNullOrWhiteSpace(presentation.Description) ? DefaultDescription : presentation.Description!;
+        LinkUrl = string.IsNullOrWhiteSpace(presentation.LinkUrl) ? DefaultLinkUrl : presentation.LinkUrl.Trim();
         Formula = string.IsNullOrWhiteSpace(presentation.Formula) ? null : presentation.Formula;
-        ImagePath = string.IsNullOrWhiteSpace(presentation.ImagePath) ? defaultImagePath : presentation.ImagePath;
+        ImagePath = string.IsNullOrWhiteSpace(presentation.ImagePath) ? Descriptor?.ImagePath : presentation.ImagePath;
 
         CustomTags.Clear();
         foreach (var tag in presentation.Tags ?? new List<string>())
