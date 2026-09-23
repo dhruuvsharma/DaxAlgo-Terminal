@@ -8,7 +8,9 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 /// <param name="File">The file the edit names, or null when the reply named none.</param>
 /// <param name="Search">Lines copied from the current file. Empty means "append".</param>
 /// <param name="Replace">The lines that take their place.</param>
-public sealed record FileEdit(string? File, string Search, string Replace);
+/// <param name="Malformed">The block had a divider where no divider belongs, so its halves cannot be told
+/// apart; it is never applied.</param>
+public sealed record FileEdit(string? File, string Search, string Replace, bool Malformed = false);
 
 /// <summary>What applying a reply's edits produced.</summary>
 /// <param name="Edited">Every file whose edits all applied, with its new content.</param>
@@ -84,6 +86,8 @@ public static partial class EditBlocks
         var search = new StringBuilder();
         var replace = new StringBuilder();
         var state = 0; // 0 outside, 1 in SEARCH, 2 in REPLACE
+        var pendingDivider = false;
+        var malformed = false;
 
         foreach (var raw in reply.Replace("\r\n", "\n").Split('\n'))
         {
@@ -96,6 +100,8 @@ public static partial class EditBlocks
                     state = 1;
                     search.Clear();
                     replace.Clear();
+                    pendingDivider = false;
+                    malformed = false;
                     continue;
                 }
 
@@ -121,11 +127,33 @@ public static partial class EditBlocks
                 continue;
             }
 
+            // A SECOND DIVIDER. Measured on NIM's Kimi K3, 2026-09-24: a fixer closed an edit with
+            // "=======" and then ">>>>>>> REPLACE", the stray divider was copied into the replacement, and
+            // the file compiled to CS8300 "merge conflict marker" for three rounds — because every later
+            // edit trying to remove that line was itself cut in two by it. One directly before REPLACE is
+            // that habit and is dropped; one anywhere else makes the block ambiguous, and it is marked so
+            // the file is asked for whole instead.
+            if (DividerLine().IsMatch(line))
+            {
+                if (pendingDivider) malformed = true;
+                pendingDivider = true;
+                continue;
+            }
+
             if (ReplaceLine().IsMatch(line))
             {
-                edits.Add(new FileEdit(file, search.ToString(), replace.ToString()));
+                edits.Add(new FileEdit(file, search.ToString(), replace.ToString(), malformed));
                 state = 0;
+                pendingDivider = false;
+                malformed = false;
                 continue;
+            }
+
+            if (pendingDivider)
+            {
+                malformed = true;
+                pendingDivider = false;
+                Append(replace, DividerMarker);
             }
 
             Append(replace, line);
@@ -133,6 +161,10 @@ public static partial class EditBlocks
 
         return edits;
     }
+
+    /// <summary>A line that is one of this format's markers — never valid in any file an edit targets.</summary>
+    [GeneratedRegex(@"^\s*(?:<{7}\s*SEARCH|={7}|>{7}\s*REPLACE)\s*$", RegexOptions.Multiline)]
+    private static partial Regex MarkerLine();
 
     /// <summary>
     /// Applies edits to the files they name.
@@ -164,6 +196,13 @@ public static partial class EditBlocks
             var ok = true;
             foreach (var edit in group)
             {
+                if (edit.Malformed)
+                {
+                    ok = false;
+                    unmatched.Add($"{target.Name}: {FirstLine(edit.Search)} (the block had a second ======= line, so where its replacement starts is ambiguous)");
+                    continue;
+                }
+
                 if (TryApply(content, edit) is { } next)
                 {
                     content = next;
@@ -172,6 +211,14 @@ public static partial class EditBlocks
 
                 ok = false;
                 unmatched.Add($"{target.Name}: {FirstLine(edit.Search)}");
+            }
+
+            // Never hand back a file carrying this format's own markers, whatever the edits said: it does not
+            // compile, and no later edit can reach the line to take it out again.
+            if (ok && MarkerLine().IsMatch(content) && !MarkerLine().IsMatch(target.Content))
+            {
+                ok = false;
+                unmatched.Add($"{target.Name}: the edits would leave a <<<<<<< / ======= / >>>>>>> line in the file");
             }
 
             if (ok) edited.Add(new StrategyFile(target.Name, content));

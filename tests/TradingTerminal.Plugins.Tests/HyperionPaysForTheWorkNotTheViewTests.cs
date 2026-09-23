@@ -292,6 +292,61 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
         outcome.Unmatched.Should().ContainSingle().Which.Should().Contain("public int Z => 9;");
     }
 
+    private const string Socket = "        lock (_gate) _cts = cts;\n        _ = RunLoopAsync(cts);\n    }\n";
+
+    [Fact]
+    public void A_stray_divider_before_REPLACE_is_dropped_rather_than_written_into_the_file()
+    {
+        // NIM's Kimi K3, 2026-09-24, verbatim in shape: a second "=======" closing the replacement.
+        var outcome = EditBlocks.Apply(EditBlocks.Parse("""
+            ```edit
+            // file: LiqSocket.cs
+            <<<<<<< SEARCH
+                    _ = RunLoopAsync(cts);
+            =======
+                    _ = RunLoopAsync(cts, _source, _symbol);
+            =======
+            >>>>>>> REPLACE
+            ```
+            """), [new StrategyFile("LiqSocket.cs", Socket)], defaultFile: "LiqSocket.cs");
+
+        outcome.Failed.Should().BeEmpty();
+        outcome.Edited.Single().Content.Should().Contain("RunLoopAsync(cts, _source, _symbol);").And.NotContain("=======");
+    }
+
+    [Fact]
+    public void A_block_with_a_divider_in_the_middle_of_its_replacement_is_never_applied()
+    {
+        // Kimi's next turn, trying to search for the marker line the stray divider had left: the block
+        // cannot be read unambiguously, so the file is asked for whole instead.
+        var outcome = EditBlocks.Apply(EditBlocks.Parse("""
+            // file: LiqSocket.cs
+            <<<<<<< SEARCH
+                    _ = RunLoopAsync(cts);
+            =======
+                }
+            =======
+                    _ = RunLoopAsync(cts);
+                }
+            >>>>>>> REPLACE
+            """), [new StrategyFile("LiqSocket.cs", Socket)], defaultFile: "LiqSocket.cs");
+
+        outcome.Edited.Should().BeEmpty();
+        outcome.Failed.Should().Equal("LiqSocket.cs");
+        outcome.Unmatched.Single().Should().Contain("second =======");
+    }
+
+    [Fact]
+    public void Edits_that_would_leave_a_marker_line_in_the_file_are_refused()
+    {
+        var outcome = EditBlocks.Apply(
+            [new FileEdit("LiqSocket.cs", "        _ = RunLoopAsync(cts);", "        _ = RunLoopAsync(cts);\n>>>>>>> REPLACE")],
+            [new StrategyFile("LiqSocket.cs", Socket)], defaultFile: null);
+
+        outcome.Edited.Should().BeEmpty();
+        outcome.Unmatched.Single().Should().Contain("would leave");
+    }
+
     [Fact]
     public void An_edit_is_never_read_as_the_file_it_edits()
     {
