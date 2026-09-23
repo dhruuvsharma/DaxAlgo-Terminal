@@ -127,6 +127,78 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         StrategyCodegenRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
+        // A REFUSAL INSIDE THE STREAM is retried like the same refusal as a status code. NVIDIA NIM
+        // answers an overloaded model with HTTP 200 and one event, `data: {"error":{"code":503,
+        // "message":"Service temporarily overloaded"}}` — measured 2026-09-24, when it ended a Battlefield
+        // run in its first second as "returned no message content", because the status said OK and the
+        // event carried no choices. Sent again only when nothing had been written yet.
+        for (var attempt = 0; ; attempt++)
+        {
+            var refused = new StreamRefusal();
+            CodegenEvent.Completed? retrying = null;
+
+            await foreach (var evt in StreamOnceAsync(request, refused, ct).WithCancellation(ct).ConfigureAwait(false))
+            {
+                if (evt is CodegenEvent.Completed done && refused.Retryable && attempt < MaxRateLimitAttempts - 1)
+                {
+                    retrying = done;
+                    break;
+                }
+
+                yield return evt;
+            }
+
+            if (retrying is null) yield break;
+
+            yield return new CodegenEvent.TextDelta(string.Empty);   // keeps the turn visibly alive
+            await Task.Delay(RateLimitBackoff(attempt), ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>What <see cref="StreamOnceAsync"/> learned about a refusal that arrived as a stream event.</summary>
+    private sealed class StreamRefusal
+    {
+        /// <summary>The provider refused before writing anything, for a reason that passes — send again.</summary>
+        public bool Retryable { get; set; }
+    }
+
+    /// <summary>
+    /// The provider's refusal carried as a stream event rather than a status — <c>{"error":{"code":503,
+    /// "message":"…"}}</c> — as its code and message, or null when the event is not one.
+    /// </summary>
+    internal static (int Code, string Message)? StreamedError(JsonElement chunk)
+    {
+        if (!chunk.TryGetProperty("error", out var error)) return null;
+        if (error.ValueKind == JsonValueKind.String) return (0, error.GetString() ?? "error");
+        if (error.ValueKind != JsonValueKind.Object) return null;
+
+        var code = error.TryGetProperty("code", out var c)
+            ? c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var n) ? n
+            : c.ValueKind == JsonValueKind.String && int.TryParse(c.GetString(), out var s) ? s
+            : 0
+            : 0;
+        var message = error.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String
+            ? m.GetString() ?? string.Empty
+            : error.GetRawText();
+
+        // An overload named only in words is still an overload.
+        if (code == 0 && (message.Contains("overload", StringComparison.OrdinalIgnoreCase)
+                          || message.Contains("temporarily", StringComparison.OrdinalIgnoreCase)))
+            code = 503;
+
+        return (code, message);
+    }
+
+    /// <summary>Whether a refusal that arrived in the stream is one that passes if the request is sent
+    /// again: a busy model, a busy gateway, or a rate limit that is not a spent quota.</summary>
+    internal static bool IsRetryableStreamedError(int code, string message) =>
+        IsTransientGatewayFailure(code) || (IsRateLimited(code) && !IsQuotaExhausted(message));
+
+    private async IAsyncEnumerable<CodegenEvent> StreamOnceAsync(
+        StrategyCodegenRequest request,
+        StreamRefusal refused,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
         if (!IsAvailable)
         {
             yield return new CodegenEvent.Completed(
@@ -245,6 +317,18 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
                 if (!moved) break;
                 var chunk = chunks.Current;
+
+                // The provider refusing inside a stream that opened with 200. See StreamAsync.
+                if (StreamedError(chunk) is var (code, message))
+                {
+                    var nothingYet = text.Length == 0 && reasoningCharacters == 0;
+                    refused.Retryable = nothingYet && IsRetryableStreamedError(code, message);
+                    yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
+                        $"{DisplayName} returned {(code > 0 ? code.ToString(System.Globalization.CultureInfo.InvariantCulture) : "an error")} inside the stream: {Trim(message)}"
+                        + (code > 0 ? Hint(code, message, _model) : string.Empty))
+                        with { Usage = usage, Partial = text.Length > 0 ? text.ToString() : null });
+                    yield break;
+                }
 
                 var delta = default(JsonElement);
                 var hasDelta =
