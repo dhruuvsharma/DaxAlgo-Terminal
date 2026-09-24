@@ -387,7 +387,8 @@ public sealed class StrategyBuildSession
         IProgress<string>? activity = null,
         IProgress<SwarmEvent>? swarm = null,
         IProgress<CodegenEvent>? events = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        BuildPlan? plan = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userMessage);
         ArgumentNullException.ThrowIfNull(runner);
@@ -406,6 +407,11 @@ public sealed class StrategyBuildSession
                 userMessage, SystemContext, Kind, budget, Files,
                 MayAsk: mayAsk,
                 Bar: bar,
+
+                // A plan handed in continues a run that stopped: the files it already has are kept. See
+                // SwarmRequest.Continue.
+                Plan: plan,
+                Continue: plan is not null,
 
                 // The planner gets the whole thread, because an answer arrives as "approved, now start
                 // building" and means nothing without the brief it approves. Builders get their task

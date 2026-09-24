@@ -29,6 +29,14 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring.Swarm;
 /// stateless by contrast, and deliberately: each gets its task and its dependencies, never the
 /// history.</para>
 /// </param>
+/// <param name="Continue">
+/// With a <paramref name="Plan"/>: pick the run up where it stopped. A task whose file is already among
+/// <paramref name="Existing"/> is not built again, so the run goes straight to the gate, the critics and
+/// the repairs. Without it a given plan is a revision, and every task rewrites its file.
+///
+/// <para>For a run a time limit stopped after the unit had passed the gate — measured 2026-09-24 on NIM,
+/// where two Battlefield runs reached a passing unit and page and were cut off inside the critics.</para>
+/// </param>
 public sealed record SwarmRequest(
     string Brief,
     string SharedContext,
@@ -38,7 +46,8 @@ public sealed record SwarmRequest(
     BuildPlan? Plan = null,
     bool MayAsk = true,
     IReadOnlyList<CodegenMessage>? Thread = null,
-    ReferenceBar? Bar = null)
+    ReferenceBar? Bar = null,
+    bool Continue = false)
 {
     /// <summary>The standard the critics judge against. Defaults to the plan's own rubric, which the
     /// planner wrote from the brief before there was anything to be defensive about.</summary>
@@ -147,7 +156,7 @@ public sealed class SwarmRunner(
 
             if (request.Plan is { } resumed)
             {
-                (plan, origin) = (resumed.WithPageOwnership(), PlanOrigin.Planned);
+                (plan, origin) = (_dialect.Complete(resumed.WithPageOwnership()), PlanOrigin.Planned);
             }
             else
             {
@@ -181,6 +190,17 @@ public sealed class SwarmRunner(
                 seeded.Add(fallback.Id);
                 progress?.Report(new SwarmEvent.TaskFinished(
                     fallback, true, CodegenUsage.None, "taken from the planner's reply", context.Files));
+            }
+
+            // PICKING UP WHERE A RUN STOPPED: what is already written stays written. See SwarmRequest.Continue.
+            if (request.Continue && request.Plan is not null)
+            {
+                foreach (var task in plan.Tasks.Where(t => t.OwnsAllFiles ? context.Files.Count > 0 : context.File(t.OwnedFile) is not null))
+                {
+                    seeded.Add(task.Id);
+                    progress?.Report(new SwarmEvent.TaskFinished(
+                        task, true, CodegenUsage.None, "kept from the run being continued", context.Files));
+                }
             }
 
             // ── build ───────────────────────────────────────────────────────────────────────────────

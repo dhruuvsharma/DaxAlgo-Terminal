@@ -265,6 +265,35 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
         Say($"budget: {budget.MaxParallel} parallel · {budget.MaxRounds} round(s) · {budget.MaxTasks} task(s) max");
 
         var gate = blocks.Gate(id);
+
+        // HYPERION_CONTINUE names an earlier run's folder: its unit and page are kept and its plan is read
+        // back from the planner's reply, so the run goes straight to the gate, the critics and the repairs.
+        // For a run a time limit stopped after its unit had passed the gate. Give it a new HYPERION_ID —
+        // the run folder named by the id is emptied first.
+        BuildPlan? continued = null;
+        if (Env("HYPERION_CONTINUE") is { } from)
+        {
+            var unitFolder = Path.Combine(from, "unit");
+            StrategyFile[] kept =
+            [
+                .. Directory.GetFiles(unitFolder, "*", SearchOption.AllDirectories)
+                    .Select(path => Path.GetRelativePath(unitFolder, path).Replace('\\', '/'))
+                    .Where(file => (file.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !file.Contains('/'))
+                                   || file.StartsWith("ui/", StringComparison.Ordinal))
+                    .OrderBy(file => file, StringComparer.Ordinal)
+                    .Select(file => new StrategyFile(file, File.ReadAllText(Path.Combine(unitFolder, file)))),
+            ];
+
+            continued = Directory.GetFiles(Path.Combine(from, "replies"), "*Planner*.md")
+                .OrderByDescending(path => path, StringComparer.Ordinal)
+                .Select(path => BuildPlanReader.Read(File.ReadAllText(path), kind))
+                .FirstOrDefault(plan => plan is not null);
+
+            Assert.True(kept.Length > 0, $"No unit files under {unitFolder}.");
+            Assert.NotNull(continued);
+            session.SyncEditedFiles(kept);
+            Say($"continuing {from}: {kept.Length} file(s) kept, plan of {continued!.Tasks.Count} task(s)");
+        }
         var trajectory = Path.Combine(directory, "trajectory.jsonl");
         var beats = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         StrategyBuildTurn turn;
@@ -300,7 +329,8 @@ public sealed class HyperionBlocksLiveRun(ITestOutputHelper output)
                     Say(Describe(evt));
                 }),
                 events: null,
-                cts.Token).ConfigureAwait(false);
+                cts.Token,
+                plan: continued).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

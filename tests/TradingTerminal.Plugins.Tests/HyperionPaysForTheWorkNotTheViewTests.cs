@@ -284,6 +284,33 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
     }
 
     [Fact]
+    public async Task A_run_that_is_continued_keeps_what_it_wrote_and_builds_only_what_is_missing()
+    {
+        // Two Battlefield runs on NIM, 2026-09-24, reached a unit and page that passed the gate and were cut
+        // off by the time limit inside the critics. Continuing one must not pay for the builds again.
+        var client = new Scripted(role =>
+            role.Contains("YOUR ROLE: Planner", StringComparison.Ordinal) ? "```json\n" + SplitPlan + "\n```"
+            : role.Contains("ONE MODULE of the unit's page: ui/depth.js", StringComparison.Ordinal) ? "```js\n// file: ui/depth.js\nexport function mountDepth(el) { return { update() {} }; }\n```"
+            : "```csharp\n// file: Battlefield.cs\npublic sealed class Battlefield { }\n```");
+
+        var kept = new[]
+        {
+            new StrategyFile("Battlefield.cs", "public sealed class Battlefield { }"),
+            new StrategyFile("ui/index.html", "<html>shell</html>"),
+            new StrategyFile("ui/scene.js", "export function mountScene(el) { return { update() {} }; }"),
+        };
+
+        var run = await new SwarmRunner(client, new Passes(), dialect: new BlocksSwarmDialect())
+            .RunAsync(new SwarmRequest("battlefield", "PACK", AuthoringKind.Visualizer, new SwarmBudget(MaxParallel: 1, MaxRounds: 1, MaxTasks: 8),
+                Existing: kept, Plan: Split(), MayAsk: false, Continue: true));
+
+        client.Calls.Should().ContainSingle("only the module that was never written is built")
+            .Which.Role.Should().Contain("ONE MODULE of the unit's page: ui/depth.js");
+        run.Outcome.Should().Be(SwarmOutcome.Delivered);
+        run.Files.Single(f => f.Name == "ui/index.html").Content.Should().Be("<html>shell</html>");
+    }
+
+    [Fact]
     public void A_plan_that_has_a_page_is_left_as_it_is()
     {
         var plan = Split();
