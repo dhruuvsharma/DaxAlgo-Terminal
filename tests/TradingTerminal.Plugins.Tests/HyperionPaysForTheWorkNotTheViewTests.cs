@@ -265,6 +265,25 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
     }
 
     [Fact]
+    public void A_task_that_names_several_files_owns_the_page_s_entry_and_the_shell_still_owns_the_rest()
+    {
+        // NIM's DeepSeek V4.1 Flash, 2026-09-24, verbatim: one ownedFile naming three page files.
+        var plan = BuildPlanReader.Read("```json\n" + SplitPlan.Replace(
+            "\"ownedFile\": \"ui/index.html\"", "\"ownedFile\": \"ui/index.html, ui/style.css, ui/app.js\"") + "\n```", AuthoringKind.Visualizer)!;
+
+        var shell = plan.Tasks.Single(t => t.Id == "t2");
+        shell.OwnedFile.Should().Be("ui/index.html");
+        shell.OwnsPageShell.Should().BeTrue();
+        shell.Owns("ui/style.css").Should().BeTrue();
+        shell.Owns("ui/app.js").Should().BeTrue();
+        shell.Owns("ui/scene.js").Should().BeFalse();
+
+        // And a C# list takes its first file.
+        BuildPlanReader.Read("```json\n" + SplitPlan.Replace("\"ownedFile\": \"Battlefield.cs\"", "\"ownedFile\": \"Battlefield.cs and Helpers.cs\"") + "\n```",
+            AuthoringKind.Visualizer)!.Tasks.Single(t => t.Id == "t1").OwnedFile.Should().Be("Battlefield.cs");
+    }
+
+    [Fact]
     public void A_plan_that_has_a_page_is_left_as_it_is()
     {
         var plan = Split();

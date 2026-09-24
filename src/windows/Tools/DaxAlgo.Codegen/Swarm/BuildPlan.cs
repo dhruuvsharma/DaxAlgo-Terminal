@@ -448,7 +448,7 @@ public static class BuildPlanReader
 
             // A task with no file has nowhere to put its work, and a swarm that let one through would
             // silently drop whatever it produced.
-            var file = string.IsNullOrWhiteSpace(OwnedFile) ? null : SafeFileName(OwnedFile);
+            var file = string.IsNullOrWhiteSpace(OwnedFile) ? null : OneFile(OwnedFile);
             if (file is null) return null;
 
             return new BuildTask(
@@ -472,11 +472,37 @@ public static class BuildPlanReader
     /// name something outside the unit. Nothing here ever writes to disk, but a name that could only be
     /// safe because of what the current caller happens to do is a defect waiting for the next caller.</para>
     /// </summary>
+    /// <summary>
+    /// The one file a task owns, when the planner wrote several into the field.
+    ///
+    /// <para><b>Measured 2026-09-24</b> on NIM's DeepSeek V4.1 Flash: the page shell's <c>ownedFile</c> came
+    /// back as <c>"ui/index.html, ui/style.css, ui/app.js"</c>, which was accepted as ONE path. No file by
+    /// that name ever exists, so every round counted the shell as never written — it was rebuilt from
+    /// nothing after an unrelated compile error, and a unit that passed the gate could not be delivered
+    /// until the three-hour cap stopped it. A list names the page's entry when it has one, else its first
+    /// safe name; the shell owns the page's other files by <see cref="BuildPlan.WithPageOwnership"/>
+    /// anyway.</para>
+    /// </summary>
+    private static string? OneFile(string owned)
+    {
+        var names = owned
+            .Split([',', ';', '|', ' ', '\t', '\n', '+'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(n => !string.Equals(n, "and", StringComparison.OrdinalIgnoreCase))
+            .Select(SafeFileName)
+            .Where(n => n is not null)
+            .Select(n => n!)
+            .ToArray();
+
+        return names.FirstOrDefault(n => string.Equals(n, "ui/index.html", StringComparison.OrdinalIgnoreCase)) ?? names.FirstOrDefault();
+    }
+
     private static string? SafeFileName(string name)
     {
         // A page file keeps its folder, because the folder is what makes it a page. Only ui/ and only a
-        // page type; every segment is held to the same rules a leaf is.
+        // page type; every segment is held to the same rules a leaf is — and a name with a space or a
+        // comma in it is a list, not a file.
         var path = name.Trim().Replace('\\', '/');
+        if (path.IndexOfAny([' ', ',', ';', '\t']) >= 0) return null;
         if (CodegenCodeExtractor.IsPageFile(path))
         {
             var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
