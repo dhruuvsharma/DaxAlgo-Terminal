@@ -65,6 +65,31 @@ public sealed class ARefusalInsideTheStreamTests
         response.Error.Should().Contain("400").And.Contain("max_tokens is too large for this model").And.NotContain("no message content");
     }
 
+    [Fact]
+    public async Task A_request_that_never_reached_the_provider_is_sent_again()
+    {
+        // 2026-09-24: DNS stopped resolving integrate.api.nvidia.com for a while, and every call failed at once.
+        var handler = new DropsFirst(Chunk("```csharp\n// file: Unit.cs\npublic sealed class Unit { }\n```") + "\n\ndata: [DONE]\n\n");
+
+        var response = await Drain(handler);
+
+        handler.Calls.Should().Be(2);
+        response.Success.Should().BeTrue(response.Error);
+    }
+
+    /// <summary>Fails the first request the way a DNS outage does, then answers.</summary>
+    private sealed class DropsFirst(string body) : HttpMessageHandler
+    {
+        private int _calls;
+
+        public int Calls => _calls;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            Interlocked.Increment(ref _calls) == 1
+                ? throw new HttpRequestException("No such host is known. (example.invalid:443)")
+                : Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
+    }
+
     private static JsonElement Parse(string line) => JsonDocument.Parse(line["data: ".Length..]).RootElement.Clone();
 
     private static string Chunk(string content) =>

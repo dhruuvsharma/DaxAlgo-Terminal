@@ -529,6 +529,44 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
         run.Files.Single(f => f.Name == "ui/index.html").Content.Should().Contain("docked");
     }
 
+    // ── a provider that cannot be reached ───────────────────────────────────────────────────────
+
+    private const string NoHost = "NVIDIA NIM request failed: No such host is known. (integrate.api.nvidia.com:443)";
+
+    [Fact]
+    public async Task A_review_no_critic_could_give_stops_the_run_with_its_files_instead_of_delivering_it()
+    {
+        // 2026-09-24: DNS stopped resolving NIM mid-run; every critic "could not run", and "0 findings"
+        // delivered a unit nobody had reviewed.
+        var critic = new Scripted(_ => null, NoHost);
+        var gauntlet = new GauntletLoop([new ModelCritic(critic, Critic(Critics.MarketLogic), "PACK", canSeeImages: false)]);
+        var client = UnitWithFixer(_ => "```html\n<!-- file: ui/index.html -->\n<p>fixed</p>\n```");
+
+        var run = await new SwarmRunner(client, new Passes(), gauntlet: gauntlet, dialect: new BlocksSwarmDialect())
+            .RunAsync(new SwarmRequest("unit", "PACK", AuthoringKind.Visualizer, new SwarmBudget(MaxParallel: 1, MaxRounds: 4, MaxTasks: 4)));
+
+        run.Outcome.Should().Be(SwarmOutcome.ProviderFailed);
+        run.Summary.Should().Contain("no critic could reach the provider");
+        run.Files.Should().Contain(f => f.Name == "Unit.cs").And.Contain(f => f.Name == "ui/index.html");
+        client.Calls.Should().NotContain(c => c.Role.Contains("YOUR ROLE: Fixer", StringComparison.Ordinal), "nothing is repaired on findings nobody made");
+    }
+
+    [Fact]
+    public async Task A_round_whose_every_repair_cannot_reach_the_provider_stops_instead_of_spending_the_rounds()
+    {
+        var client = new Scripted((role, _) =>
+            role.Contains("YOUR ROLE: Planner", StringComparison.Ordinal) ? "```json\n" + TwoTaskPlan + "\n```"
+            : role.Contains("YOUR ROLE: Fixer", StringComparison.Ordinal) ? null
+            : role.Contains("PAGE", StringComparison.Ordinal) ? "```html\n<!-- file: ui/index.html -->\n<p>page</p>\n```"
+            : "```csharp\n// file: Unit.cs\n" + Unit + "\n```", NoHost);
+
+        var run = await new SwarmRunner(client, new FailsOnceIn("Unit.cs"), dialect: new BlocksSwarmDialect())
+            .RunAsync(new SwarmRequest("unit", "PACK", AuthoringKind.Visualizer, new SwarmBudget(MaxParallel: 1, MaxRounds: 6, MaxTasks: 4)));
+
+        run.Outcome.Should().Be(SwarmOutcome.ProviderFailed);
+        client.Calls.Count(c => c.Role.Contains("YOUR ROLE: Fixer", StringComparison.Ordinal)).Should().Be(1, "one round of unreachable repairs, not six");
+    }
+
     // ── fakes ───────────────────────────────────────────────────────────────────────────────────
 
     private static VerificationReport Pass() =>
@@ -568,9 +606,9 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
 
     private sealed record Call(string Role, string Message, int Count, string Last);
 
-    private sealed class Scripted(Func<string, StrategyCodegenRequest, string?> reply) : IStrategyCodegenClient
+    private sealed class Scripted(Func<string, StrategyCodegenRequest, string?> reply, string failure = "The provider returned nothing.") : IStrategyCodegenClient
     {
-        public Scripted(Func<string, string?> reply) : this((role, _) => reply(role))
+        public Scripted(Func<string, string?> reply, string failure = "The provider returned nothing.") : this((role, _) => reply(role), failure)
         {
         }
 
@@ -595,7 +633,7 @@ public sealed class HyperionPaysForTheWorkNotTheViewTests
 
             return Task.FromResult(reply(role, request) is { } text
                 ? StrategyCodegenResponse.Ok(CodegenCodeExtractor.ExtractFiles(text), text, new CodegenUsage(10, 20))
-                : StrategyCodegenResponse.Fail("The provider returned nothing."));
+                : StrategyCodegenResponse.Fail(failure));
         }
     }
 }

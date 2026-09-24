@@ -158,7 +158,8 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     /// <summary>What <see cref="StreamOnceAsync"/> learned about a refusal that arrived as a stream event.</summary>
     private sealed class StreamRefusal
     {
-        /// <summary>The provider refused before writing anything, for a reason that passes — send again.</summary>
+        /// <summary>The provider refused, or could not be reached, before anything was written, for a reason
+        /// that passes — send again.</summary>
         public bool Retryable { get; set; }
     }
 
@@ -223,6 +224,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         // after a short pause rather than at once.
         HttpResponseMessage? resp = null;
         string? failure = null;
+        var unreachable = false;
 
         // The body of a 500 or a 429 that had to be read to classify it. A streamed body can be read
         // once, so the final failure message reuses it rather than reading it again.
@@ -235,7 +237,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
             using (var httpReq = BuildRequest(request, stream: true))
             {
-                (resp, failure) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
+                (resp, failure, unreachable) = await TrySendAsync(httpReq, ct).ConfigureAwait(false);
             }
 
             if (failure is not null || resp is null) break;
@@ -265,6 +267,11 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
         if (failure is not null)
         {
+            // THE NETWORK, NOT THE PROVIDER. Measured 2026-09-24: DNS stopped resolving
+            // integrate.api.nvidia.com for a while, every call failed at once, and two runs spent their
+            // remaining rounds in ten seconds. A request that never reached the provider is sent again
+            // after a pause, like a refusal that passes. A timeout is not: it already waited.
+            refused.Retryable = unreachable;
             yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(failure));
             yield break;
         }
@@ -309,6 +316,8 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
 
                 if (broken is not null)
                 {
+                    // A connection that dropped before a word was written lost nothing: send it again.
+                    refused.Retryable = text.Length == 0 && reasoningCharacters == 0;
                     yield return new CodegenEvent.Completed(StrategyCodegenResponse.Fail(
                         broken + " Nothing partial is kept: half a source file cannot compile. "
                         + "The turn is lost, but the rest of the run is not."));
@@ -476,12 +485,14 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
     }
 
     /// <summary>Sends and classifies the failure, because an iterator may not yield from a catch.</summary>
-    private async Task<(HttpResponseMessage? Response, string? Failure)> TrySendAsync(
+    /// <returns>The response, or why there is none — and whether the request never reached the provider
+    /// (no route, no name, no connection), which is worth sending again.</returns>
+    private async Task<(HttpResponseMessage? Response, string? Failure, bool Unreachable)> TrySendAsync(
         HttpRequestMessage request, CancellationToken ct)
     {
         try
         {
-            return (await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false), null);
+            return (await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false), null, false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -489,7 +500,7 @@ public sealed class OpenAiCompatibleCodegenClient : IStrategyCodegenClient
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            return (null, TransportFailure(ex));
+            return (null, TransportFailure(ex), ex is HttpRequestException);
         }
     }
 

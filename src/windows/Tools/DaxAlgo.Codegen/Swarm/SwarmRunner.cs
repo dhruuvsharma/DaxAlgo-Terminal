@@ -352,6 +352,17 @@ public sealed class SwarmRunner(
                     progress?.Report(new SwarmEvent.Reviewed(review, round));
                     Record(TrajectoryLog.GauntletRole, null, CodegenUsage.None, verdict.Report);
 
+                    // A REVIEW NOBODY GAVE IS NOT A CLEAN ONE. Measured 2026-09-24: DNS stopped resolving the
+                    // provider mid-run, every critic "could not run", and "0 findings" delivered a unit nobody
+                    // had reviewed — while the other run spent its last rounds repairing with no findings at
+                    // all. When no critic that asked a model got an answer, the provider is not there: stop,
+                    // keep the files, and say so, so the run can be continued once it answers again.
+                    if (!review.Skipped && review.Verdicts.Any(v => v.CalledModel) && !review.Verdicts.Any(v => v.Ran))
+                        return Done(SwarmOutcome.ProviderFailed, plan, origin, context, verdict, usage, note: note, summary:
+                            "Stopped: the unit passed the gate, but no critic could reach the provider ("
+                            + (review.Verdicts.FirstOrDefault(v => v.CalledModel)?.Verdict ?? "no answer")
+                            + "). Every file is kept — continue the run when the provider answers again.");
+
                     // WHAT THE GATE MEASURED JOINS WHAT THE CRITICS SAID. A page that scrolls, or a panel
                     // hiding the main view, is a fact the browser reported rather than an opinion, and on a
                     // text-only model it is the only report of the look there is. See GateResult.Advisories.
@@ -412,6 +423,7 @@ public sealed class SwarmRunner(
                     return Done(SwarmOutcome.Stalled, plan, origin, context, verdict, usage, note:  note, summary:
                         "The unit failed verification and no file could be identified as the cause.");
 
+                var unreachable = 0;
                 await FanOutAsync(
                     targets,
                     task => BuildOneAsync(task, plan, context, request, isRepair: true, findings, events, progress, ct),
@@ -427,6 +439,7 @@ public sealed class SwarmRunner(
                     if (result.Error is { Length: > 0 } failedRepair)
                     {
                         providerError = failedRepair;
+                        if (IsUnreachable(failedRepair)) unreachable++;
                         progress?.Report(new SwarmEvent.TaskFinished(
                             task, false, result.Usage, failedRepair, context.Files));
                         return;
@@ -436,6 +449,14 @@ public sealed class SwarmRunner(
                     progress?.Report(new SwarmEvent.TaskFinished(
                         task, wrote, result.Usage, wrote ? null : "returned no file", context.Files));
                 }).ConfigureAwait(false);
+
+                // EVERY REPAIR FAILED TO REACH THE PROVIDER: another round would fail the same way in
+                // seconds, and the round budget is worth more than that. Stop with the best version kept.
+                if (unreachable > 0 && unreachable == targets.Count)
+                    return Done(SwarmOutcome.ProviderFailed, plan, origin, Rewind(context, bestFiles),
+                        bestVerdict ?? verdict, usage, note: note, summary:
+                        $"Stopped: every repair this round failed to reach the provider ({providerError}). "
+                        + "The best version is kept — continue the run when the provider answers again.");
             }
 
             // The best version, not the last. See bestFiles above.
@@ -822,6 +843,12 @@ public sealed class SwarmRunner(
 
         return (retried, again, reported);
     }
+
+    /// <summary>A failure that never reached the provider — the network, not the model. The client
+    /// already waited and retried before reporting one of these.</summary>
+    internal static bool IsUnreachable(string error) =>
+        error.Contains("request failed:", StringComparison.OrdinalIgnoreCase)
+        || error.Contains("lost the connection", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>How many times one builder turn may be continued after being cut off.</summary>
     internal const int MaxContinuations = 2;
