@@ -1,0 +1,33 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.TradierLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             mc:Ignorable="d"
+             d:DesignHeight="220" d:DesignWidth="500">
+    <StackPanel>
+        <TextBlock Text="Access token" Margin="0,0,0,4" />
+        <PasswordBox x:Name="TokenBox"
+                     PasswordChanged="TokenBox_PasswordChanged"
+                     mah:TextBoxHelper.Watermark="Stored DPAPI-encrypted on this machine"
+                     Margin="0,0,0,12" />
+
+        <CheckBox Content="Sandbox token (sandbox.tradier.com) - untick for a production token"
+                  IsChecked="{Binding Sandbox}"
+                  Margin="0,0,0,8" />
+
+        <Border Background="{DynamicResource Background.Surface}"
+                BorderBrush="{DynamicResource Border.Brush}"
+                BorderThickness="1"
+                Padding="10,6"
+                Margin="0,4,0,0">
+            <TextBlock TextWrapping="Wrap"
+                       FontSize="11"
+                       Foreground="{DynamicResource Text.Secondary}">
+                <Run FontWeight="SemiBold" Text="Heads up:" />
+                <Run Text="a free sandbox token is issued immediately at developer.tradier.com. Sandbox and production tokens only work against their own host, so the box above has to match the token." />
+            </TextBlock>
+        </Border>
+    </StackPanel>
+</UserControl>

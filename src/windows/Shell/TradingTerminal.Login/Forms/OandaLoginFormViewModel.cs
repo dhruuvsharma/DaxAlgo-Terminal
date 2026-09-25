@@ -66,10 +66,14 @@ public sealed class OandaLoginFormViewModel : BrokerLoginFormBase
         ConnectCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>Sets the account and environment, and saves the token before connecting — the client
+    /// reads the token from the credential store only, so a form that saved after a successful connect
+    /// could never produce one. Same trap as Tradier's.</summary>
     public override void ApplyToOptions()
     {
         _options.AccountId = AccountId.Trim();
         _options.Practice = Practice;
+        Save();
     }
 
     public override string GetSessionAccountLabel() =>

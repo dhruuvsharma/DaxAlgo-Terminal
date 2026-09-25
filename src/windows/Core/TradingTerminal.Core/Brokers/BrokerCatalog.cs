@@ -181,12 +181,14 @@ public static class BrokerCatalog
         // ── United States ───────────────────────────────────────────────────────────────────────
         new("charles-schwab", "Charles Schwab", "schwab.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.OAuth, BrokerStatus.Planned, Note:
-            "Absorbed TD Ameritrade and thinkorswim. Largest US retail audience; keys need approval."),
+            BrokerAuth.OAuth, BrokerStatus.Unverified, BrokerKind.CharlesSchwab,
+            "Absorbed TD Ameritrade and thinkorswim. Largest US retail audience; app keys need Schwab's "
+            + "approval. Browser sign-in; the refresh token lasts seven days. " + WrittenNote),
 
         new("tradestation", "TradeStation", "tradestation.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.OAuth, BrokerStatus.Planned, Note: "REST plus streaming, well documented."),
+            BrokerAuth.OAuth, BrokerStatus.Unverified, BrokerKind.TradeStation,
+            "REST plus HTTP streaming, well documented. Browser sign-in. " + WrittenNote),
 
         new("tradier", "Tradier", "tradier.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options, BrokerAuth.ApiKey,
@@ -196,11 +198,16 @@ public static class BrokerCatalog
 
         new("tastytrade", "tastytrade", "tastytrade.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.Credentials, BrokerStatus.Planned, Note: "Strong options following."),
+            BrokerAuth.OAuth, BrokerStatus.Unverified, BrokerKind.Tastytrade,
+            "Strong options following. OAuth2 only since the password login was retired in February 2026; "
+            + "a personal grant's refresh token is pasted once. Quotes, trades and candles over DXLink. "
+            + WrittenNote),
 
         new("etrade", "E*TRADE", "etrade.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options, BrokerAuth.OAuth,
-            BrokerStatus.Planned, Note: "OAuth 1.0a — older style than the rest of this list."),
+            BrokerStatus.Unverified, BrokerKind.ETrade,
+            "OAuth 1.0a — older style than the rest of this list. E*TRADE publishes no price history, so "
+            + "bars are built from polled quotes. " + WrittenNote),
 
         new("das-trader", "DAS Trader", "dastrader.com",
             BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options,
@@ -217,8 +224,10 @@ public static class BrokerCatalog
             Note: "The other futures backbone. Same leverage as Rithmic."),
 
         new("tradovate", "Tradovate", "tradovate.com",
-            BrokerRegion.UnitedStates, BrokerAssets.Futures, BrokerAuth.Credentials, BrokerStatus.Planned,
-            Note: "Modern REST plus WebSocket; popular with retail futures and prop accounts."),
+            BrokerRegion.UnitedStates, BrokerAssets.Futures, BrokerAuth.Credentials, BrokerStatus.Unverified,
+            BrokerKind.Tradovate,
+            "Modern REST plus WebSocket; popular with retail futures and prop accounts. API access and CME "
+            + "market data are paid add-ons. " + WrittenNote),
 
         // ── Forex and CFD ───────────────────────────────────────────────────────────────────────
         new("oanda", "OANDA", "oanda.com",
@@ -229,12 +238,39 @@ public static class BrokerCatalog
 
         new("saxo-bank", "Saxo Bank", "home.saxo",
             BrokerRegion.Europe, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures
-            | BrokerAssets.Forex | BrokerAssets.Bonds, BrokerAuth.OAuth, BrokerStatus.Planned,
-            Note: "OpenAPI; genuinely multi-asset."),
+            | BrokerAssets.Forex | BrokerAssets.Bonds, BrokerAuth.OAuth, BrokerStatus.Unverified,
+            BrokerKind.SaxoBank,
+            "OpenAPI; genuinely multi-asset. Browser sign-in against the simulation environment by default. "
+            + WrittenNote),
 
         new("ig-group", "IG", "ig.com",
             BrokerRegion.Europe, BrokerAssets.Cfd | BrokerAssets.Forex | BrokerAssets.Equities,
-            BrokerAuth.ApiKey, BrokerStatus.Planned, Note: "REST plus Lightstreamer streaming."),
+            BrokerAuth.ApiKey, BrokerStatus.Unverified, BrokerKind.IgGroup,
+            "REST, polled — IG streams over Lightstreamer, which this adapter does not speak — and its "
+            + "history allowance is small, so live bars are built from quotes. Demo or live. " + WrittenNote),
+
+        new("webull", "Webull", "webull.com",
+            BrokerRegion.UnitedStates, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Crypto,
+            BrokerAuth.ApiKey, BrokerStatus.Planned,
+            Note: "OpenAPI (2025). Market data needs a paid subscription and app approval, streams over MQTT, "
+            + "and its request signing is published only inside its SDKs — not built yet."),
+
+        new("questrade", "Questrade", "questrade.com",
+            BrokerRegion.Global, BrokerAssets.Equities | BrokerAssets.Options, BrokerAuth.OAuth,
+            BrokerStatus.Unverified, BrokerKind.Questrade,
+            "Canada's largest online broker. Paste a token generated in the app hub; it rotates on every "
+            + "refresh, and the renewed one is stored. " + WrittenNote),
+
+        new("trading-212", "Trading 212", "trading212.com",
+            BrokerRegion.Europe, BrokerAssets.Equities | BrokerAssets.Cfd, BrokerAuth.ApiKey, BrokerStatus.Planned,
+            Note: "Its public API covers accounts, positions and orders but serves no market data — nothing to "
+            + "chart until it does."),
+
+        new("robinhood", "Robinhood (crypto)", "robinhood.com",
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Unverified,
+            BrokerKind.RobinhoodCrypto,
+            "The Crypto Trading API: best bid and ask only — no book, no tape, no history. Requests are "
+            + "signed with Ed25519. Robinhood offers no equities API. " + WrittenNote),
 
         new("forex-com", "FOREX.com", "forex.com",
             BrokerRegion.UnitedStates, BrokerAssets.Forex | BrokerAssets.Cfd, BrokerAuth.Credentials,
@@ -257,28 +293,36 @@ public static class BrokerCatalog
         // ── India ───────────────────────────────────────────────────────────────────────────────
         new("zerodha", "Zerodha", "zerodha.com",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.OAuth, BrokerStatus.Planned,
-            Note: "Kite Connect. India's largest retail broker by a wide margin; the API is paid."),
+            BrokerAuth.OAuth, BrokerStatus.Unverified, BrokerKind.Zerodha,
+            "Kite Connect. India's largest retail broker by a wide margin; the API is a paid subscription. "
+            + "Browser sign-in each day (tokens expire at 6 AM). " + IndiaNote),
 
         new("angel-one", "Angel One", "angelone.in",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.ApiKey, BrokerStatus.Planned, Note: "SmartAPI, free."),
+            BrokerAuth.ApiKey, BrokerStatus.Unverified, BrokerKind.AngelOne,
+            "SmartAPI, free. Signs in with client code, PIN and an authenticator code. " + IndiaNote),
 
         new("dhan", "Dhan", "dhan.co",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.ApiKey, BrokerStatus.Planned, Note: "Developer-friendly and free."),
+            BrokerAuth.ApiKey, BrokerStatus.Unverified, BrokerKind.Dhan,
+            "DhanHQ v2. The access token is generated on Dhan's site and pasted; market-data APIs may need "
+            + "Dhan's data plan. " + IndiaNote),
 
         new("fyers", "Fyers", "fyers.in",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.OAuth, BrokerStatus.Planned),
+            BrokerAuth.OAuth, BrokerStatus.Unverified, BrokerKind.Fyers,
+            "API v3, free. Browser sign-in; market data is polled over REST — the live socket is a "
+            + "proprietary binary protocol. " + IndiaNote),
 
         new("5paisa", "5paisa", "5paisa.com",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.ApiKey, BrokerStatus.Planned),
+            BrokerAuth.ApiKey, BrokerStatus.Unverified, BrokerKind.FivePaisa,
+            "Xstream API. Signs in with client code, PIN and an authenticator code. " + IndiaNote),
 
         new("alice-blue", "Alice Blue", "aliceblueonline.com",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.ApiKey, BrokerStatus.Planned),
+            BrokerAuth.ApiKey, BrokerStatus.Unverified, BrokerKind.AliceBlue,
+            "ANT API. Signs in with user id and API key alone. " + IndiaNote),
 
         new("groww", "Groww", "groww.in",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options, BrokerAuth.ApiKey,
@@ -286,8 +330,9 @@ public static class BrokerCatalog
 
         new("icici-direct", "ICICI Direct", "icicidirect.com",
             BrokerRegion.India, BrokerAssets.Equities | BrokerAssets.Options | BrokerAssets.Futures,
-            BrokerAuth.ApiKey, BrokerStatus.Planned,
-            Note: "Breeze API. No mark available, so the picker shows the text fallback."),
+            BrokerAuth.OAuth, BrokerStatus.Unverified, BrokerKind.IciciBreeze,
+            "Breeze API, free. Browser sign-in each day; market data is polled over REST. No mark "
+            + "available, so the picker shows the text fallback. " + IndiaNote),
 
         // ── Crypto ──────────────────────────────────────────────────────────────────────────────
         new("hyperliquid", "Hyperliquid", "hyperliquid.xyz",
@@ -302,28 +347,58 @@ public static class BrokerCatalog
             "Where crypto options actually trade. Every wire shape was verified against the live venue, "
             + "but no funded account has run through it, so it is Unverified rather than DataOnly."),
 
+        // The twelve below were built together (2026-09-25). Every wire shape was captured from the
+        // live venue before its parser was written, and the keyless data path was exercised against
+        // it — but no account has run the keyed row, so each is Unverified rather than DataOnly.
         new("bitget", "Bitget", "bitget.com",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Bitget, KeylessNote),
 
         new("kucoin", "KuCoin", "kucoin.com",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.KuCoin, "The public socket needs a token fetched per connection — still no account. "
+            + KeylessNote),
 
         new("gate-io", "Gate.io", "gate.io",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.GateIo, KeylessNote),
 
         new("gemini", "Gemini", "gemini.com",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned,
-            Note: "US-regulated."),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Gemini, "US-regulated. " + KeylessNote),
 
         new("crypto-com", "Crypto.com", "crypto.com",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.CryptoCom, KeylessNote),
 
         new("upbit", "Upbit", "upbit.com",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned,
-            Note: "Korea's largest exchange."),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Upbit, "Korea's largest exchange; won-denominated markets. " + KeylessNote),
 
         new("bithumb", "Bithumb", "bithumb.com",
-            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.ApiKey, BrokerStatus.Planned),
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Bithumb, "Korean won markets on an Upbit-shaped API. " + KeylessNote),
+
+        new("bitfinex", "Bitfinex", "bitfinex.com",
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Bitfinex, KeylessNote),
+
+        new("bitstamp", "Bitstamp", "bitstamp.net",
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Bitstamp, "One of the oldest exchanges; EU and US licensed. " + KeylessNote),
+
+        new("bitvavo", "Bitvavo", "bitvavo.com",
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Bitvavo, "The largest euro-denominated venue. " + KeylessNote),
+
+        new("htx", "HTX", "htx.com",
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Htx, "Formerly Huobi. " + KeylessNote),
+
+        new("mexc", "MEXC", "mexc.com",
+            BrokerRegion.Crypto, BrokerAssets.Crypto, BrokerAuth.None, BrokerStatus.Unverified,
+            BrokerKind.Mexc, "Its public socket speaks protocol buffers only; the JSON one refuses. "
+            + KeylessNote),
 
         // ── Asia-Pacific ────────────────────────────────────────────────────────────────────────
         new("futu", "Futu / moomoo", "futunn.com",
@@ -335,6 +410,20 @@ public static class BrokerCatalog
             BrokerRegion.AsiaPacific, BrokerAssets.Equities | BrokerAssets.Options,
             BrokerAuth.ApiKey, BrokerStatus.Planned),
     ];
+
+    /// <summary>What the US and global adapters share with the Indian ones.</summary>
+    private const string WrittenNote = "Written from the published API; no account has run it yet.";
+
+    /// <summary>What the Indian adapters share: none of their market data is public, so every one was
+    /// written from the broker's published API and SDK and has not run against a real account.</summary>
+    private const string IndiaNote =
+        "Written from the published API; no account has run it yet, so it is Unverified.";
+
+    /// <summary>What the dual-mode crypto venues share: public data with no account, and a keyed row
+    /// that checks the key rather than taking it on trust.</summary>
+    private const string KeylessNote =
+        "Public market data needs no account. Offered keyless and keyed — the same venue and the same "
+        + "client either way; a pasted key is checked with one signed, read-only balance call.";
 
     /// <summary>Looks one up by slug, or null.</summary>
     public static BrokerProfile? Find(string id) =>

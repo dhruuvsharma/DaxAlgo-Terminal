@@ -129,6 +129,21 @@ public sealed class StoredCredentials
         };
     }
 
+    /// <summary>
+    /// Records a session a sign-in issued, keeping the app credentials beside it. Separate from
+    /// <see cref="SetKeys"/>, which replaces the whole record: re-entering a key must not silently keep a
+    /// session issued for the old one, and a sign-in must not drop the key it was issued against.
+    /// </summary>
+    public void SetSession(BrokerKind broker, string account, string extra, string? session, DateTimeOffset issuedUtc)
+    {
+        var record = KeysFor(broker);
+        record.Account = account ?? string.Empty;
+        record.Extra = extra ?? string.Empty;
+        record.Session = session;
+        record.SessionIssuedUtc = session is null ? null : issuedUtc;
+        BrokerKeys[broker.ToString()] = record;
+    }
+
     /// <summary>Forgets a venue's credentials — what choosing the keyless row does, so "keyless"
     /// means keyless rather than "authenticated because you once pasted a key".</summary>
     public void ClearKeys(BrokerKind broker) => BrokerKeys.Remove(broker.ToString());
@@ -237,5 +252,29 @@ public sealed class BrokerKeyRecord
     {
         get => StoredCredentials.DecryptDpapi(PassphraseEncryptedBase64);
         set => PassphraseEncryptedBase64 = StoredCredentials.EncryptDpapi(value);
+    }
+
+    /// <summary>The account a session belongs to — client code, user id. An identifier, in the clear.</summary>
+    public string Account { get; set; } = string.Empty;
+
+    /// <summary>A second identifier some brokers need (5paisa's app user id). In the clear.</summary>
+    public string Extra { get; set; } = string.Empty;
+
+    /// <summary>The redirect URL the user registered with the broker for a browser sign-in. Not a
+    /// credential — it only has to match what the broker holds — so it is stored in the clear.</summary>
+    public string RedirectUri { get; set; } = string.Empty;
+
+    /// <summary>DPAPI ciphertext for what a sign-in issued (a daily access token, a JWT, a session id).</summary>
+    public string? SessionEncryptedBase64 { get; set; }
+
+    /// <summary>When the session was issued, so a form can say it is probably stale (most Indian brokers
+    /// expire theirs overnight) instead of letting the first request fail.</summary>
+    public DateTimeOffset? SessionIssuedUtc { get; set; }
+
+    [JsonIgnore]
+    public string? Session
+    {
+        get => StoredCredentials.DecryptDpapi(SessionEncryptedBase64);
+        set => SessionEncryptedBase64 = StoredCredentials.EncryptDpapi(value);
     }
 }

@@ -105,4 +105,94 @@ public enum BrokerKind
 
     /// <summary>Tradier — US equities and options. Appended, never inserted.</summary>
     Tradier,
+
+    // ── Public crypto venues, added together (2026-09-25). Appended, never inserted. ──────────────
+
+    /// <summary>Bitget — spot, public v2 WebSocket. See <c>RealBitgetClient</c>.</summary>
+    Bitget,
+
+    /// <summary>KuCoin — spot, public WebSocket behind a per-connection token. See <c>RealKuCoinClient</c>.</summary>
+    KuCoin,
+
+    /// <summary>Gate.io — spot, public v4 WebSocket. See <c>RealGateIoClient</c>.</summary>
+    GateIo,
+
+    /// <summary>Gemini — spot, public v2 market-data WebSocket. See <c>RealGeminiClient</c>.</summary>
+    Gemini,
+
+    /// <summary>Crypto.com Exchange — spot, public v1 market WebSocket. See <c>RealCryptoComClient</c>.</summary>
+    CryptoCom,
+
+    /// <summary>Upbit — Korean won markets. See <c>RealUpbitClient</c>.</summary>
+    Upbit,
+
+    /// <summary>Bithumb — Korean won markets, Upbit-shaped API. See <c>RealBithumbClient</c>.</summary>
+    Bithumb,
+
+    /// <summary>Bitfinex — spot, public v2 WebSocket. See <c>RealBitfinexClient</c>.</summary>
+    Bitfinex,
+
+    /// <summary>Bitstamp — spot, public WebSocket. See <c>RealBitstampClient</c>.</summary>
+    Bitstamp,
+
+    /// <summary>Bitvavo — euro markets, public v2 WebSocket. See <c>RealBitvavoClient</c>.</summary>
+    Bitvavo,
+
+    /// <summary>HTX (formerly Huobi) — spot, gzip WebSocket. See <c>RealHtxClient</c>.</summary>
+    Htx,
+
+    /// <summary>MEXC — spot, protobuf WebSocket. See <c>RealMexcClient</c>.</summary>
+    Mexc,
+
+    // ── Indian brokers, added together (2026-09-25). Appended, never inserted. ─────────────────────
+
+    /// <summary>Zerodha Kite Connect — REST + binary ticker. See <c>RealZerodhaClient</c>.</summary>
+    Zerodha,
+
+    /// <summary>Angel One SmartAPI — REST + binary SmartStream. See <c>RealAngelOneClient</c>.</summary>
+    AngelOne,
+
+    /// <summary>Dhan (DhanHQ v2) — REST + binary live feed. See <c>RealDhanClient</c>.</summary>
+    Dhan,
+
+    /// <summary>Fyers API v3 — REST. See <c>RealFyersClient</c>.</summary>
+    Fyers,
+
+    /// <summary>5paisa Xstream — REST + JSON feed. See <c>RealFivePaisaClient</c>.</summary>
+    FivePaisa,
+
+    /// <summary>Alice Blue ANT — REST + Noren feed. See <c>RealAliceBlueClient</c>.</summary>
+    AliceBlue,
+
+    /// <summary>ICICI Direct Breeze — REST. See <c>RealIciciBreezeClient</c>.</summary>
+    IciciBreeze,
+
+    // ── US and global brokers, added together (2026-09-25). Appended, never inserted. ──────────────
+
+    /// <summary>Charles Schwab Trader API. See <c>RealSchwabClient</c>.</summary>
+    CharlesSchwab,
+
+    /// <summary>TradeStation v3 — REST + HTTP streaming. See <c>RealTradeStationClient</c>.</summary>
+    TradeStation,
+
+    /// <summary>tastytrade — OAuth2 + DXLink. See <c>RealTastytradeClient</c>.</summary>
+    Tastytrade,
+
+    /// <summary>E*TRADE — OAuth 1.0a REST. See <c>RealETradeClient</c>.</summary>
+    ETrade,
+
+    /// <summary>Tradovate — futures, WebSocket market data. See <c>RealTradovateClient</c>.</summary>
+    Tradovate,
+
+    /// <summary>Saxo Bank OpenAPI. See <c>RealSaxoClient</c>.</summary>
+    SaxoBank,
+
+    /// <summary>IG — REST. See <c>RealIgClient</c>.</summary>
+    IgGroup,
+
+    /// <summary>Questrade — REST. See <c>RealQuestradeClient</c>.</summary>
+    Questrade,
+
+    /// <summary>Robinhood Crypto Trading API. See <c>RealRobinhoodCryptoClient</c>.</summary>
+    RobinhoodCrypto,
 }

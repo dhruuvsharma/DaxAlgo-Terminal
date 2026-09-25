@@ -151,24 +151,28 @@ internal sealed class RealHyperliquidClient : IBrokerClient
 
         var bars = new List<Bar>(root.GetArrayLength());
         foreach (var candle in root.EnumerateArray())
-        {
-            if (candle.ValueKind != JsonValueKind.Object) continue;
-
-            var open = CryptoConvert.D(candle, "o");
-            if (open <= 0d) continue;
-
-            bars.Add(new Bar(
-                candle.TryGetProperty("t", out var t) && t.TryGetInt64(out var ms)
-                    ? DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime
-                    : DateTime.UtcNow,
-                open,
-                CryptoConvert.D(candle, "h"),
-                CryptoConvert.D(candle, "l"),
-                CryptoConvert.D(candle, "c"),
-                CryptoConvert.ToSize(CryptoConvert.D(candle, "v"), sizeScale)));
-        }
+            if (Candle(candle, sizeScale) is { } bar) bars.Add(bar);
 
         return bars;
+    }
+
+    /// <summary>One candle object, as REST history and the socket both send it.</summary>
+    private static Bar? Candle(JsonElement candle, double sizeScale)
+    {
+        if (candle.ValueKind != JsonValueKind.Object) return null;
+
+        var open = CryptoConvert.D(candle, "o");
+        if (open <= 0d) return null;
+
+        return new Bar(
+            candle.TryGetProperty("t", out var t) && t.TryGetInt64(out var ms)
+                ? DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime
+                : DateTime.UtcNow,
+            open,
+            CryptoConvert.D(candle, "h"),
+            CryptoConvert.D(candle, "l"),
+            CryptoConvert.D(candle, "c"),
+            CryptoConvert.ToSize(CryptoConvert.D(candle, "v"), sizeScale));
     }
 
     private static string Interval(BarSize size) => size switch
@@ -202,13 +206,29 @@ internal sealed class RealHyperliquidClient : IBrokerClient
         Stream("l2Book", Sym(contract),
             element => ParseBook(element, levels, _options.SizeScale), ct);
 
-    /// <summary>No candle channel is offered; history plus the tape covers it.</summary>
-    public async IAsyncEnumerable<Bar> SubscribeBarsAsync(
-        Contract contract, BarSize barSize,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    /// <summary>
+    /// Live candles from the <c>candle</c> subscription. This returned an empty stream on the belief that
+    /// no candle channel existed; there is one — <c>{"type":"candle","coin":…,"interval":…}</c>, pushing
+    /// the forming candle on every trade — so a live chart had no bars at all (verified 2026-09-25).
+    /// </summary>
+    public IAsyncEnumerable<Bar> SubscribeBarsAsync(Contract contract, BarSize barSize, CancellationToken ct = default) =>
+        CryptoStream.StreamAsync(
+            _options.WsBaseUrl,
+            $$$"""{"method":"subscribe","subscription":{"type":"candle","coin":"{{{Sym(contract)}}}","interval":"{{{Interval(barSize)}}}"}}""",
+            element => ParseCandle(element, _options.SizeScale),
+            _options.ReconnectInitialDelaySeconds,
+            _options.ReconnectMaxDelaySeconds,
+            _logger,
+            "Hyperliquid",
+            pingJson: """{"method":"ping"}""",
+            pingIntervalSeconds: 30,
+            ct: ct);
+
+    /// <summary>A <c>candle</c> push: <c>{"channel":"candle","data":{t, T, s, i, o, c, h, l, v, n}}</c>.</summary>
+    internal static IEnumerable<Bar> ParseCandle(JsonElement element, double sizeScale)
     {
-        await Task.CompletedTask.ConfigureAwait(false);
-        yield break;
+        if (!TryData(element, "candle", out var data)) return [];
+        return Candle(data, sizeScale) is { } bar ? [bar] : [];
     }
 
     private static string Sym(Contract contract) => contract.Symbol.Trim().ToUpperInvariant();

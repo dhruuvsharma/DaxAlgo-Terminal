@@ -37,4 +37,11 @@ public sealed class KeyedKrakenLoginFormViewModel : KeyedCryptoLoginFormBase
     // Kraken's secret is base64 and its signature is HMAC-SHA512 over a SHA-256 digest; the form
     // takes it exactly as the API page prints it.
     protected override string WhatAKeyBuys => "private endpoints, account balances";
+
+    // Kraken's API page calls the secret half the "Private Key". It is base64, and the signer decodes
+    // it, so a truncated paste fails as a malformed key rather than a wrong one.
+    public override string SecretLabel => "Private key";
+
+    public override string WhereToGetAKey =>
+        "Create an API key with only the “Query Funds” permission, and paste the private key whole.";
 }

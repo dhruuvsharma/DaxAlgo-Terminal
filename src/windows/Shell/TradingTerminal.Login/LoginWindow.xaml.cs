@@ -32,6 +32,14 @@ public partial class LoginWindow : MetroWindow
         BybitLoginFormViewModel f => new BybitLoginForm { DataContext = f },
         KrakenLoginFormViewModel f => new KrakenLoginForm { DataContext = f },
         OkxLoginFormViewModel f => new OkxLoginForm { DataContext = f },
+        // The Key required rows. Missing from this switch, each rendered an empty body: no field to
+        // paste into, so CanSubmit never went true and Connect stayed disabled — which read as the
+        // keyed rows being the keyless ones under another heading.
+        KeyedCryptoLoginFormBase f => new KeyedCryptoLoginForm { DataContext = f },
+        TradierLoginFormViewModel f => new TradierLoginForm { DataContext = f },
+        OandaLoginFormViewModel f => new OandaLoginForm { DataContext = f },
+        SessionBrokerLoginFormViewModel f => new SessionLoginForm { DataContext = f },
+        // Hyperliquid and keyless Deribit ask for nothing, so they have no body and land here.
         _ => null,
     };
 }

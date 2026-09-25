@@ -261,8 +261,9 @@ public sealed class CryptoAccountProbeTests
     [Fact]
     public void Support_covers_exactly_the_venues_with_a_keyed_login_row()
     {
-        // Six keyed rows exist in the login window. If a seventh is added without a probe, the row
-        // accepts a key and checks nothing — this is the test that says so.
+        // Eighteen keyed rows exist in the login window (six since July, twelve more since 2026-09-25).
+        // If another is added without a probe, the row accepts a key and checks nothing — this is the
+        // test that says so.
         var supported = Enum.GetValues<BrokerKind>()
             .Where(CryptoAccountProbe.Supports)
             .ToArray();
@@ -271,6 +272,9 @@ public sealed class CryptoAccountProbeTests
         {
             BrokerKind.Binance, BrokerKind.Coinbase, BrokerKind.Bybit,
             BrokerKind.Kraken, BrokerKind.Okx, BrokerKind.Deribit,
+            BrokerKind.Bitget, BrokerKind.KuCoin, BrokerKind.GateIo, BrokerKind.Gemini,
+            BrokerKind.CryptoCom, BrokerKind.Upbit, BrokerKind.Bithumb, BrokerKind.Bitfinex,
+            BrokerKind.Bitstamp, BrokerKind.Bitvavo, BrokerKind.Htx, BrokerKind.Mexc,
         });
     }
 }

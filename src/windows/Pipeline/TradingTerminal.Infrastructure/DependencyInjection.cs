@@ -27,6 +27,34 @@ using TradingTerminal.Infrastructure.Deribit;
 using TradingTerminal.Infrastructure.Hyperliquid;
 using TradingTerminal.Infrastructure.Oanda;
 using TradingTerminal.Infrastructure.Tradier;
+using TradingTerminal.Infrastructure.Bitfinex;
+using TradingTerminal.Infrastructure.Bitget;
+using TradingTerminal.Infrastructure.Bithumb;
+using TradingTerminal.Infrastructure.Bitstamp;
+using TradingTerminal.Infrastructure.Bitvavo;
+using TradingTerminal.Infrastructure.CryptoCom;
+using TradingTerminal.Infrastructure.GateIo;
+using TradingTerminal.Infrastructure.Gemini;
+using TradingTerminal.Infrastructure.Htx;
+using TradingTerminal.Infrastructure.KuCoin;
+using TradingTerminal.Infrastructure.Mexc;
+using TradingTerminal.Infrastructure.ETrade;
+using TradingTerminal.Infrastructure.Ig;
+using TradingTerminal.Infrastructure.Questrade;
+using TradingTerminal.Infrastructure.RobinhoodCrypto;
+using TradingTerminal.Infrastructure.Saxo;
+using TradingTerminal.Infrastructure.Schwab;
+using TradingTerminal.Infrastructure.Tastytrade;
+using TradingTerminal.Infrastructure.TradeStation;
+using TradingTerminal.Infrastructure.Tradovate;
+using TradingTerminal.Infrastructure.Upbit;
+using TradingTerminal.Infrastructure.AliceBlue;
+using TradingTerminal.Infrastructure.AngelOne;
+using TradingTerminal.Infrastructure.Dhan;
+using TradingTerminal.Infrastructure.FivePaisa;
+using TradingTerminal.Infrastructure.Fyers;
+using TradingTerminal.Infrastructure.IciciBreeze;
+using TradingTerminal.Infrastructure.Zerodha;
 #if HAS_NTAPI
 using TradingTerminal.Infrastructure.NinjaTrader;
 #endif
@@ -128,6 +156,51 @@ public static class DependencyInjection
         // No credentials by default: an edition that has not wired a credential store still builds
         // every client, and each reports "needs a key" rather than failing to construct.
         services.TryAddSingleton(IBrokerCredentialSource.None);
+        services.TryAddSingleton(IBrokerSessionStore.None);
+
+        // Every broker with a sign-in step exchanges its proof through this one issuer. Add, not TryAdd:
+        // the login layer registers a do-nothing issuer with TryAdd so a shell without infrastructure
+        // still builds, and whichever order the two run in, the real one must be what resolves.
+        services.AddSingleton<IBrokerSessionIssuer, BrokerSessionIssuer>();
+
+        // The Indian brokers (2026-09-25). Written from each broker's published API; none has run
+        // against a real account yet, so all are Unverified in the catalogue.
+        AddSessionBroker<RealZerodhaClient, ZerodhaSignIn>(services, BrokerKind.Zerodha, "Zerodha",
+            "Kite Connect — NSE/BSE/MCX. Browser sign-in each day; live quotes and five-level depth over the ticker.");
+        AddSessionBroker<RealAngelOneClient, AngelOneSignIn>(services, BrokerKind.AngelOne, "Angel One",
+            "SmartAPI — NSE/BSE/MCX. Signs in with client code, PIN and an authenticator code; live quotes and depth over SmartStream.");
+        AddSessionBroker<RealDhanClient, DhanSignIn>(services, BrokerKind.Dhan, "Dhan",
+            "DhanHQ — NSE/BSE/MCX. Paste the access token from Dhan's site; live quotes and depth over the live feed.");
+        AddSessionBroker<RealFyersClient, FyersSignIn>(services, BrokerKind.Fyers, "Fyers",
+            "Fyers API v3 — NSE/BSE/MCX. Browser sign-in each day; quotes and depth polled over REST.");
+        AddSessionBroker<RealFivePaisaClient, FivePaisaSignIn>(services, BrokerKind.FivePaisa, "5paisa",
+            "Xstream — NSE/BSE/MCX. Signs in with client code, PIN and an authenticator code; live quotes and depth over the feed.");
+        AddSessionBroker<RealAliceBlueClient, AliceBlueSignIn>(services, BrokerKind.AliceBlue, "Alice Blue",
+            "ANT API — NSE/BSE/MCX. Signs in with user id and API key; live quotes and depth over the Noren feed.");
+        AddSessionBroker<RealIciciBreezeClient, IciciBreezeSignIn>(services, BrokerKind.IciciBreeze, "ICICI Breeze",
+            "Breeze — NSE/BSE. Browser sign-in each day; quotes polled over REST.");
+
+        // The US and global brokers (2026-09-25). Same shape as the Indian ones; their sessions are
+        // short-lived tokens that each client renews itself and writes back through IBrokerSessionStore.
+        // Unverified in the catalogue — none has run against a real account yet.
+        AddSessionBroker<RealSchwabClient, SchwabSignIn>(services, BrokerKind.CharlesSchwab, "Charles Schwab",
+            "Trader API — US stocks and ETFs. Browser sign-in weekly; live quotes and the Nasdaq book over the streamer.");
+        AddSessionBroker<RealTradeStationClient, TradeStationSignIn>(services, BrokerKind.TradeStation, "TradeStation",
+            "v3 API — US stocks and futures. Browser sign-in; live quotes, aggregated depth and bars over HTTP streams.");
+        AddSessionBroker<RealTastytradeClient, TastytradeSignIn>(services, BrokerKind.Tastytrade, "tastytrade",
+            "OAuth grant + DXLink — US stocks. Live quotes, time and sales with aggressor side, and candles.");
+        AddSessionBroker<RealETradeClient, ETradeSignIn>(services, BrokerKind.ETrade, "E*TRADE",
+            "OAuth 1.0a — US stocks. Browser sign-in each day; quotes polled, no bar history.");
+        AddSessionBroker<RealTradovateClient, TradovateSignIn>(services, BrokerKind.Tradovate, "Tradovate",
+            "Futures — signs in with user name, password and API key; live quotes, DOM and charts over its socket.");
+        AddSessionBroker<RealSaxoClient, SaxoSignIn>(services, BrokerKind.SaxoBank, "Saxo Bank",
+            "OpenAPI — FX, stocks, CFDs. Browser sign-in; prices and depth polled, chart history.");
+        AddSessionBroker<RealIgClient, IgSignIn>(services, BrokerKind.IgGroup, "IG",
+            "REST — FX, indices, commodities (CFDs). Signs in with API key, user name and password; prices polled.");
+        AddSessionBroker<RealQuestradeClient, QuestradeSignIn>(services, BrokerKind.Questrade, "Questrade",
+            "REST — Canadian and US stocks. Paste a refresh token; Level 1 polled, candles.");
+        AddSessionBroker<RealRobinhoodCryptoClient, RobinhoodCryptoSignIn>(services, BrokerKind.RobinhoodCrypto, "Robinhood (crypto)",
+            "Crypto Trading API — best bid and ask polled, signed with your Ed25519 key.");
 
         // Tradier — a sandbox token is free and immediate, so this is one of the fastest to verify.
         services.AddSingleton<IBrokerClient>(sp =>
@@ -254,7 +327,9 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Keyless brokers — the public crypto feeds (Binance, Coinbase, Bybit, Kraken, OKX). No API key,
+    /// Keyless brokers — the public crypto feeds (Binance, Coinbase, Bybit, Kraken, OKX, Deribit,
+    /// Hyperliquid, and the twelve added on 2026-09-25: Bitget, KuCoin, Gate.io, Gemini, Crypto.com, Upbit,
+    /// Bithumb, Bitfinex, Bitstamp, Bitvavo, HTX, MEXC). No API key,
     /// no account. Available in every edition (including Basic), and all metered.
     /// </summary>
     public static IServiceCollection AddKeylessBrokers(this IServiceCollection services)
@@ -325,6 +400,49 @@ public static class DependencyInjection
             new BrokerConnectionMode(BrokerKind.Okx, IsLive: true, DisplayName: "OKX (live data)",
                 Description: "Public OKX market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
 
+        // The twelve public venues added on 2026-09-25 — same zero-credential pattern, one shared client
+        // base (Crypto/PublicCryptoClient). Each also has a keyed login row that checks a pasted key.
+        AddPublicVenue<RealBitgetClient>(services, BrokerKind.Bitget, "Bitget");
+        AddPublicVenue<RealKuCoinClient>(services, BrokerKind.KuCoin, "KuCoin");
+        AddPublicVenue<RealGateIoClient>(services, BrokerKind.GateIo, "Gate.io");
+        AddPublicVenue<RealGeminiClient>(services, BrokerKind.Gemini, "Gemini");
+        AddPublicVenue<RealCryptoComClient>(services, BrokerKind.CryptoCom, "Crypto.com");
+        AddPublicVenue<RealUpbitClient>(services, BrokerKind.Upbit, "Upbit");
+        AddPublicVenue<RealBithumbClient>(services, BrokerKind.Bithumb, "Bithumb");
+        AddPublicVenue<RealBitfinexClient>(services, BrokerKind.Bitfinex, "Bitfinex");
+        AddPublicVenue<RealBitstampClient>(services, BrokerKind.Bitstamp, "Bitstamp");
+        AddPublicVenue<RealBitvavoClient>(services, BrokerKind.Bitvavo, "Bitvavo");
+        AddPublicVenue<RealHtxClient>(services, BrokerKind.Htx, "HTX");
+        AddPublicVenue<RealMexcClient>(services, BrokerKind.Mexc, "MEXC");
+
         return services;
+    }
+
+    /// <summary>One broker with a sign-in step: its client behind the API meter, its connection mode, and
+    /// its sign-in for the issuer.</summary>
+    private static void AddSessionBroker<TClient, TSignIn>(IServiceCollection services, BrokerKind kind, string name, string description)
+        where TClient : class, IBrokerClient
+        where TSignIn : class, IBrokerSignIn
+    {
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<TClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(kind, IsLive: true, DisplayName: name, Description: description));
+        services.AddSingleton<IBrokerSignIn, TSignIn>();
+    }
+
+    /// <summary>One keyless venue: its client behind the API meter, and its connection mode.</summary>
+    private static void AddPublicVenue<TClient>(IServiceCollection services, BrokerKind kind, string name)
+        where TClient : class, IBrokerClient
+    {
+        services.AddSingleton<IBrokerClient>(sp =>
+            new MeteredBrokerClient(
+                ActivatorUtilities.CreateInstance<TClient>(sp),
+                sp.GetRequiredService<IBrokerApiMeter>()));
+        services.AddSingleton<BrokerConnectionMode>(_ =>
+            new BrokerConnectionMode(kind, IsLive: true, DisplayName: $"{name} (live data)",
+                Description: $"Public {name} market data — real, live crypto bars / L1 / L2 / trades. No API key, no account."));
     }
 }

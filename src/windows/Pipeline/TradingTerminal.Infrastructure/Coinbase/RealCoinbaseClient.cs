@@ -14,7 +14,8 @@ namespace TradingTerminal.Infrastructure.Coinbase;
 /// Coinbase market-data client over the <b>public</b> Advanced Trade WebSocket + Exchange REST
 /// endpoints (no API key, no account). L1 ← <c>ticker</c>, L2 ← <c>level2</c> (snapshot + updates,
 /// reconstructed via <see cref="L2OrderBook"/>), trades ← <c>market_trades</c>, bars ← <c>candles</c>
-/// live and REST <c>/products/{id}/candles</c> for history. Data-only.
+/// (five-minute only; other sizes built as <see cref="SubscribeBarsAsync"/> describes) and REST
+/// <c>/products/{id}/candles</c> for history. Data-only.
 /// </summary>
 internal sealed class RealCoinbaseClient : IBrokerClient
 {
@@ -70,8 +71,21 @@ internal sealed class RealCoinbaseClient : IBrokerClient
         return Task.FromResult(list);
     }
 
+    /// <summary>
+    /// History from REST candles. Coinbase serves no three-minute granularity; this used to answer a 3m
+    /// request with 5m bars under a 3m label. Three-minute bars are now rolled up from one-minute ones.
+    /// </summary>
     public async Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
         Contract contract, BarSize barSize, TimeSpan duration, CancellationToken ct = default)
+    {
+        if (barSize != BarSize.ThreeMinutes) return await FetchCandlesAsync(contract, barSize, ct).ConfigureAwait(false);
+
+        var step = barSize.ToTimeSpan();
+        var minutes = await FetchCandlesAsync(contract, BarSize.OneMinute, ct).ConfigureAwait(false);
+        return BarRollup.Normalise(BarRollup.Rollup(minutes, step), Math.Clamp((int)Math.Ceiling(duration / step), 1, 1000));
+    }
+
+    private async Task<IReadOnlyList<Bar>> FetchCandlesAsync(Contract contract, BarSize barSize, CancellationToken ct)
     {
         var id = contract.Symbol.Trim().ToUpperInvariant();
         var url = $"{_options.RestBaseUrl}/products/{id}/candles?granularity={Granularity(barSize)}";
@@ -91,8 +105,57 @@ internal sealed class RealCoinbaseClient : IBrokerClient
         return bars;
     }
 
+    /// <summary>
+    /// Live bars. The Advanced Trade <c>candles</c> channel publishes <b>five-minute candles only</b> — its
+    /// starts are 300 s apart whatever is asked for — and this used to hand those to every chart, so a
+    /// one-minute chart drew five-minute bars (verified 2026-09-25). Each size is now built from what can
+    /// honestly produce it: 5m natively; 15m and 1h rolled up from the 5m channel, whose opening snapshot
+    /// covers hours, so the forming bucket is complete; 1m and 3m from the trade tape; the daily bar
+    /// polled from REST, because one built from trades would open at the first print seen.
+    /// </summary>
     public IAsyncEnumerable<Bar> SubscribeBarsAsync(Contract contract, BarSize barSize, CancellationToken ct = default) =>
+        barSize switch
+        {
+            BarSize.FiveMinutes => FiveMinuteCandles(contract, ct),
+            BarSize.FifteenMinutes or BarSize.OneHour => RollUp(FiveMinuteCandles(contract, ct), barSize.ToTimeSpan(), ct),
+            BarSize.OneDay => PollDaily(contract, ct),
+            _ => FromTrades(SubscribeTradesAsync(contract, ct), barSize.ToTimeSpan(), ct),
+        };
+
+    private IAsyncEnumerable<Bar> FiveMinuteCandles(Contract contract, CancellationToken ct) =>
         Stream("candles", contract, el => ParseCandles(el, _options.SizeScale), ct);
+
+    private static async IAsyncEnumerable<Bar> RollUp(
+        IAsyncEnumerable<Bar> candles, TimeSpan step, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        var rollup = new LiveBarRollup(step);
+        await foreach (var candle in candles.WithCancellation(ct).ConfigureAwait(false))
+            yield return rollup.Push(candle);
+    }
+
+    private static async IAsyncEnumerable<Bar> FromTrades(
+        IAsyncEnumerable<TradeTick> trades, TimeSpan step, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        var bars = new LiveTradeBars(step);
+        await foreach (var trade in trades.WithCancellation(ct).ConfigureAwait(false))
+            yield return bars.Push(trade);
+    }
+
+    private async IAsyncEnumerable<Bar> PollDaily(Contract contract, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            IReadOnlyList<Bar> days = [];
+            try { days = await FetchCandlesAsync(contract, BarSize.OneDay, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { yield break; }
+            catch (Exception ex) { _logger.LogDebug(ex, "Coinbase daily poll failed; retrying."); }
+
+            if (days.Count > 0) yield return days[^1];
+
+            try { await Task.Delay(TimeSpan.FromSeconds(15), ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { yield break; }
+        }
+    }
 
     public IAsyncEnumerable<Tick> SubscribeTicksAsync(Contract contract, CancellationToken ct = default) =>
         Stream("ticker", contract, el => ParseTicker(el, _options.SizeScale), ct);
@@ -195,7 +258,6 @@ internal sealed class RealCoinbaseClient : IBrokerClient
     private static string Granularity(BarSize size) => size switch
     {
         BarSize.OneMinute => "60",
-        BarSize.ThreeMinutes => "300",   // Coinbase has no 3m; nearest supported
         BarSize.FiveMinutes => "300",
         BarSize.FifteenMinutes => "900",
         BarSize.OneHour => "3600",

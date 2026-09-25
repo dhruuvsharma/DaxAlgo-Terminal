@@ -32,4 +32,12 @@ public sealed class KeyedDeribitLoginFormViewModel : KeyedCryptoLoginFormBase
     protected override string CredentialShape => "Client ID + client secret (OAuth2)";
 
     protected override string WhatAKeyBuys => "private channels, options + perps positions";
+
+    public override string KeyLabel => "Client ID";
+
+    public override string SecretLabel => "Client secret";
+
+    public override string WhereToGetAKey =>
+        "Create an API key with read-only scopes (account:read). Deribit shows the pair as Client ID "
+        + "and Client Secret.";
 }

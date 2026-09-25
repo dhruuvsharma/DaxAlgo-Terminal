@@ -16,6 +16,11 @@ public sealed class OkxOptions
     /// <summary>v5 public WebSocket.</summary>
     public string WsBaseUrl { get; set; } = "wss://ws.okx.com:8443/ws/v5/public";
 
+    /// <summary>v5 business WebSocket — where OKX moved the <c>candle*</c> channels. Subscribing to a candle
+    /// on the public socket is refused with error 60018 ("wrong URL or channel"), which left live bars
+    /// empty until this was split out (verified 2026-09-25).</summary>
+    public string BusinessWsBaseUrl { get; set; } = "wss://ws.okx.com:8443/ws/v5/business";
+
     /// <summary>Curated symbols for the picker, in OKX dash form. Subscriptions accept any valid instId.</summary>
     public string[] Instruments { get; set; } =
     [

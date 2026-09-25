@@ -201,4 +201,117 @@ public static class CryptoAuth
     /// <summary>Base64url without padding, as JWS requires.</summary>
     private static string Base64Url(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    // ════════════════════════════════════════════════════════════════════════════════════════════
+    // The twelve venues added on 2026-09-25. Each scheme is the venue's published algorithm; most are
+    // an HMAC over some concatenation, so the primitives are shared and each venue method names the
+    // exact concatenation — which is the part that is ever wrong.
+    // ════════════════════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>Lower-case hex HMAC-SHA256 of UTF-8 <paramref name="message"/> under UTF-8 <paramref name="secret"/>.</summary>
+    public static string HmacSha256Hex(string message, string secret) =>
+        Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(message)));
+
+    /// <summary>Base64 HMAC-SHA256.</summary>
+    public static string HmacSha256Base64(string message, string secret) =>
+        Convert.ToBase64String(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(message)));
+
+    /// <summary>Lower-case hex HMAC-SHA384.</summary>
+    public static string HmacSha384Hex(string message, string secret) =>
+        Convert.ToHexStringLower(HMACSHA384.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(message)));
+
+    /// <summary>Lower-case hex HMAC-SHA512.</summary>
+    public static string HmacSha512Hex(string message, string secret) =>
+        Convert.ToHexStringLower(HMACSHA512.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(message)));
+
+    /// <summary>
+    /// A compact HS256 JWT over <paramref name="claims"/> — Upbit's and Bithumb's scheme. The claims are
+    /// serialised in the order given, which is irrelevant to the venue (it verifies the signature over
+    /// whatever bytes it received) but keeps a test's expected token stable.
+    /// </summary>
+    public static string JwtHs256(IReadOnlyList<KeyValuePair<string, object>> claims, string secret)
+    {
+        var header = Base64Url("{\"alg\":\"HS256\",\"typ\":\"JWT\"}"u8.ToArray());
+        var payload = Base64Url(JsonSerializer.SerializeToUtf8Bytes(claims.ToDictionary(c => c.Key, c => c.Value)));
+        var signingInput = $"{header}.{payload}";
+        var signature = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.ASCII.GetBytes(signingInput));
+        return $"{signingInput}.{Base64Url(signature)}";
+    }
+
+    /// <summary>Bitget v2: base64 HMAC-SHA256 over <c>timestamp + METHOD + requestPath + body</c>, timestamp
+    /// in Unix milliseconds. The request path includes its query string, <c>?</c> and all.</summary>
+    public static string BitgetSignature(string timestamp, string method, string requestPath, string body, string secret) =>
+        HmacSha256Base64(timestamp + method.ToUpperInvariant() + requestPath + body, secret);
+
+    /// <summary>KuCoin: base64 HMAC-SHA256 over <c>timestamp + METHOD + endpoint + body</c>.</summary>
+    public static string KuCoinSignature(string timestamp, string method, string endpoint, string body, string secret) =>
+        HmacSha256Base64(timestamp + method.ToUpperInvariant() + endpoint + body, secret);
+
+    /// <summary>KuCoin key version 2: the passphrase is sent <b>signed</b> — base64 HMAC-SHA256 of the
+    /// passphrase under the secret. Version-1 keys sent it in clear; sending it clear for a v2 key is
+    /// refused as a wrong passphrase.</summary>
+    public static string KuCoinPassphrase(string passphrase, string secret) => HmacSha256Base64(passphrase, secret);
+
+    /// <summary>Gate.io v4: hex HMAC-SHA512 over
+    /// <c>METHOD \n path \n query \n hex(SHA512(body)) \n timestamp</c>, timestamp in <b>seconds</b>. The
+    /// body hash is present even when the body is empty — it is the hash of the empty string.</summary>
+    public static string GateIoSignature(string method, string path, string query, string body, string timestampSeconds, string secret) =>
+        HmacSha512Hex(
+            $"{method.ToUpperInvariant()}\n{path}\n{query}\n{Convert.ToHexStringLower(SHA512.HashData(Encoding.UTF8.GetBytes(body)))}\n{timestampSeconds}",
+            secret);
+
+    /// <summary>Gemini: the request is a JSON payload, base64-encoded and sent in a header; the signature is
+    /// hex HMAC-SHA384 of <b>the base64 text</b>, not of the JSON.</summary>
+    public static (string Payload, string Signature) GeminiSignature(string payloadJson, string secret)
+    {
+        var payload = Convert.ToBase64String(Encoding.UTF8.GetBytes(payloadJson));
+        return (payload, HmacSha384Hex(payload, secret));
+    }
+
+    /// <summary>Crypto.com Exchange v1: hex HMAC-SHA256 over <c>method + id + api_key + params + nonce</c>,
+    /// where <c>params</c> is the parameters' keys and values concatenated in key order with no separators
+    /// (empty for none).</summary>
+    public static string CryptoComSignature(string method, string id, string apiKey, string paramString, string nonce, string secret) =>
+        HmacSha256Hex(method + id + apiKey + paramString + nonce, secret);
+
+    /// <summary>Bitfinex v2: hex HMAC-SHA384 over <c>"/api/" + path + nonce + body</c>. The <c>/api/</c>
+    /// prefix is signed although it is not part of the path as the documentation writes it.</summary>
+    public static string BitfinexSignature(string path, string nonce, string body, string secret) =>
+        HmacSha384Hex("/api/" + path.TrimStart('/') + nonce + body, secret);
+
+    /// <summary>
+    /// Bitstamp v2: hex HMAC-SHA256 over
+    /// <c>"BITSTAMP " + key + METHOD + host + path + query + contentType + nonce + timestamp + "v2" + body</c>.
+    /// With no body the content type is left out of the string <i>and</i> not sent as a header — sending
+    /// one for an empty body is itself a rejection.
+    /// </summary>
+    public static string BitstampSignature(
+        string apiKey, string method, string host, string path, string query,
+        string contentType, string nonce, string timestamp, string body, string secret) =>
+        HmacSha256Hex(
+            "BITSTAMP " + apiKey + method.ToUpperInvariant() + host + path + query + contentType + nonce + timestamp + "v2" + body,
+            secret);
+
+    /// <summary>Bitvavo: hex HMAC-SHA256 over <c>timestamp + METHOD + "/v2" + path + body</c>.</summary>
+    public static string BitvavoSignature(string timestamp, string method, string pathWithV2, string body, string secret) =>
+        HmacSha256Hex(timestamp + method.ToUpperInvariant() + pathWithV2 + body, secret);
+
+    /// <summary>HTX (Huobi) signature version 2: base64 HMAC-SHA256 over
+    /// <c>METHOD \n host \n path \n sortedQuery</c>. The query is sorted by name in ASCII order and each
+    /// value URL-encoded with <b>upper-case</b> hex (<c>%3A</c>, not <c>%3a</c>).</summary>
+    public static string HtxSignature(string method, string host, string path, string sortedQuery, string secret) =>
+        HmacSha256Base64($"{method.ToUpperInvariant()}\n{host.ToLowerInvariant()}\n{path}\n{sortedQuery}", secret);
+
+    /// <summary>HTX's query: parameters sorted by name, values encoded upper-case-hex.</summary>
+    public static string HtxQuery(IEnumerable<KeyValuePair<string, string>> parameters) =>
+        string.Join('&', parameters
+            .OrderBy(p => p.Key, StringComparer.Ordinal)
+            .Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
+
+    /// <summary>HTX's <c>Timestamp</c>: UTC to the second, <c>yyyy-MM-ddTHH:mm:ss</c>, no zone suffix.</summary>
+    public static string HtxTimestamp(DateTimeOffset at) =>
+        at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);
+
+    /// <summary>MEXC spot v3: Binance's scheme — hex HMAC-SHA256 over the query string as sent.</summary>
+    public static string MexcSignature(string query, string secret) => HmacSha256Hex(query, secret);
 }

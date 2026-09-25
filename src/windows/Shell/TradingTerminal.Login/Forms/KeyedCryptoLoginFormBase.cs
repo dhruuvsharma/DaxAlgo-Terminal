@@ -77,6 +77,44 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
     /// <summary>What the key adds over the keyless row. Overridden where a venue offers more.</summary>
     protected virtual string WhatAKeyBuys => "private endpoints, higher rate limits";
 
+    // ── Field labels ─────────────────────────────────────────────────────────────────────────────
+    // Named the way each venue's API page names them. A user copying from that page looks for the
+    // same words here, and "secret" is the wrong word for two of the six.
+
+    /// <summary>Label over the public half.</summary>
+    public virtual string KeyLabel => "API key";
+
+    /// <summary>Label over the secret half.</summary>
+    public virtual string SecretLabel => "API secret";
+
+    /// <summary>One line on how to create a key this form can use — read-only, and where the venue
+    /// has a trap, the trap.</summary>
+    public virtual string WhereToGetAKey =>
+        $"Create a read-only key on {VenueName}'s API management page.";
+
+    /// <summary>True when the secret is a shared secret, which the form masks. The PEM venue gets a
+    /// multi-line box instead: a single-line input cuts a paste at its first line break, which turns
+    /// a PEM into its header line.</summary>
+    public bool UsesSharedSecret => !UsesPrivateKeyPem;
+
+    // ── Which way in is live ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// True when this venue's live connection is using a key — this row connected it, or took it over.
+    ///
+    /// <para>Both rows of a venue drive one client and see one connection state, so "Connected" on
+    /// this row does not by itself mean the key is in use: the keyless row may have opened it. The
+    /// options slot says which — the keyless row clears it on connect, this row fills it.</para>
+    /// </summary>
+    public bool IsKeyInEffect => Target.IsConfigured;
+
+    /// <summary>Connected by the keyless row, a key filled in here: Connect takes the connection over
+    /// rather than sitting disabled beside a key it will not use.</summary>
+    protected override bool CanTakeOverConnection => !IsKeyInEffect;
+
+    public override string StatusText =>
+        IsConnected && !IsKeyInEffect ? "Connected · no key" : base.StatusText;
+
     private string _apiKey = string.Empty;
     public string ApiKey
     {
@@ -106,11 +144,34 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
     public override void ApplyToOptions()
     {
         Target.ApiKey = ApiKey.Trim();
-        Target.ApiSecret = ApiSecret.Trim();
+        Target.ApiSecret = Secret;
         Target.Passphrase = UsesPassphrase ? Passphrase.Trim() : string.Empty;
     }
 
-    public override string GetSessionAccountLabel() => $"{VenueName} · API key";
+    /// <summary>
+    /// The secret as the signer needs it.
+    ///
+    /// <para>For the PEM venue, what gets pasted is usually not a PEM. Coinbase hands the key out as
+    /// JSON, where the private key is one line with its line breaks written as <c>\n</c> escapes,
+    /// often still wrapped in the JSON's quotes — and <c>ImportFromPem</c> refuses that as "no PEM
+    /// found", which the venue probe then reports as a rejected key. Undone here, so copying the value
+    /// straight out of the file works.</para>
+    /// </summary>
+    private string Secret
+    {
+        get
+        {
+            var secret = ApiSecret.Trim();
+            if (!UsesPrivateKeyPem) return secret;
+            return secret.Trim('"').Replace("\\r\\n", "\n").Replace("\\n", "\n").Trim();
+        }
+    }
+
+    /// <summary>Says "API key" only when the live connection is using one. Launch picks the label from
+    /// whichever of a venue's rows it finds first, and the keyed row claiming a key the keyless row's
+    /// connection never used would put that claim in the shell's title bar.</summary>
+    public override string GetSessionAccountLabel() =>
+        IsKeyInEffect ? $"{VenueName} · API key" : $"{VenueName} · Public data";
 
     public override string GetTimeoutErrorMessage() =>
         $"Connection timed out reaching {VenueName}. Check your internet connection.";
@@ -136,7 +197,7 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
 
         var credential = new BrokerCredential(
             Key: ApiKey.Trim(),
-            Secret: ApiSecret.Trim(),
+            Secret: Secret,
             Passphrase: UsesPassphrase ? Passphrase.Trim() : string.Empty);
 
         var verification = await _verifier.VerifyAsync(Broker, credential, ct).ConfigureAwait(true);
@@ -170,7 +231,7 @@ public abstract class KeyedCryptoLoginFormBase : BrokerLoginFormBase
         stored.SetKeys(
             Broker,
             ApiKey.Trim(),
-            string.IsNullOrEmpty(ApiSecret) ? null : ApiSecret,
+            string.IsNullOrEmpty(Secret) ? null : Secret,
             UsesPassphrase && !string.IsNullOrEmpty(Passphrase) ? Passphrase : null);
         _credentials.Save(stored);
     }

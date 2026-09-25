@@ -58,7 +58,19 @@ public sealed class TradierLoginFormViewModel : BrokerLoginFormBase
         ConnectCommand.NotifyCanExecuteChanged();
     }
 
-    public override void ApplyToOptions() => _options.Sandbox = Sandbox;
+    /// <summary>
+    /// Sets the environment, and saves the token — before connecting, not after.
+    ///
+    /// <para>The client reads its token from the credential store and nowhere else. The base form saves
+    /// only once a connect has succeeded, which for this broker is a connect that cannot succeed: the
+    /// first attempt found an empty store and failed as "needs an access token", so the token was never
+    /// saved, so the next attempt failed the same way.</para>
+    /// </summary>
+    public override void ApplyToOptions()
+    {
+        _options.Sandbox = Sandbox;
+        Save();
+    }
 
     public override string GetSessionAccountLabel() =>
         Sandbox ? "Tradier · Sandbox" : "Tradier · Production";

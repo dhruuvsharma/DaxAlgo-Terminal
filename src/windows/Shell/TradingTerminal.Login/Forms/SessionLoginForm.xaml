@@ -1,0 +1,69 @@
+<UserControl x:Class="TradingTerminal.App.Login.Forms.SessionLoginForm"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             mc:Ignorable="d"
+             d:DesignHeight="420" d:DesignWidth="500">
+    <!-- One view for every broker with a sign-in step (the Indian brokers first, 2026-09-25). Which
+         fields show, and what they are called, comes from the broker's SessionBrokerLogin description. -->
+    <UserControl.Resources>
+        <!-- Local, not the window's: this control is built in code before it has a parent. -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+
+    <StackPanel>
+        <TextBlock Text="{Binding Help}" TextWrapping="Wrap" FontSize="11"
+                   Foreground="{DynamicResource Text.Primary}" Margin="0,0,0,10" />
+
+        <StackPanel Visibility="{Binding AsksAccount, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding AccountLabel}" Margin="0,0,0,4" />
+            <TextBox x:Name="AccountBox" Text="{Binding Account, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <StackPanel Visibility="{Binding AsksKey, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding KeyLabel}" Margin="0,0,0,4" />
+            <TextBox x:Name="KeyBox" Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <StackPanel Visibility="{Binding AsksExtra, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ExtraLabel}" Margin="0,0,0,4" />
+            <TextBox x:Name="ExtraBox" Text="{Binding Extra, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <StackPanel Visibility="{Binding AsksSecret, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding SecretLabel}" Margin="0,0,0,4" />
+            <PasswordBox x:Name="SecretBox" PasswordChanged="SecretBox_PasswordChanged"
+                         mah:TextBoxHelper.Watermark="Stored DPAPI-encrypted on this machine" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <StackPanel Visibility="{Binding AsksPassphrase, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding PassphraseLabel}" Margin="0,0,0,4" />
+            <PasswordBox x:Name="PassphraseBox" PasswordChanged="PassphraseBox_PasswordChanged"
+                         mah:TextBoxHelper.Watermark="Stored DPAPI-encrypted on this machine" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <StackPanel Visibility="{Binding AsksRedirect, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="Redirect URL (as registered for the app)" Margin="0,0,0,4" />
+            <TextBox x:Name="RedirectBox" Text="{Binding RedirectUri, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <Button Content="Open sign-in page" HorizontalAlignment="Left" Padding="10,4" Margin="0,0,0,10"
+                Command="{Binding OpenSignInPageCommand}"
+                Visibility="{Binding IsBrowser, Converter={StaticResource BoolToVisibility}}" />
+
+        <StackPanel Visibility="{Binding AsksProof, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{Binding ProofLabel}" Margin="0,0,0,4" />
+            <TextBox x:Name="ProofBox" Text="{Binding Proof, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+        </StackPanel>
+
+        <DockPanel LastChildFill="True">
+            <Button DockPanel.Dock="Left" Content="Sign in" Padding="14,4" Margin="0,0,10,0"
+                    Command="{Binding SignInCommand}"
+                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}" />
+            <TextBlock Text="{Binding SignInMessage}" TextWrapping="Wrap" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource Text.Secondary}" />
+        </DockPanel>
+    </StackPanel>
+</UserControl>

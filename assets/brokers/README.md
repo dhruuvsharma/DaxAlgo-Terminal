@@ -2,7 +2,9 @@
 
 These marks identify third-party broker integrations in the login and API-usage UI. They were
 retrieved through Google's favicon service using each broker's official domain — the original twelve on
-2026-07-25, the rest on 2026-08-26 when the catalogue was widened. The listed sites identify the mark
+2026-07-25, the rest on 2026-08-26 when the catalogue was widened, and Bitfinex, Bitstamp, Bitvavo,
+HTX and MEXC on 2026-09-25 when those venues were added, and Questrade, Robinhood, Trading 212 and
+Webull the same day with the US and global brokers. The listed sites identify the mark
 owners; they are not a permission grant for reuse.
 
 **The list is generated from `BrokerCatalog`**, which is also what the picker reads, so a mark on disk
@@ -17,8 +19,11 @@ than failing, so a wrong logo arrives looking exactly like a right one. Two were
 | `alpaca.png` | Alpaca | [alpaca.markets](https://alpaca.markets) |
 | `angel-one.png` | Angel One | [angelone.in](https://angelone.in) |
 | `binance.png` | Binance | [binance.com](https://binance.com) |
+| `bitfinex.png` | Bitfinex | [bitfinex.com](https://bitfinex.com) |
 | `bitget.png` | Bitget | [bitget.com](https://bitget.com) |
 | `bithumb.png` | Bithumb | [bithumb.com](https://bithumb.com) |
+| `bitstamp.png` | Bitstamp | [bitstamp.net](https://bitstamp.net) |
+| `bitvavo.png` | Bitvavo | [bitvavo.com](https://bitvavo.com) |
 | `bybit.png` | Bybit | [bybit.com](https://bybit.com) |
 | `charles-schwab.png` | Charles Schwab | [schwab.com](https://schwab.com) |
 | `coinbase.png` | Coinbase | [coinbase.com](https://coinbase.com) |
@@ -36,6 +41,7 @@ than failing, so a wrong logo arrives looking exactly like a right one. Two were
 | `gate-io.png` | Gate.io | [gate.io](https://gate.io) |
 | `gemini.png` | Gemini | [gemini.com](https://gemini.com) |
 | `groww.png` | Groww | [groww.in](https://groww.in) |
+| `htx.png` | HTX | [htx.com](https://htx.com) |
 | `hyperliquid.png` | Hyperliquid | [hyperliquid.xyz](https://hyperliquid.xyz) |
 | `ig-group.png` | IG | [ig.com](https://ig.com) |
 | `interactive-brokers.png` | Interactive Brokers | [interactivebrokers.com](https://interactivebrokers.com) |
@@ -44,19 +50,24 @@ than failing, so a wrong logo arrives looking exactly like a right one. Two were
 | `kucoin.png` | KuCoin | [kucoin.com](https://kucoin.com) |
 | `london-strategic-edge.png` | London Strategic Edge | [londonstrategicedge.com](https://londonstrategicedge.com) |
 | `metatrader.png` | MetaTrader 4 / 5 | [metatrader5.com](https://metatrader5.com) |
+| `mexc.png` | MEXC | [mexc.com](https://mexc.com) |
 | `ninjatrader.png` | NinjaTrader | [ninjatrader.com](https://ninjatrader.com) |
 | `oanda.png` | OANDA | [oanda.com](https://oanda.com) |
 | `okx.png` | OKX | [okx.com](https://okx.com) |
+| `questrade.png` | Questrade | [questrade.com](https://questrade.com) |
 | `rithmic.png` | Rithmic | [rithmic.com](https://rithmic.com) |
+| `robinhood.png` | Robinhood | [robinhood.com](https://robinhood.com) |
 | `saxo-bank.png` | Saxo Bank | [home.saxo](https://home.saxo) |
 | `swissquote.png` | Swissquote | [swissquote.com](https://swissquote.com) |
 | `tastytrade.png` | tastytrade | [tastytrade.com](https://tastytrade.com) |
 | `tiger-brokers.png` | Tiger Brokers | [itiger.com](https://itiger.com) |
 | `tradestation.png` | TradeStation | [tradestation.com](https://tradestation.com) |
 | `tradier.png` | Tradier | [tradier.com](https://tradier.com) |
+| `trading-212.png` | Trading 212 | [trading212.com](https://trading212.com) |
 | `tradovate.png` | Tradovate | [tradovate.com](https://tradovate.com) |
 | `upbit.png` | Upbit | [upbit.com](https://upbit.com) |
 | `upstox.png` | Upstox | [upstox.com](https://upstox.com) |
+| `webull.png` | Webull | [webull.com](https://webull.com) |
 | `zerodha.png` | Zerodha | [zerodha.com](https://zerodha.com) |
 
 ## Catalogued without a mark

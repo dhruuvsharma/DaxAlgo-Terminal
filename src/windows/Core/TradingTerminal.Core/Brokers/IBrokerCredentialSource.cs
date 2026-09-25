@@ -24,6 +24,31 @@ public readonly record struct BrokerCredential(
 
     /// <summary>True when both halves are present, which is what a key-and-secret venue needs.</summary>
     public bool IsPair => IsConfigured && !string.IsNullOrWhiteSpace(Key);
+
+    /// <summary>
+    /// The account the session belongs to — a client code, a user id, an account number. An identifier,
+    /// stored in the clear. Empty for the brokers that need none.
+    ///
+    /// <para>Init-only rather than a fourth constructor parameter: <c>TradingTerminal.Core</c> is a
+    /// published contract, and a new positional parameter changes the constructor every compiled
+    /// caller binds to.</para>
+    /// </summary>
+    public string Account { get; init; } = "";
+
+    /// <summary>
+    /// What a sign-in issued: a daily access token, a JWT, a session id — whatever the broker's client
+    /// spends on each request, in whatever shape it needs (see <see cref="IBrokerSessionIssuer"/>). Kept
+    /// apart from <see cref="Secret"/>, which is the app secret the session was issued against: the
+    /// brokers with a sign-in step need both, and conflating them would lose one at every sign-in.
+    /// </summary>
+    public string Session { get; init; } = "";
+
+    /// <summary>A second identifier, for the few brokers that need one beside <see cref="Account"/> — 5paisa's
+    /// app user id, which is not the client code. In the clear.</summary>
+    public string Extra { get; init; } = "";
+
+    /// <summary>True when a sign-in has issued something to spend.</summary>
+    public bool HasSession => !string.IsNullOrWhiteSpace(Session);
 }
 
 /// <summary>

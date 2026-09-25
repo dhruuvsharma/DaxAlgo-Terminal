@@ -129,4 +129,78 @@ public sealed class KeyedCryptoRowTests
 
         Assert.Equal(new[] { BrokerKind.Coinbase }, withPem);
     }
+
+    [Theory]
+    [MemberData(nameof(KeyedRows))]
+    public void A_keyed_row_labels_its_fields(KeyedCryptoLoginFormBase form)
+    {
+        Assert.False(string.IsNullOrWhiteSpace(form.KeyLabel));
+        Assert.False(string.IsNullOrWhiteSpace(form.SecretLabel));
+        Assert.False(string.IsNullOrWhiteSpace(form.WhereToGetAKey));
+    }
+
+    [Fact]
+    public async Task A_refused_key_never_reaches_the_options_slot()
+    {
+        // The venue is asked before anything is applied. A refused key left in the options slot would
+        // sit there looking configured — and the session label reads that slot.
+        var options = new BinanceOptions();
+        var form = new KeyedBinanceLoginFormViewModel(
+            null!, Store(), Options.Create(options),
+            NullLogger<KeyedBinanceLoginFormViewModel>.Instance, new RefusingVerifier())
+        {
+            ApiKey = "key",
+            ApiSecret = "wrong-secret",
+        };
+
+        await form.ConnectCommand.ExecuteAsync(null);
+
+        Assert.False(options.Credentials.IsConfigured);
+        Assert.Contains("rejected these credentials", form.ErrorMessage);
+    }
+
+    [Fact]
+    public void A_pem_copied_out_of_the_downloaded_json_imports()
+    {
+        // Coinbase hands the key out as JSON: one line, line breaks written as \n escapes, in quotes.
+        // Pasted as-is, ImportFromPem finds no PEM at all and the probe reports a rejected key.
+        using var key = System.Security.Cryptography.ECDsa.Create(
+            System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        var pem = key.ExportECPrivateKeyPem();
+        var asInTheJson = "\"" + pem.Replace("\r\n", "\n").Replace("\n", "\\n") + "\\n\"";
+
+        var options = new CoinbaseOptions();
+        var form = new KeyedCoinbaseLoginFormViewModel(
+            null!, Store(), Options.Create(options),
+            NullLogger<KeyedCoinbaseLoginFormViewModel>.Instance, IBrokerCredentialVerifier.None)
+        {
+            ApiKey = "organizations/org/apiKeys/key",
+            ApiSecret = asInTheJson,
+        };
+
+        form.ApplyToOptions();
+
+        using var imported = System.Security.Cryptography.ECDsa.Create();
+        imported.ImportFromPem(options.Credentials.ApiSecret);
+        Assert.Equal(key.ExportParameters(false).Q.X, imported.ExportParameters(false).Q.X);
+    }
+
+    [Fact]
+    public void Auto_connect_fires_one_row_per_venue_and_prefers_a_saved_key()
+    {
+        // Both rows of a venue are ready once a key is saved — the keyless one always is. Firing both
+        // started two connects of one client, one clearing the key the other had just applied.
+        var keyless = new BinanceLoginFormViewModel(
+            null!, Options.Create(new BinanceOptions()), NullLogger<BinanceLoginFormViewModel>.Instance);
+        var keyed = new KeyedBinanceLoginFormViewModel(
+            null!, Store(), Options.Create(new BinanceOptions()),
+            NullLogger<KeyedBinanceLoginFormViewModel>.Instance, IBrokerCredentialVerifier.None);
+
+        Assert.Same(keyless, Assert.Single(LoginViewModel.AutoConnectChoices([keyless, keyed])));
+
+        keyed.ApiKey = "key";
+        keyed.ApiSecret = "secret";
+
+        Assert.Same(keyed, Assert.Single(LoginViewModel.AutoConnectChoices([keyless, keyed])));
+    }
 }

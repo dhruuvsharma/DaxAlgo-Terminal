@@ -35,4 +35,7 @@ public sealed class KeyedBybitLoginFormViewModel : KeyedCryptoLoginFormBase
     public override bool UsesPrivateKeyPem => false;
 
     protected override string WhatAKeyBuys => "unified account balances, private streams";
+
+    public override string WhereToGetAKey =>
+        "Create a system-generated API key with Read-Only permissions.";
 }

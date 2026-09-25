@@ -186,14 +186,27 @@ public sealed partial class LoginViewModel : ViewModelBase, IDisposable
     private void AutoConnectAll()
     {
         var started = 0;
-        foreach (var form in _formItems)
+        foreach (var form in AutoConnectChoices(_formItems))
         {
-            if (!form.ConnectCommand.CanExecute(null)) continue;
             started++;
             _ = form.ConnectCommand.ExecuteAsync(null);
         }
         _logger.LogInformation("Auto Connect: started {Count} broker connection attempt(s)", started);
     }
+
+    /// <summary>
+    /// The rows Auto Connect fires: at most one per broker.
+    ///
+    /// <para>Six crypto venues have two rows over one client, and both are ready once a key is saved —
+    /// the keyless one always is. Firing both started two connects of one client at once, one row
+    /// clearing the credentials the other had just applied. The keyed row wins when it is ready: a
+    /// saved key is the user saying which way in they want.</para>
+    /// </summary>
+    internal static IEnumerable<BrokerLoginFormBase> AutoConnectChoices(IEnumerable<BrokerLoginFormBase> forms) =>
+        forms
+            .Where(form => form.ConnectCommand.CanExecute(null))
+            .GroupBy(form => form.Broker)
+            .Select(venue => venue.OrderBy(form => form.IsKeyless).First());
 
     /// <summary>QuestDB is the only market-data backend that needs an external server up before the
     /// terminal can persist ticks. We surface its status on the login screen and, when auto-start is on,

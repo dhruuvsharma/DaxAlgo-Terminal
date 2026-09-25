@@ -6,7 +6,7 @@ namespace TradingTerminal.Infrastructure.Crypto;
 
 /// <summary>
 /// The <see cref="IBrokerCredentialVerifier"/> the shells compose: it runs
-/// <see cref="CryptoAccountProbe"/> against the six crypto venues that have a keyed mode.
+/// <see cref="CryptoAccountProbe"/> against every crypto venue that has a keyed mode (eighteen, since 2026-09-25).
 ///
 /// <para>One <see cref="HttpClient"/> for the life of the process, with a short timeout. A login window
 /// waiting on a verification is a user staring at a spinner, so ten seconds is the whole budget — and a
@@ -44,6 +44,14 @@ public sealed class CryptoCredentialVerifier : IBrokerCredentialVerifier, IDispo
             {
                 _logger.LogInformation("{Broker} accepted the API key.", broker);
                 return CredentialVerification.Accepted;
+            }
+
+            if (!result.Reached)
+            {
+                // Unreachable, timed out, rate-limited, or answered by something other than the venue.
+                // None of those is the venue saying no.
+                _logger.LogWarning("Could not check the {Broker} API key: {Detail}", broker, result.Detail);
+                return CredentialVerification.NotChecked;
             }
 
             _logger.LogWarning("{Broker} refused the API key: {Detail}", broker, result.Detail);

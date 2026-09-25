@@ -88,7 +88,9 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         private set => SetProperty(ref _errorMessage, value);
     }
 
-    public string StatusText => CurrentState switch
+    /// <summary>The status pill's text. Virtual because a row that shares its broker with another row
+    /// can be "connected" by its sibling, and should say so rather than claim the connection.</summary>
+    public virtual string StatusText => CurrentState switch
     {
         ConnectionState.Connected => "Connected",
         ConnectionState.Connecting => "Connecting…",
@@ -201,6 +203,34 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         [BrokerKind.Hyperliquid]        = new("HL", "#97FCE4", "#0B2E27", "Public WebSocket · perp DEX, L2 depth + tape", LoginCategory.Keyless),
         [BrokerKind.Tradier]            = new("TR", "#0B7285", "#FFFFFF", "REST · US equities + options · free sandbox token", LoginCategory.Credentialed),
         [BrokerKind.Oanda]              = new("OA", "#8A1538", "#FFFFFF", "v20 REST + streaming · FX and CFD · practice or live", LoginCategory.Credentialed),
+        [BrokerKind.Zerodha]            = new("ZE", "#387ED1", "#FFFFFF", "Kite Connect · NSE/BSE/MCX · browser sign-in, live ticker", LoginCategory.Credentialed),
+        [BrokerKind.AngelOne]           = new("A1", "#1B4F9C", "#FFFFFF", "SmartAPI · NSE/BSE/MCX · authenticator sign-in, live feed", LoginCategory.Credentialed),
+        [BrokerKind.Dhan]               = new("DH", "#6C3FC5", "#FFFFFF", "DhanHQ · NSE/BSE/MCX · pasted token, live feed", LoginCategory.Credentialed),
+        [BrokerKind.Fyers]              = new("FY", "#1E6FD9", "#FFFFFF", "API v3 · NSE/BSE/MCX · browser sign-in, polled quotes", LoginCategory.Credentialed),
+        [BrokerKind.FivePaisa]          = new("5P", "#D72E2F", "#FFFFFF", "Xstream · NSE/BSE/MCX · authenticator sign-in, live feed", LoginCategory.Credentialed),
+        [BrokerKind.AliceBlue]          = new("AB", "#0B5ED7", "#FFFFFF", "ANT API · NSE/BSE/MCX · user id + API key, live feed", LoginCategory.Credentialed),
+        [BrokerKind.IciciBreeze]        = new("IC", "#AE282E", "#FFFFFF", "Breeze · NSE/BSE · browser sign-in, polled quotes", LoginCategory.Credentialed),
+        [BrokerKind.CharlesSchwab]      = new("SC", "#00A0DF", "#FFFFFF", "Trader API · US stocks · browser sign-in, streamed quotes + book", LoginCategory.Credentialed),
+        [BrokerKind.TradeStation]       = new("TS", "#1C75BC", "#FFFFFF", "v3 API · US stocks + futures · streamed quotes, depth, bars", LoginCategory.Credentialed),
+        [BrokerKind.Tastytrade]         = new("TT", "#E31937", "#FFFFFF", "OAuth grant + DXLink · US stocks · quotes, time and sales", LoginCategory.Credentialed),
+        [BrokerKind.ETrade]             = new("ET", "#6633CC", "#FFFFFF", "OAuth 1.0a · US stocks · polled quotes, no history", LoginCategory.Credentialed),
+        [BrokerKind.Tradovate]          = new("TV", "#1F3B73", "#FFFFFF", "Futures · CME · live quotes, DOM and charts", LoginCategory.Credentialed),
+        [BrokerKind.SaxoBank]           = new("SX", "#0F1E3C", "#FFFFFF", "OpenAPI · FX, stocks, CFDs · polled prices + depth", LoginCategory.Credentialed),
+        [BrokerKind.IgGroup]            = new("IG", "#0E1A2B", "#FFFFFF", "REST · FX, indices, commodities · polled prices", LoginCategory.Credentialed),
+        [BrokerKind.Questrade]          = new("QT", "#22313F", "#FFFFFF", "REST · Canadian + US stocks · Level 1, candles", LoginCategory.Credentialed),
+        [BrokerKind.RobinhoodCrypto]    = new("RH", "#CCFF00", "#0B0B0B", "Crypto Trading API · best bid/ask, signed requests", LoginCategory.Credentialed),
+        [BrokerKind.Bitget]             = new("BG", "#1DA2B4", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.KuCoin]             = new("KC", "#23AF91", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.GateIo]             = new("GT", "#2354E6", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Gemini]             = new("GM", "#00DCFA", "#0B2E36", "Public WebSocket · US-regulated crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.CryptoCom]          = new("CC", "#103F68", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Upbit]              = new("UB", "#093687", "#FFFFFF", "Public WebSocket · KRW crypto markets, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Bithumb]            = new("BT", "#F37321", "#FFFFFF", "Public WebSocket · KRW crypto markets, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Bitfinex]           = new("BF", "#16B157", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Bitstamp]           = new("BS", "#1A9D49", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Bitvavo]            = new("BV", "#0051FF", "#FFFFFF", "Public WebSocket · EUR crypto markets, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Htx]                = new("HTX", "#2A3B8F", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
+        [BrokerKind.Mexc]               = new("MX", "#1972E2", "#FFFFFF", "Public WebSocket · live crypto, L2 depth", LoginCategory.Keyless),
     };
 
     public IAsyncRelayCommand ConnectCommand { get; }
@@ -229,7 +259,20 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         }
     }
 
-    private bool CanConnect() => !IsConnecting && CurrentState != ConnectionState.Connected && CanSubmit;
+    private bool CanConnect() =>
+        !IsConnecting && CanSubmit
+        && (CurrentState != ConnectionState.Connected || CanTakeOverConnection);
+
+    /// <summary>
+    /// True when Connect stays available although this broker is already connected.
+    ///
+    /// <para>Only for a row that shares its broker with another row — the keyed and keyless ways in to
+    /// one crypto venue drive one client. When the keyless row is already live, connecting through the
+    /// keyed row means "use my key for this venue", and the form takes the live connection over rather
+    /// than refusing because something else opened it. Everywhere else a connected broker has nothing
+    /// left to connect.</para>
+    /// </summary>
+    protected virtual bool CanTakeOverConnection => false;
     private bool CanDisconnect() => !IsConnecting && CurrentState == ConnectionState.Connected;
 
     private async Task ConnectAsync()
@@ -243,17 +286,30 @@ public abstract class BrokerLoginFormBase : ViewModelBase, IBrokerLoginForm, IDi
         IsConnecting = true;
         try
         {
-            ApplyToOptions();
-
             using var cts = new CancellationTokenSource(ConnectTimeout);
 
             // Ask the venue whether the credentials are good before connecting. Most public feeds
             // connect happily with a wrong key — so without this step a bad key produces a successful
             // login and a failure days later, at the first private call, in a different window.
+            //
+            // Before ApplyToOptions, not after: a key the venue refused must never reach the options
+            // slot, where it would sit looking configured beside a connection that is not using it.
             var refusal = await VerifyCredentialsAsync(cts.Token).ConfigureAwait(true);
             if (refusal is not null)
             {
                 ErrorMessage = refusal;
+                return;
+            }
+
+            ApplyToOptions();
+
+            if (CurrentState == ConnectionState.Connected)
+            {
+                // Taking over a connection this broker's other row opened (see CanTakeOverConnection).
+                // The client is the same one, already streaming, so there is nothing to reconnect —
+                // what changes is which credentials are in effect, and those were just applied.
+                Save();
+                OnPropertyChanged(nameof(StatusText));
                 return;
             }
 

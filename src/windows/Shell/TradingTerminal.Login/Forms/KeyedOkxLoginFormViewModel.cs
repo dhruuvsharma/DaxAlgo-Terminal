@@ -37,4 +37,10 @@ public sealed class KeyedOkxLoginFormViewModel : KeyedCryptoLoginFormBase
     protected override string WhatAKeyBuys => "private channels, account balances";
 
     public override bool UsesPrivateKeyPem => false;
+
+    public override string SecretLabel => "Secret key";
+
+    public override string WhereToGetAKey =>
+        "Create an API key with Read permission. The passphrase is the one you set for this key, "
+        + "not your account password.";
 }

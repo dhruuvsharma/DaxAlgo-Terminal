@@ -69,8 +69,21 @@ internal sealed class RealKrakenClient : IBrokerClient
         return Task.FromResult(list);
     }
 
+    /// <summary>
+    /// History from REST OHLC. Kraken has no three-minute interval; this used to answer a 3m request with
+    /// 5m bars under a 3m label. Three-minute bars are now rolled up from one-minute ones.
+    /// </summary>
     public async Task<IReadOnlyList<Bar>> RequestHistoricalBarsAsync(
         Contract contract, BarSize barSize, TimeSpan duration, CancellationToken ct = default)
+    {
+        if (barSize != BarSize.ThreeMinutes) return await FetchOhlcAsync(contract, barSize, ct).ConfigureAwait(false);
+
+        var step = barSize.ToTimeSpan();
+        var minutes = await FetchOhlcAsync(contract, BarSize.OneMinute, ct).ConfigureAwait(false);
+        return BarRollup.Normalise(BarRollup.Rollup(minutes, step), Math.Clamp((int)Math.Ceiling(duration / step), 1, 1000));
+    }
+
+    private async Task<IReadOnlyList<Bar>> FetchOhlcAsync(Contract contract, BarSize barSize, CancellationToken ct)
     {
         var pair = RestPair(contract.Symbol);
         var url = $"{_options.RestBaseUrl}/0/public/OHLC?pair={pair}&interval={MapInterval(barSize)}";
@@ -95,9 +108,24 @@ internal sealed class RealKrakenClient : IBrokerClient
         return bars; // Kraken returns oldest-first
     }
 
+    /// <summary>Live OHLC. Three-minute bars are rolled up from the one-minute stream (see
+    /// <see cref="RequestHistoricalBarsAsync"/>); every other size is native.</summary>
     public IAsyncEnumerable<Bar> SubscribeBarsAsync(Contract contract, BarSize barSize, CancellationToken ct = default) =>
+        barSize == BarSize.ThreeMinutes
+            ? RollUp(Ohlc(contract, BarSize.OneMinute, ct), barSize.ToTimeSpan(), ct)
+            : Ohlc(contract, barSize, ct);
+
+    private IAsyncEnumerable<Bar> Ohlc(Contract contract, BarSize barSize, CancellationToken ct) =>
         Stream($"{{\"method\":\"subscribe\",\"params\":{{\"channel\":\"ohlc\",\"symbol\":[\"{Sym(contract)}\"],\"interval\":{MapInterval(barSize)}}}}}",
             el => ParseOhlc(el, _options.SizeScale), ct);
+
+    private static async IAsyncEnumerable<Bar> RollUp(
+        IAsyncEnumerable<Bar> minutes, TimeSpan step, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        var rollup = new LiveBarRollup(step);
+        await foreach (var minute in minutes.WithCancellation(ct).ConfigureAwait(false))
+            yield return rollup.Push(minute);
+    }
 
     public IAsyncEnumerable<Tick> SubscribeTicksAsync(Contract contract, CancellationToken ct = default) =>
         Stream($"{{\"method\":\"subscribe\",\"params\":{{\"channel\":\"ticker\",\"symbol\":[\"{Sym(contract)}\"]}}}}",
@@ -204,7 +232,6 @@ internal sealed class RealKrakenClient : IBrokerClient
     internal static int MapInterval(BarSize size) => size switch
     {
         BarSize.OneMinute => 1,
-        BarSize.ThreeMinutes => 5,   // Kraken has no 3m; nearest supported
         BarSize.FiveMinutes => 5,
         BarSize.FifteenMinutes => 15,
         BarSize.OneHour => 60,

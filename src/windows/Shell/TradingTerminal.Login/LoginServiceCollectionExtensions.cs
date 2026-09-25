@@ -33,7 +33,12 @@ public static class LoginServiceCollectionExtensions
         // in the infrastructure layer because this is where the credential store lives; the
         // infrastructure layer registers an empty source with TryAdd, and this plain Add supersedes it
         // — so a shell that composes login gets real keys and one that does not still builds.
-        services.AddSingleton<IBrokerCredentialSource, StoredBrokerCredentials>();
+        services.AddSingleton<StoredBrokerCredentials>();
+        services.AddSingleton<IBrokerCredentialSource>(sp => sp.GetRequiredService<StoredBrokerCredentials>());
+
+        // The same object takes back a session a client renewed (brokers that rotate refresh tokens).
+        // Plain Add for the same reason as the source above.
+        services.AddSingleton<IBrokerSessionStore>(sp => sp.GetRequiredService<StoredBrokerCredentials>());
         services.AddTransient<LoginViewModel>();
         services.AddTransient<LoginWindow>();
 
@@ -100,6 +105,15 @@ public static class LoginServiceCollectionExtensions
 
         services.AddSingleton<OkxLoginFormViewModel>();
         services.AddSingleton<IBrokerLoginForm>(sp => sp.GetRequiredService<OkxLoginFormViewModel>());
+
+        // The twelve venues added on 2026-09-25 — both rows each, from one description per venue.
+        services.AddPublicVenueLogins();
+
+        // The brokers with a sign-in step (the Indian brokers first, 2026-09-25). Their rows exchange a
+        // proof for a session through IBrokerSessionIssuer; a shell without infrastructure gets one that
+        // knows no broker, and the infrastructure layer replaces it.
+        services.TryAddSingleton(IBrokerSessionIssuer.None);
+        services.AddSessionBrokerLogins();
 
         services.AddSingleton<IBrokerLoginFormFactory, BrokerLoginFormFactory>();
         return services;

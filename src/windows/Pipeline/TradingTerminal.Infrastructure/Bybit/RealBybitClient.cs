@@ -12,7 +12,7 @@ namespace TradingTerminal.Infrastructure.Bybit;
 
 /// <summary>
 /// Bybit market-data client over the <b>public</b> v5 WebSocket + REST endpoints (no API key, no
-/// account). L1 ← <c>tickers</c>, L2 ← <c>orderbook.{depth}</c> (snapshot + deltas, reconstructed via
+/// account). L1 ← <c>orderbook.1</c>, L2 ← <c>orderbook.{depth}</c> (snapshot + deltas, reconstructed via
 /// <see cref="L2OrderBook"/>), trades ← <c>publicTrade</c>, bars ← <c>kline</c> live and REST
 /// <c>/v5/market/kline</c> for history. Data-only.
 /// </summary>
@@ -95,8 +95,13 @@ internal sealed class RealBybitClient : IBrokerClient
     public IAsyncEnumerable<Bar> SubscribeBarsAsync(Contract contract, BarSize barSize, CancellationToken ct = default) =>
         Stream($"kline.{MapInterval(barSize)}.{Sym(contract)}", el => ParseKline(el, _options.SizeScale), ct);
 
+    /// <summary>
+    /// L1 from <c>orderbook.1</c>, not <c>tickers</c>: Bybit's <b>spot</b> ticker carries last price and
+    /// 24h statistics but no bid or ask (only the derivatives tickers have <c>bid1Price</c>), so every tick
+    /// read from it was bid 0 / ask 0. Verified against the live venue on 2026-09-25.
+    /// </summary>
     public IAsyncEnumerable<Tick> SubscribeTicksAsync(Contract contract, CancellationToken ct = default) =>
-        Stream($"tickers.{Sym(contract)}", el => ParseTicker(el, _options.SizeScale), ct);
+        Stream($"orderbook.1.{Sym(contract)}", el => ParseTopOfBook(el, _options.SizeScale), ct);
 
     public IAsyncEnumerable<DepthSnapshot> SubscribeDepthAsync(Contract contract, int levels = 10, CancellationToken ct = default)
     {
@@ -133,13 +138,26 @@ internal sealed class RealBybitClient : IBrokerClient
                 CryptoConvert.ToSize(CryptoConvert.D(k, "volume"), scale));
     }
 
-    internal static IEnumerable<Tick> ParseTicker(JsonElement el, double scale)
+    /// <summary>An <c>orderbook.1</c> push — always a one-level snapshot — as a tick.</summary>
+    internal static IEnumerable<Tick> ParseTopOfBook(JsonElement el, double scale)
     {
         if (!el.TryGetProperty("data", out var d) || d.ValueKind != JsonValueKind.Object) yield break;
-        yield return new Tick(DateTime.UtcNow,
-            CryptoConvert.D(d, "bid1Price"), CryptoConvert.D(d, "ask1Price"),
-            CryptoConvert.ToSize(CryptoConvert.D(d, "bid1Size"), scale),
-            CryptoConvert.ToSize(CryptoConvert.D(d, "ask1Size"), scale));
+        if (!Top(d, "b", out var bid, out var bidSize) || !Top(d, "a", out var ask, out var askSize)) yield break;
+        var ms = CryptoConvert.MsToTicksUtc(el, "ts");
+        yield return new Tick(
+            ms > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime : DateTime.UtcNow,
+            bid, ask, CryptoConvert.ToSize(bidSize, scale), CryptoConvert.ToSize(askSize, scale));
+    }
+
+    private static bool Top(JsonElement data, string side, out double price, out double size)
+    {
+        price = size = 0;
+        if (!data.TryGetProperty(side, out var rows) || rows.ValueKind != JsonValueKind.Array || rows.GetArrayLength() == 0) return false;
+        var top = rows[0];
+        if (top.ValueKind != JsonValueKind.Array || top.GetArrayLength() < 2) return false;
+        price = CryptoConvert.D(top[0]);
+        size = CryptoConvert.D(top[1]);
+        return price > 0;
     }
 
     internal static IEnumerable<TradeTick> ParseTrades(JsonElement el, double scale)

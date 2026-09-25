@@ -93,7 +93,8 @@ internal sealed class RealOkxClient : IBrokerClient
     }
 
     public IAsyncEnumerable<Bar> SubscribeBarsAsync(Contract contract, BarSize barSize, CancellationToken ct = default) =>
-        Stream($"candle{MapInterval(barSize)}", contract, el => ParseCandles(el, _options.SizeScale), ct);
+        // Candles live on the business socket; the public one refuses them (error 60018).
+        Stream($"candle{MapInterval(barSize)}", contract, el => ParseCandles(el, _options.SizeScale), ct, _options.BusinessWsBaseUrl);
 
     public IAsyncEnumerable<Tick> SubscribeTicksAsync(Contract contract, CancellationToken ct = default) =>
         Stream("tickers", contract, el => ParseTickers(el, _options.SizeScale), ct);
@@ -111,11 +112,12 @@ internal sealed class RealOkxClient : IBrokerClient
         _state.Dispose();
     }
 
-    private IAsyncEnumerable<T> Stream<T>(string channel, Contract contract, Func<JsonElement, IEnumerable<T>> parse, CancellationToken ct)
+    private IAsyncEnumerable<T> Stream<T>(
+        string channel, Contract contract, Func<JsonElement, IEnumerable<T>> parse, CancellationToken ct, string? url = null)
     {
         var instId = contract.Symbol.Trim().ToUpperInvariant();
         var sub = $"{{\"op\":\"subscribe\",\"args\":[{{\"channel\":\"{channel}\",\"instId\":\"{instId}\"}}]}}";
-        return CryptoStream.StreamAsync(_options.WsBaseUrl, sub, parse,
+        return CryptoStream.StreamAsync(url ?? _options.WsBaseUrl, sub, parse,
             _options.ReconnectInitialDelaySeconds, _options.ReconnectMaxDelaySeconds, _logger, "OKX",
             pingJson: "ping", pingIntervalSeconds: 15, ct: ct);
     }

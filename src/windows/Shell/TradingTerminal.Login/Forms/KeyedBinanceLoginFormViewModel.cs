@@ -35,4 +35,7 @@ public sealed class KeyedBinanceLoginFormViewModel : KeyedCryptoLoginFormBase
     public override bool UsesPrivateKeyPem => false;
 
     protected override string WhatAKeyBuys => "account endpoints, higher rate limits";
+
+    public override string WhereToGetAKey =>
+        "Create it under API Management with only “Enable Reading” ticked.";
 }
