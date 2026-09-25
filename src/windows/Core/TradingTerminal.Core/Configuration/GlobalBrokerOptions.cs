@@ -41,8 +41,10 @@ public sealed class TradeStationOptions : SessionBrokerOptions
     /// <summary>OAuth host (Auth0), no trailing slash.</summary>
     public string AuthBaseUrl { get; set; } = "https://signin.tradestation.com";
 
-    /// <summary>What the app asks to be allowed. Market data only — no trading scope is requested.</summary>
-    public string Scopes { get; set; } = "openid offline_access MarketData ReadAccount";
+    /// <summary>What the app asks to be allowed: market data, the account, and trading (<c>Trade</c>) since the
+    /// order route (2026-09-25). A session signed in before then lacks <c>Trade</c>, and TradeStation refuses
+    /// its orders until the user signs in again.</summary>
+    public string Scopes { get; set; } = "openid offline_access MarketData ReadAccount Trade";
 }
 
 /// <summary>tastytrade. Section <c>Tastytrade</c>. Symbols are dxFeed's (<c>AAPL</c>, <c>/ESZ26:XCME</c>).</summary>

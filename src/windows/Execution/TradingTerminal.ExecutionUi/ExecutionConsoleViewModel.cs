@@ -374,8 +374,26 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
                 requestedMode,
                 mapInteractiveBrokersPort: true,
                 out var credentials,
-                out var validationFailure) ||
-            !TryResolveModeAccountBinding(adapter, requestedMode, out var confirmationAccount, out validationFailure))
+                out var validationFailure))
+        {
+            OperationMessage = validationFailure;
+            return;
+        }
+
+        string confirmationAccount;
+        if (adapter.IsRouted && requestedMode == ExecutionMode.Live)
+        {
+            // A routed broker's LIVE account is read back from the broker before the dialog opens, so the
+            // typed confirmation names the account real money will move in - not a paper label.
+            var probe = await _client.ProbeLiveAccountAsync(adapter.Id, _lifetimeCancellation.Token);
+            if (!probe.IsSuccess)
+            {
+                OperationMessage = probe.Message;
+                return;
+            }
+            confirmationAccount = probe.AccountId;
+        }
+        else if (!TryResolveModeAccountBinding(adapter, requestedMode, out confirmationAccount, out validationFailure))
         {
             OperationMessage = validationFailure;
             return;
@@ -676,13 +694,21 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
                 //
                 // An adapter with no form simply shows no inline login. That is the truth: you cannot
                 // sign in through a form that was never built.
-                form = _loginFormFactory.All.FirstOrDefault(item => item.Broker == broker);
+                // A crypto venue has two rows (keyless and keyed); orders need the keyed one.
+                form = _loginFormFactory.All
+                    .Where(item => item.Broker == broker)
+                    .OrderByDescending(item => item is KeyedCryptoLoginFormBase)
+                    .FirstOrDefault();
                 if (form is null)
                 {
                     attached[index] = adapter;
                     continue;
                 }
 
+                // A routed card saves this form before connecting; load it first so a save writes back what
+                // is stored rather than an empty form over it.
+                if (adapter.IsRouted)
+                    form.Load();
                 _loginForms.Add(broker, form);
             }
 
@@ -723,6 +749,14 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     {
         credentials = default;
         failure = string.Empty;
+        if (adapter.IsRouted)
+        {
+            // A routed broker reads its keys and session from the encrypted store, never from this request:
+            // store what the embedded form holds now, and send nothing sensitive across.
+            adapter.LoginForm?.Save();
+            return true;
+        }
+
         switch (adapter.LoginBroker)
         {
             case null:

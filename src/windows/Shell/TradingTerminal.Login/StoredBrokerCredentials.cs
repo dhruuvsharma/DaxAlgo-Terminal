@@ -50,7 +50,29 @@ public sealed class StoredBrokerCredentials : IBrokerCredentialSource, IBrokerSe
     {
         try
         {
-            var record = Current().KeysFor(broker);
+            var current = Current();
+
+            // Ironbeam and Upstox predate the per-broker map and keep their own named fields. Read them, so
+            // their order routes and the execution console see what their logins store (2026-09-25). For
+            // Ironbeam, Extra says which gateway the username belongs to; Upstox's daily access token is its
+            // session, as it is for the other Indian brokers.
+            if (broker == BrokerKind.IronBeam && !current.BrokerKeys.ContainsKey(broker.ToString()))
+            {
+                return new BrokerCredential(current.IronBeamUsername ?? string.Empty, current.IronBeamApiKey ?? string.Empty)
+                {
+                    Extra = current.IronBeamIsLive ? "live" : "demo",
+                };
+            }
+
+            if (broker == BrokerKind.Upstox && !current.BrokerKeys.ContainsKey(broker.ToString()))
+            {
+                return new BrokerCredential(current.UpstoxApiKey ?? string.Empty, current.UpstoxApiSecret ?? string.Empty)
+                {
+                    Session = current.UpstoxAccessToken ?? string.Empty,
+                };
+            }
+
+            var record = current.KeysFor(broker);
 
             // ApiSecret and Passphrase decrypt on read; a record written under a different Windows
             // account decrypts to null rather than throwing, which is why the null-coalescing is here

@@ -10,6 +10,7 @@ using TradingTerminal.Execution.Alpaca;
 using TradingTerminal.Execution.CTrader;
 using TradingTerminal.Execution.InteractiveBrokers;
 using TradingTerminal.Execution.Oms;
+using TradingTerminal.Execution.Routing;
 using TradingTerminal.Execution.Service;
 
 namespace TradingTerminal.ExecutionUi;
@@ -42,6 +43,13 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
     private readonly IExecutionModeStatusPublisher? _modeStatusPublisher;
     private readonly Dictionary<string, string> _adapterConnectionErrors = new(StringComparer.Ordinal);
 
+    // Routed brokers (2026-09-25): every IBrokerOrderRoute the infrastructure layer registered. A route with
+    // a paper environment starts as a PAPER card; one without has no adapter at all until its LIVE switch
+    // passes the gate, and shows as a LIVE-only card until then.
+    private readonly List<IBrokerOrderRoute> _routes = [];
+    private readonly RoutedExecutionOptions _routedOptions;
+    private readonly IBrokerCredentialSource? _brokerCredentials;
+
     /// <summary>The terminal's paper account: what every in-process book opens with.</summary>
     private readonly PaperAccountOptions _paperAccount;
     private string _interactiveBrokersAccountId;
@@ -63,7 +71,10 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         ExecutionModeStatusProjection? executionModeStatus = null,
         IExecutionBookStore? bookStore = null,
         PaperAccountOptions? paperAccount = null,
-        ExecutionModeSelection? tradingMode = null)
+        ExecutionModeSelection? tradingMode = null,
+        IEnumerable<IBrokerOrderRoute>? orderRoutes = null,
+        RoutedExecutionOptions? routedOptions = null,
+        IBrokerCredentialSource? brokerCredentials = null)
     {
         // The application-wide arm/disarm, handed to every coordinator this client builds. Null here
         // is not "ungated" — the coordinator substitutes a fresh selection, which is Paper, so a shell
@@ -83,6 +94,20 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         _registeredAdapters = (registeredAdapters ?? [])
             .DistinctBy(adapter => $"{adapter.BrokerId}|{adapter.Account.AccountId.Value}")
             .ToList();
+        _routedOptions = (routedOptions ?? new RoutedExecutionOptions()).Snapshot();
+        _brokerCredentials = brokerCredentials;
+        foreach (var route in (orderRoutes ?? []).DistinctBy(route => route.RouteId, StringComparer.Ordinal))
+        {
+            _routes.Add(route);
+            if (route.PaperEnvironmentName is null)
+                continue;
+            // PAPER needs no gate and reaches no money; a card is only a connection until a book binds a symbol.
+            var card = new RoutedExecutionAdapter(
+                route, ExecutionMode.Paper, _routedOptions, HasRouteCredentials(route), ExecutionClock,
+                confirmationStore: _liveConfirmationStore);
+            _registeredAdapters.Add(card);
+            _ownedAdapters.Add(card);
+        }
         _modeStatusPublisher = executionModeStatus?.CreatePublisher();
         _bookStore = bookStore ?? NullExecutionBookStore.Instance;
         _books = [];
@@ -295,8 +320,14 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
             return ModeChangeFailure("The requested execution mode is invalid.");
 
         IBrokerExecutionAdapter? current;
+        IBrokerOrderRoute? liveOnlyRoute;
         lock (_gate)
+        {
             current = FindRegisteredAdapter(request.AdapterId);
+            liveOnlyRoute = current is null ? FindLiveOnlyRoute(request.AdapterId) : null;
+        }
+        if (liveOnlyRoute is not null)
+            return await EnableLiveOnlyRouteAsync(liveOnlyRoute, request, cancellationToken).ConfigureAwait(false);
         if (current is null)
             return ModeChangeFailure("The selected broker connection is not registered; execution mode was unchanged.");
         if (string.Equals(current.BrokerId, "paper", StringComparison.Ordinal))
@@ -321,6 +352,26 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         var accountId = ResolveModeAccountId(current, request);
         if (!IsValidModeAccountId(accountId))
             return ModeChangeFailure("An exact bounded broker account ID is required before execution mode can change.");
+
+        if (current is RoutedExecutionAdapter routedCurrent)
+        {
+            // A broker with no paper environment goes back to having no adapter at all.
+            if (request.Mode == ExecutionMode.Paper && routedCurrent.Route.PaperEnvironmentName is null)
+                return await RetireLiveOnlyRouteAsync(routedCurrent).ConfigureAwait(false);
+            if (request.Mode == ExecutionMode.Live)
+            {
+                // The confirmation binds to the account the LIVE credentials actually reach, read back now,
+                // not to whatever the PAPER environment called its account.
+                var probe = await ProbeLiveAccountCoreAsync(routedCurrent.Route, cancellationToken).ConfigureAwait(false);
+                if (!probe.IsSuccess)
+                    return ModeChangeFailure(probe.Message);
+                if (!string.Equals(probe.AccountId, accountId, StringComparison.Ordinal))
+                {
+                    return ModeChangeFailure(
+                        $"The {routedCurrent.DisplayName} LIVE credentials reach account '{probe.AccountId}', not '{accountId}'; LIVE was not enabled.");
+                }
+            }
+        }
 
         var persistedLiveConfirmation = false;
         if (request.Mode == ExecutionMode.Live)
@@ -559,6 +610,32 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
                 ExecutionModeChangeGate.Release();
             }
         }
+        else if (FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter routed)
+        {
+            var label = AdapterDisplayName(routed);
+            try
+            {
+                await routed.ConnectAsync(operationToken).ConfigureAwait(false);
+                operationToken.ThrowIfCancellationRequested();
+                result = ExecutionCommandResult.Success(
+                    $"Connected {label} account {routed.NativeAccountId}. Create a book to trade a symbol on it.");
+            }
+            catch (OperationCanceledException) when (operationToken.IsCancellationRequested)
+            {
+                await routed.DisconnectAsync(CancellationToken.None).ConfigureAwait(false);
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // The broker's own words: "invalid API key" and "IP not whitelisted" need different fixes.
+                result = ExecutionCommandResult.Failure($"{label} did not connect: {SafeReason(exception)} No order was sent.");
+            }
+        }
+        else if (FindLiveOnlyRoute(adapterId) is { } liveOnly)
+        {
+            result = ExecutionCommandResult.Failure(
+                $"{liveOnly.DisplayName} has no paper environment. Switch it to LIVE first; the live gate applies.");
+        }
         else
         {
             result = ExecutionCommandResult.Failure(
@@ -571,7 +648,7 @@ FinishConnect:
             if (result.IsSuccess)
                 _adapterConnectionErrors.Remove(adapterId);
             else if (FindRegisteredAdapter(adapterId) is
-                     CTraderExecutionAdapter or AlpacaExecutionAdapter or InteractiveBrokersExecutionAdapter)
+                     CTraderExecutionAdapter or AlpacaExecutionAdapter or InteractiveBrokersExecutionAdapter or RoutedExecutionAdapter)
                 _adapterConnectionErrors[adapterId] = result.Message;
             _lastOperationMessage = result.Message;
         }
@@ -615,6 +692,13 @@ FinishConnect:
             operationToken.ThrowIfCancellationRequested();
             result = ExecutionCommandResult.Success(
                 $"Disconnected the Interactive Brokers {interactiveBrokers.Mode.ToString().ToUpperInvariant()} execution adapter.");
+        }
+        else if (FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter routed)
+        {
+            // Books keep their own bound adapters and leases; disconnecting the card stops new books only.
+            await routed.DisconnectAsync(operationToken).ConfigureAwait(false);
+            operationToken.ThrowIfCancellationRequested();
+            result = ExecutionCommandResult.Success($"Disconnected {AdapterDisplayName(routed)}.");
         }
         else
         {
@@ -747,6 +831,7 @@ FinishConnect:
         ExecutionCommandResult? validationFailure = null;
         BookConfiguration? configuration = null;
         IBookRuntime? runtime = null;
+        RoutedExecutionAdapter? routedCard = null;
         lock (_gate)
         {
             var name = request.Name?.Trim() ?? string.Empty;
@@ -783,6 +868,20 @@ FinishConnect:
                 validationFailure = ExecutionCommandResult.Failure(
                     "Select an available registered execution adapter. Unavailable broker cards cannot create books.");
             }
+            else if (FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter && request.Instrument.IsNone)
+            {
+                validationFailure = ExecutionCommandResult.Failure(
+                    "A book on a broker trades one instrument; choose it before creating the book.");
+            }
+            else if (FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter &&
+                     _books.Any(book =>
+                         string.Equals(book.Configuration.AdapterId, adapterId, StringComparison.Ordinal) &&
+                         book.Configuration.Instruments.Count > 0 &&
+                         string.Equals(book.Configuration.Instruments[0].Symbol, symbol, StringComparison.OrdinalIgnoreCase)))
+            {
+                validationFailure = ExecutionCommandResult.Failure(
+                    $"A book already trades {symbol} on {AdapterDisplayName(adapterId)}; one book per symbol per account.");
+            }
             else if (_books.Count >= MaximumBooks)
             {
                 validationFailure = ExecutionCommandResult.Failure(
@@ -801,11 +900,39 @@ FinishConnect:
                     strategies,
                     request.Instrument,
                     symbol);
+                routedCard = isPaper ? null : FindRegisteredAdapter(adapterId) as RoutedExecutionAdapter;
                 runtime = isPaper
                     ? InProcessBookRuntime.CreateEmpty(id, _paperAccount, _executionLeaseStore, _tradingMode)
                     : FindRegisteredAdapter(adapterId) is AlpacaExecutionAdapter alpaca
-                        ? new AlpacaBookRuntime(id, alpaca, _executionLeaseStore, _tradingMode)
+                        ? new BrokerBookRuntime(id, alpaca, _executionLeaseStore, _tradingMode)
                         : null;
+            }
+        }
+
+        // A routed book binds its own adapter to the symbol and connects it — reading the instrument's rules
+        // and the position already held — before a runtime can exist. Outside the lock: it talks to the broker.
+        ExecutionCommandResult? routedFailure = null;
+        if (validationFailure is null && configuration is not null && routedCard is not null)
+        {
+            RoutedExecutionAdapter? bound = null;
+            try
+            {
+                bound = routedCard.CreateBookAdapter(request.Instrument, BrokerSymbol(configuration.Instruments[0].Symbol));
+                await bound.ConnectAsync(cancellationToken).ConfigureAwait(false);
+                runtime = new BrokerBookRuntime(configuration.Id, bound, _executionLeaseStore, _tradingMode, ownedAdapter: bound);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (bound is not null)
+                    await bound.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+            catch (Exception exception)
+            {
+                if (bound is not null)
+                    await bound.DisposeAsync().ConfigureAwait(false);
+                routedFailure = ExecutionCommandResult.Failure(
+                    $"{AdapterDisplayName(routedCard)} could not attach {configuration.Instruments[0].Symbol}: {SafeReason(exception)}");
             }
         }
 
@@ -813,6 +940,10 @@ FinishConnect:
         if (validationFailure is { } failure)
         {
             result = failure;
+        }
+        else if (routedFailure is { } routedError)
+        {
+            result = routedError;
         }
         else if (configuration is null || runtime is null)
         {
@@ -823,7 +954,7 @@ FinishConnect:
         {
             try
             {
-                if (runtime is AlpacaBookRuntime alpacaRuntime)
+                if (runtime is BrokerBookRuntime alpacaRuntime)
                 {
                     var initialized = await alpacaRuntime.InitializeAsync(cancellationToken).ConfigureAwait(false);
                     if (!initialized.IsSuccess)
@@ -835,7 +966,7 @@ FinishConnect:
                     else
                     {
                         result = ExecutionCommandResult.Success(
-                            $"Created book '{configuration.Name}' on the connected Alpaca {alpacaRuntime.Adapter.Mode.ToString().ToUpperInvariant()} account.");
+                            $"Created book '{configuration.Name}' on the connected {AdapterDisplayName(alpacaRuntime.Adapter)} account.");
                     }
                 }
                 else
@@ -1001,7 +1132,33 @@ FinishConnect:
         string.Equals(adapterId, "paper", StringComparison.Ordinal) ||
         FindRegisteredAdapter(adapterId) is AlpacaExecutionAdapter alpaca &&
         alpaca.Session.CanExecute &&
-        !_books.Any(book => string.Equals(book.Configuration.AdapterId, adapterId, StringComparison.Ordinal));
+        !_books.Any(book => string.Equals(book.Configuration.AdapterId, adapterId, StringComparison.Ordinal)) ||
+        // A routed broker carries one book per symbol: each book binds its own adapter and lease.
+        FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter { Session.CanExecute: true };
+
+    private IClock ExecutionClock => _executionClock ?? UtcSystemClock.Instance;
+
+    /// <summary>Whether the login window has stored what this broker signs in with — keys or a session.</summary>
+    private bool HasRouteCredentials(IBrokerOrderRoute route)
+    {
+        if (_brokerCredentials is null)
+            return false;
+        var credential = _brokerCredentials.For(route.Broker);
+        return credential.IsConfigured || credential.HasSession;
+    }
+
+    /// <summary>A LIVE-only route (no paper environment) whose card has no adapter yet.</summary>
+    private IBrokerOrderRoute? FindLiveOnlyRoute(string adapterId) =>
+        _routes.FirstOrDefault(route =>
+            route.PaperEnvironmentName is null &&
+            string.Equals(LiveOnlyCardId(route), adapterId, StringComparison.Ordinal) &&
+            !_registeredAdapters.OfType<RoutedExecutionAdapter>().Any(adapter => ReferenceEquals(adapter.Route, route)));
+
+    private static string LiveOnlyCardId(IBrokerOrderRoute route) => $"{route.RouteId}-live";
+
+    /// <summary>The route behind a card, whether it has an adapter yet or not.</summary>
+    private IBrokerOrderRoute? FindRoute(string adapterId) =>
+        FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter routed ? routed.Route : FindLiveOnlyRoute(adapterId);
 
     private string AdapterDisplayName(string adapterId) =>
         FindRegisteredAdapter(adapterId) switch
@@ -1016,6 +1173,7 @@ FinishConnect:
         AlpacaExecutionAdapter => $"Alpaca {adapter.Mode.ToString().ToUpperInvariant()}",
         InteractiveBrokersExecutionAdapter =>
             $"Interactive Brokers {adapter.Mode.ToString().ToUpperInvariant()}",
+        RoutedExecutionAdapter routed => $"{routed.DisplayName} {routed.EnvironmentLabel}",
         _ => adapter.Account.AdapterId.Value,
     };
 
@@ -1049,9 +1207,154 @@ FinishConnect:
             request.Port,
             request.ClientId,
             accountId),
+        RoutedExecutionAdapter routed => CreateRoutedAdapter(routed.Route, request.Mode, accountId),
         _ => throw new InvalidOperationException(
-            "Only the cTrader, Alpaca, and Interactive Brokers connections support mode reconstruction."),
+            "Only the cTrader, Alpaca, Interactive Brokers and routed broker connections support mode reconstruction."),
     };
+
+    /// <summary>A routed card for <paramref name="mode"/>. LIVE runs the full gate in the adapter constructor:
+    /// the owner option, stored credentials, and the persisted confirmation for exactly this account.</summary>
+    private OwnedAdapter CreateRoutedAdapter(IBrokerOrderRoute route, ExecutionMode mode, string accountId) =>
+        new(new RoutedExecutionAdapter(
+            route, mode, _routedOptions, HasRouteCredentials(route), ExecutionClock,
+            confirmationStore: _liveConfirmationStore,
+            expectedAccountId: mode == ExecutionMode.Live ? accountId : string.Empty));
+
+    /// <summary>Enables a broker that has only a live environment: read back the account, persist the typed
+    /// confirmation for it, and construct the adapter through the gate — in that order, undoing the
+    /// confirmation if the gate refuses.</summary>
+    private async ValueTask<ExecutionCommandResult> EnableLiveOnlyRouteAsync(
+        IBrokerOrderRoute route,
+        ExecutionModeChangeRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Mode != ExecutionMode.Live)
+            return ModeChangeFailure($"{route.DisplayName} has no paper environment; it stays disabled until LIVE is enabled.");
+        if (!string.Equals(request.TypedConfirmation, LiveExecutionConfirmation.RequiredAcknowledgement, StringComparison.Ordinal))
+            return ModeChangeFailure("LIVE execution requires the exact typed acknowledgement LIVE.");
+        if (_liveConfirmationStore is null)
+            return ModeChangeFailure("No persistent live-confirmation store is available; nothing was enabled.");
+        var accountId = request.AccountId.Trim();
+        if (!IsValidModeAccountId(accountId))
+            return ModeChangeFailure("An exact bounded broker account ID is required before LIVE can be enabled.");
+
+        var probe = await ProbeLiveAccountCoreAsync(route, cancellationToken).ConfigureAwait(false);
+        if (!probe.IsSuccess)
+            return ModeChangeFailure(probe.Message);
+        if (!string.Equals(probe.AccountId, accountId, StringComparison.Ordinal))
+        {
+            return ModeChangeFailure(
+                $"The {route.DisplayName} LIVE credentials reach account '{probe.AccountId}', not '{accountId}'; LIVE was not enabled.");
+        }
+
+        try
+        {
+            _liveConfirmationStore.Save(new LiveExecutionConfirmation(
+                route.RouteId, accountId, request.TypedConfirmation, DateTime.UtcNow, CurrentConfirmingIdentity()));
+        }
+        catch (Exception exception)
+        {
+            return ModeChangeFailure($"LIVE confirmation could not be persisted; nothing was enabled: {SafeReason(exception)}");
+        }
+
+        OwnedAdapter created;
+        try
+        {
+            created = CreateRoutedAdapter(route, ExecutionMode.Live, accountId);
+        }
+        catch (Exception exception)
+        {
+            TryRemoveLiveConfirmation(route.RouteId, accountId);
+            return ModeChangeFailure($"LIVE was refused by the authorization gate: {SafeReason(exception)}");
+        }
+
+        lock (_gate)
+        {
+            created.Adapter.EventReceived += OnRegisteredAdapterEvent;
+            _registeredAdapters.Add(created.Adapter);
+            _ownedAdapters.Add(created.Adapter);
+        }
+        return ModeChangeSuccess(
+            $"{AdapterDisplayName(created.Adapter)} is enabled for account {accountId}: the persisted confirmation and every authorization gate passed. Connect it to trade.");
+    }
+
+    /// <summary>Takes a LIVE-only broker back to disabled: no adapter, no confirmation.</summary>
+    private async ValueTask<ExecutionCommandResult> RetireLiveOnlyRouteAsync(RoutedExecutionAdapter routed)
+    {
+        lock (_gate)
+        {
+            if (_books.Any(book => string.Equals(book.Configuration.AdapterId, routed.AdapterId, StringComparison.Ordinal)))
+                return ModeChangeFailure("A book still trades on this broker; remove it before disabling LIVE.");
+            routed.EventReceived -= OnRegisteredAdapterEvent;
+            _registeredAdapters.Remove(routed);
+            _adapterConnectionErrors.Remove(routed.AdapterId);
+        }
+        TryRemoveLiveConfirmation(routed.BrokerId, routed.ExpectedAccountId);
+        await DisposeIfOwnedAsync(routed).ConfigureAwait(false);
+        return ModeChangeSuccess($"{routed.DisplayName} LIVE is disabled and its confirmation was revoked.");
+    }
+
+    /// <summary>
+    /// Reads the account a routed broker's LIVE credentials reach, without enabling anything — a read-only
+    /// sign-in and balance call. The console shows the result in the typed confirmation, so what the owner
+    /// confirms is the real account, not a label.
+    /// </summary>
+    public async ValueTask<ExecutionLiveAccountProbe> ProbeLiveAccountAsync(string adapterId, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        IBrokerOrderRoute? route;
+        lock (_gate)
+            route = FindRoute(adapterId?.Trim() ?? string.Empty);
+        return route is null
+            ? new ExecutionLiveAccountProbe(false, string.Empty, "This card is not a routed broker.")
+            : await ProbeLiveAccountCoreAsync(route, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<ExecutionLiveAccountProbe> ProbeLiveAccountCoreAsync(IBrokerOrderRoute route, CancellationToken cancellationToken)
+    {
+        if (!HasRouteCredentials(route))
+        {
+            return new ExecutionLiveAccountProbe(false, string.Empty,
+                $"Store the {route.DisplayName} LIVE credentials first (the form on this card, or the login window); LIVE was not enabled.");
+        }
+        try
+        {
+            var account = await route.ConnectAsync(RouteEnvironment.Live, cancellationToken).ConfigureAwait(false);
+            return IsValidModeAccountId(account.AccountId)
+                ? new ExecutionLiveAccountProbe(true, account.AccountId, string.Empty)
+                : new ExecutionLiveAccountProbe(false, string.Empty, $"{route.DisplayName} returned no usable LIVE account identifier.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            return new ExecutionLiveAccountProbe(false, string.Empty,
+                $"{route.DisplayName} LIVE refused or did not answer: {SafeReason(exception)} LIVE was not enabled.");
+        }
+    }
+
+    /// <summary>The broker symbol a book trades: the instrument entry without any display label.</summary>
+    /// <summary>
+    /// The broker's symbol from an instrument entry, without its <c>|label</c>. An Upstox instrument key is
+    /// itself <c>SEGMENT|ID</c> (<c>NSE_EQ|INE002A01018</c>), so a bar after a segment name is kept and only a
+    /// second one starts the label.
+    /// </summary>
+    internal static string BrokerSymbol(string entry)
+    {
+        var bar = entry.IndexOf('|');
+        if (bar > 0 && System.Text.RegularExpressions.Regex.IsMatch(entry[..bar], "^[A-Z]{2,}_[A-Z]{2,}$"))
+            bar = entry.IndexOf('|', bar + 1);
+        return (bar < 0 ? entry : entry[..bar]).Trim();
+    }
+
+    private sealed class UtcSystemClock : IClock
+    {
+        internal static UtcSystemClock Instance { get; } = new();
+
+        public DateTime UtcNow => DateTime.UtcNow;
+    }
 
     private OwnedAdapter CreateCTraderAdapter(
         ExecutionMode mode,
@@ -1488,7 +1791,17 @@ FinishConnect:
         foreach (var adapter in _registeredAdapters
                      .OrderBy(adapter => adapter.Account.AdapterId.Value, StringComparer.Ordinal))
         {
-            cards.Add(BuildRegisteredAdapterReadModel(adapter));
+            cards.Add(adapter is RoutedExecutionAdapter routed
+                ? BuildRoutedReadModel(routed)
+                : BuildRegisteredAdapterReadModel(adapter));
+        }
+
+        foreach (var route in _routes
+                     .Where(route => route.PaperEnvironmentName is null &&
+                                     !_registeredAdapters.OfType<RoutedExecutionAdapter>().Any(adapter => ReferenceEquals(adapter.Route, route)))
+                     .OrderBy(route => route.RouteId, StringComparer.Ordinal))
+        {
+            cards.Add(BuildLiveOnlyRouteReadModel(route));
         }
 
         if (_registeredAdapters.All(adapter => adapter is not CTraderExecutionAdapter))
@@ -1515,6 +1828,89 @@ FinishConnect:
 
         return Array.AsReadOnly(cards.ToArray());
     }
+
+    private ExecutionAdapterReadModel BuildRoutedReadModel(RoutedExecutionAdapter routed)
+    {
+        var session = routed.Session;
+        var adapterId = routed.AdapterId;
+        var hasError = _adapterConnectionErrors.TryGetValue(adapterId, out var error);
+        var status = hasError
+            ? ExecutionConnectionStatus.Error
+            : session.CanExecute
+                ? ExecutionConnectionStatus.Connected
+                : session.Health == ExecutionSessionHealth.Disconnected
+                    ? ExecutionConnectionStatus.NotConfigured
+                    : ExecutionConnectionStatus.Error;
+        var environment = routed.EnvironmentLabel;
+        var books = _books.Count(book => string.Equals(book.Configuration.AdapterId, adapterId, StringComparison.Ordinal));
+        var detail = hasError
+            ? error!
+            : session.CanExecute
+                ? $"{books} book{(books == 1 ? string.Empty : "s")} attached. Each book trades one symbol on its own lease; every order passes risk, lease and reconciliation gates."
+                : routed.Mode == ExecutionMode.Live
+                    ? $"LIVE is confirmed for account {routed.ExpectedAccountId}. Connect to trade; orders are real."
+                    : $"Orders go to {routed.DisplayName}'s {environment} environment - no money moves. Sign in with the {routed.DisplayName} form below; credentials are stored encrypted.";
+        return new ExecutionAdapterReadModel(
+            adapterId,
+            AdapterDisplayName(routed),
+            routed.NativeAccountId ?? $"{environment} account not connected",
+            status,
+            status switch
+            {
+                ExecutionConnectionStatus.Connected => "Connected",
+                ExecutionConnectionStatus.Error => "Connection error",
+                _ => "Not connected",
+            },
+            detail,
+            status switch
+            {
+                ExecutionConnectionStatus.Connected => ExecutionTone.Positive,
+                ExecutionConnectionStatus.Error => ExecutionTone.Warning,
+                _ => ExecutionTone.Neutral,
+            },
+            IsRegistered: true,
+            CanConnect: session.Health == ExecutionSessionHealth.Disconnected,
+            CanDisconnect: session.IsDataConnected,
+            CanCreateBook: session.CanExecute,
+            IsDemoOnly: routed.Mode == ExecutionMode.Paper,
+            "Shared Login form",
+            $"The {routed.DisplayName} row of the login window, embedded here. LIVE additionally needs Execution:Routes:AllowLiveExecution and the typed confirmation for the exact account.",
+            Array.AsReadOnly(
+            [
+                $"Environment: {environment}",
+                routed.Mode == ExecutionMode.Paper ? "No money moves" : "LIVE - real money",
+                "One book per symbol",
+                "LIVE gated",
+            ]),
+            EnvironmentLabel: environment,
+            Mode: routed.Mode,
+            BrokerAccountId: routed.NativeAccountId ?? string.Empty,
+            LoginBroker: routed.Route.Broker,
+            IsRouted: true);
+    }
+
+    private static ExecutionAdapterReadModel BuildLiveOnlyRouteReadModel(IBrokerOrderRoute route) => new(
+        LiveOnlyCardId(route),
+        $"{route.DisplayName} LIVE",
+        "LIVE only - no paper environment",
+        ExecutionConnectionStatus.NotConfigured,
+        "Not enabled",
+        $"{route.DisplayName} has no paper or demo environment, so every order is real. Switch to LIVE to enable it: " +
+        "the terminal reads the account your credentials reach, you confirm it by typing LIVE, and live execution must be allowed in settings (Execution:Routes:AllowLiveExecution).",
+        ExecutionTone.Neutral,
+        IsRegistered: true,
+        CanConnect: false,
+        CanDisconnect: false,
+        CanCreateBook: false,
+        IsDemoOnly: false,
+        "Shared Login form",
+        $"The {route.DisplayName} row of the login window, embedded here.",
+        Array.AsReadOnly(["LIVE only", "Real money", "LIVE gated"]),
+        EnvironmentLabel: "LIVE ONLY",
+        Mode: ExecutionMode.Paper,
+        BrokerAccountId: string.Empty,
+        LoginBroker: route.Broker,
+        IsRouted: true);
 
     private ExecutionAdapterReadModel BuildRegisteredAdapterReadModel(IBrokerExecutionAdapter adapter)
     {
@@ -1600,6 +1996,7 @@ FinishConnect:
         {
             AlpacaExecutionAdapter alpaca => alpaca.AdapterId,
             InteractiveBrokersExecutionAdapter interactiveBrokers => interactiveBrokers.AdapterId,
+            RoutedExecutionAdapter routed => routed.AdapterId,
             _ => $"{adapter.Account.AdapterId.Value}|{adapter.Account.AccountId.Value}",
         };
 
@@ -2861,7 +3258,7 @@ FinishConnect:
     /// UI-owned control plane for one explicitly connected, authorization-gated Alpaca account. The registered
     /// adapter remains transport owner; this runtime owns only the bounded OMS/ledger/lease graph.
     /// </summary>
-    private sealed class AlpacaBookRuntime : IBookRuntime
+    private sealed class BrokerBookRuntime : IBookRuntime
     {
         private const int LedgerViewCapacity = 96;
         private const int OperationalTableCapacity = 500;
@@ -2871,7 +3268,7 @@ FinishConnect:
         private static readonly TimeSpan KillCancellationPollInterval = TimeSpan.FromMilliseconds(100);
 
         private readonly string _bookId;
-        private readonly AlpacaExecutionAdapter _adapter;
+        private readonly IBookableExecutionAdapter _adapter;
         private readonly MutableExecutionClock _clock;
         private readonly InMemoryOrderEventStore _ledger;
         private readonly InMemoryReconciliationCaseStore _caseStore;
@@ -2887,21 +3284,31 @@ FinishConnect:
         private int _submittedOrderCount;
         private bool _disposed;
 
-        private string EnvironmentLabel => _adapter.Mode.ToString().ToUpperInvariant();
+        private string EnvironmentLabel => _adapter is RoutedExecutionAdapter routed
+            ? routed.EnvironmentLabel
+            : _adapter.Mode.ToString().ToUpperInvariant();
 
-        private string RouteLabel => $"Alpaca {EnvironmentLabel}";
+        /// <summary>Stable lowercase route name for strategy and request ids: <c>alpaca-paper</c>, <c>binance-testnet</c>.</summary>
+        private string Slug => $"{_adapter.DisplayName.ToLowerInvariant().Replace(' ', '-')}-{EnvironmentLabel.ToLowerInvariant()}";
+
+        private string RouteLabel => $"{_adapter.DisplayName} {EnvironmentLabel}";
 
         private string OrderLabel => _adapter.Mode == ExecutionMode.Live ? "LIVE order" : "Paper order";
 
         private readonly ExecutionModeSelection? _tradingMode;
 
-        internal AlpacaBookRuntime(
+        private readonly IAsyncDisposable? _ownedAdapter;
+
+        internal BrokerBookRuntime(
             string bookId,
-            AlpacaExecutionAdapter adapter,
+            IBookableExecutionAdapter adapter,
             IExecutionLeaseStore executionLeaseStore,
-            ExecutionModeSelection? tradingMode = null)
+            ExecutionModeSelection? tradingMode = null,
+            IAsyncDisposable? ownedAdapter = null)
         {
-            // The only route to a real broker in the shipped client. Null is not "ungated" — the
+            // A routed book's adapter was bound for this book alone and goes with it.
+            _ownedAdapter = ownedAdapter;
+            // The route to a real broker: Alpaca and every routed broker. Null is not "ungated" — the
             // coordinator substitutes a fresh selection, which is Paper, so live dispatch is refused.
             _tradingMode = tradingMode;
             _bookId = bookId;
@@ -2916,7 +3323,7 @@ FinishConnect:
             _clock = new MutableExecutionClock(initialTime);
             _ledger = new InMemoryOrderEventStore();
             _caseStore = new InMemoryReconciliationCaseStore();
-            _risk = CreateRiskEngine($"{bookId}-alpaca-{EnvironmentLabel.ToLowerInvariant()}");
+            _risk = CreateRiskEngine($"{bookId}-{Slug}");
             var omsVenue = new DeterministicSimulatedVenue(
                 _clock,
                 _adapter.Capabilities.CanonicalCapabilities,
@@ -2927,7 +3334,7 @@ FinishConnect:
                 _adapter.Account,
                 executionLeaseStore,
                 _clock,
-                new ExecutionLeaseId($"console-{bookId}-alpaca-{Guid.NewGuid():N}"));
+                new ExecutionLeaseId($"console-{bookId}-{_adapter.BrokerId}-{Guid.NewGuid():N}"));
             if (!acquired.IsSuccess || acquired.Lease is null)
             {
                 throw new InvalidOperationException(
@@ -2954,7 +3361,10 @@ FinishConnect:
                     openingCash.Currency,
                     openingCash.Total,
                     openingCash.Available,
-                    CompareAvailable: false));
+                    CompareAvailable: false,
+                    // A routed broker's cash moves with fees in other assets, funding and other symbols;
+                    // it is recorded, not compared. Orders and positions stay exact.
+                    CompareTotal: _adapter is not RoutedExecutionAdapter));
 
             ExecutionCoordinator? coordinator = null;
             _adapter.EventReceived += OnAdapterClockEvent;
@@ -3009,7 +3419,7 @@ FinishConnect:
                 ? ToDecimal(price)
                 : 0m;
             var exposure = _adapter.LatestReferencePrice is { IsValid: true, Coefficient: > 0 } exposurePrice &&
-                           TryCalculateExposure(position, exposurePrice, out var exactExposure)
+                           TryCalculateExposure(position, exposurePrice, _adapter.ContractMultiplier, out var exactExposure)
                 ? (quantity < 0m ? -1m : 1m) * ToDecimal(exactExposure)
                 : 0m;
             var positions = Array.AsReadOnly(
@@ -3214,7 +3624,7 @@ FinishConnect:
                 null,
                 null,
                 ScaledMoney.Zero,
-                $"execution-console.{_bookId}.alpaca-{EnvironmentLabel.ToLowerInvariant()}-kill",
+                $"execution-console.{_bookId}.{Slug}-kill",
                 sequence,
                 _risk.CurrentPolicy.PolicyVersion);
             var instruction = new CanonicalOrderInstruction(
@@ -3241,7 +3651,7 @@ FinishConnect:
                 intent,
                 position,
                 referencePrice,
-                new ScaledRatio(1, 0),
+                _adapter.ContractMultiplier,
                 grossExposure,
                 ScaledMoney.Zero,
                 ScaledMoney.Zero,
@@ -3302,7 +3712,7 @@ FinishConnect:
                 !string.Equals(request.Symbol, _adapter.Symbol, StringComparison.Ordinal))
             {
                 return ExecutionCommandResult.Failure(
-                    $"{OrderLabel} refused because the instrument is not certified by this Alpaca adapter.");
+                    $"{OrderLabel} refused because the instrument is not certified by this {_adapter.DisplayName} adapter.");
             }
             if (!request.Quantity.TryGetWholeUnits(out var requestedUnits) || requestedUnits <= 0)
                 return ExecutionCommandResult.Failure($"{OrderLabel} quantity must be a positive whole number.");
@@ -3354,9 +3764,9 @@ FinishConnect:
             var position = snapshot.Positions.FirstOrDefault(item => item.Instrument == _adapter.Instrument)?.Quantity ??
                            ScaledQuantity.Zero;
             if (!position.TryGetWholeUnits(out var currentUnits))
-                return ExecutionCommandResult.Failure("The current Alpaca position is not an exact whole quantity.");
+                return ExecutionCommandResult.Failure($"The current {_adapter.DisplayName} position is not an exact whole quantity.");
             if (!TryCalculateGrossExposure(currentUnits, referencePrice, out var grossExposure))
-                return ExecutionCommandResult.Failure("The exact Alpaca gross exposure cannot be represented safely.");
+                return ExecutionCommandResult.Failure($"The exact {_adapter.DisplayName} gross exposure cannot be represented safely.");
             if (!TrySelectTestTimeInForce(out var timeInForce))
             {
                 return ExecutionCommandResult.Failure(
@@ -3378,7 +3788,7 @@ FinishConnect:
                 null,
                 null,
                 ScaledMoney.Zero,
-                $"execution-console.{_bookId}.alpaca-{EnvironmentLabel.ToLowerInvariant()}-ticket",
+                $"execution-console.{_bookId}.{Slug}-ticket",
                 sequence,
                 _risk.CurrentPolicy.PolicyVersion);
             var instruction = new CanonicalOrderInstruction(
@@ -3405,7 +3815,7 @@ FinishConnect:
                 intent,
                 position,
                 referencePrice,
-                new ScaledRatio(1, 0),
+                _adapter.ContractMultiplier,
                 grossExposure,
                 ScaledMoney.Zero,
                 ScaledMoney.Zero,
@@ -3436,7 +3846,7 @@ FinishConnect:
             if (intent.QuantityMode != TradeIntentQuantityMode.TargetPosition)
                 return ExecutionCommandResult.Failure("Sandbox replication accepts only TargetPosition intents.");
             if (intent.Instrument != _adapter.Instrument)
-                return ExecutionCommandResult.Failure("Sandbox target instrument is not certified by this Alpaca adapter.");
+                return ExecutionCommandResult.Failure($"Sandbox target instrument is not certified by this {_adapter.DisplayName} adapter.");
             if (!intent.SignedUnits.TryGetWholeUnits(out var targetUnits))
                 return ExecutionCommandResult.Failure("Sandbox target must contain an exact whole-unit position.");
             if (Volatile.Read(ref _submittedOrderCount) >= MaximumManualOrders)
@@ -3471,9 +3881,9 @@ FinishConnect:
             var position = snapshot.Positions.FirstOrDefault(item => item.Instrument == _adapter.Instrument)?.Quantity ??
                            ScaledQuantity.Zero;
             if (!position.TryGetWholeUnits(out var currentUnits))
-                return ExecutionCommandResult.Failure("The current Alpaca position is not an exact whole quantity.");
+                return ExecutionCommandResult.Failure($"The current {_adapter.DisplayName} position is not an exact whole quantity.");
             if (currentUnits == targetUnits)
-                return ExecutionCommandResult.Success("The Alpaca book already matches the sandbox target.");
+                return ExecutionCommandResult.Success($"The {_adapter.DisplayName} book already matches the sandbox target.");
 
             long delta;
             try
@@ -3487,7 +3897,7 @@ FinishConnect:
             if (delta == long.MinValue)
                 return ExecutionCommandResult.Failure("Sandbox target delta cannot be represented safely.");
             if (!TryCalculateGrossExposure(currentUnits, referencePrice, out var grossExposure))
-                return ExecutionCommandResult.Failure("The exact Alpaca gross exposure cannot be represented safely.");
+                return ExecutionCommandResult.Failure($"The exact {_adapter.DisplayName} gross exposure cannot be represented safely.");
             if (!TrySelectTestTimeInForce(out var timeInForce))
                 return ExecutionCommandResult.Failure("Sandbox target refused because no supported time in force is available.");
             if (!TryReserveOrderSlot())
@@ -3522,7 +3932,7 @@ FinishConnect:
                 intent,
                 position,
                 referencePrice,
-                new ScaledRatio(1, 0),
+                _adapter.ContractMultiplier,
                 grossExposure,
                 ScaledMoney.Zero,
                 ScaledMoney.Zero,
@@ -3687,18 +4097,22 @@ FinishConnect:
                 LedgerTone(item.Kind));
         }
 
-        private static bool TryCalculateGrossExposure(
+        private bool TryCalculateGrossExposure(
             long currentUnits,
             ScaledPrice referencePrice,
             out ScaledMoney result) =>
-            TryCalculateExposure(ScaledQuantity.FromWhole(currentUnits), referencePrice, out result);
+            TryCalculateExposure(ScaledQuantity.FromWhole(currentUnits), referencePrice, _adapter.ContractMultiplier, out result);
 
+        /// <summary>|quantity| × price × multiplier, exactly — the multiplier is what one unit is worth per
+        /// point: 1 for a share, 0.00001 when a unit is 0.00001 BTC, 50 for an E-mini.</summary>
         private static bool TryCalculateExposure(
             ScaledQuantity quantity,
             ScaledPrice referencePrice,
+            ScaledRatio multiplier,
             out ScaledMoney result)
         {
-            if (!quantity.IsValid || !referencePrice.IsValid || referencePrice.Coefficient <= 0)
+            if (!quantity.IsValid || !referencePrice.IsValid || referencePrice.Coefficient <= 0 ||
+                !multiplier.IsValid || multiplier.Coefficient <= 0)
             {
                 result = default;
                 return false;
@@ -3706,8 +4120,8 @@ FinishConnect:
             var absoluteUnits = quantity.Coefficient == long.MinValue
                 ? (Int128)long.MaxValue + 1
                 : Math.Abs(quantity.Coefficient);
-            var coefficient = absoluteUnits * referencePrice.Coefficient;
-            var scale = quantity.Scale + referencePrice.Scale;
+            var coefficient = absoluteUnits * referencePrice.Coefficient * multiplier.Coefficient;
+            var scale = quantity.Scale + referencePrice.Scale + multiplier.Scale;
             while (scale > 0 && coefficient % 10 == 0)
             {
                 coefficient /= 10;
@@ -3765,7 +4179,7 @@ FinishConnect:
                 limits,
                 out var policy);
             if (fault != RiskPolicyFault.None || policy is null)
-                throw new InvalidOperationException($"The Alpaca console risk policy is invalid: {fault}.");
+                throw new InvalidOperationException($"The console risk policy is invalid: {fault}.");
             return new RiskEngine(policy);
         }
 
@@ -3784,7 +4198,7 @@ FinishConnect:
             _oms.ReadEvents(clientOrderId).Last().OccurredAtUtc;
 
         private string NextRequestId(string operation) =>
-            $"console:{_bookId}:alpaca:{operation}:{Interlocked.Increment(ref _requestSequence)}";
+            $"console:{_bookId}:{_adapter.BrokerId}:{operation}:{Interlocked.Increment(ref _requestSequence)}";
 
         private static ExecutionTone StateTone(OrderLifecycleState state) => state switch
         {
@@ -3866,6 +4280,7 @@ FinishConnect:
             _adapter.EventReceived -= OnAdapterClockEvent;
             _coordinator.Dispose();
             _lease.Dispose();
+            _ownedAdapter?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 

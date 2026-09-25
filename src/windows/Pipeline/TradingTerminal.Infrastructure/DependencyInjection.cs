@@ -5,6 +5,7 @@ using TradingTerminal.Core.Strategies;
 using TradingTerminal.Core.Brokers;
 using TradingTerminal.Core.Brokers.CTrader;
 using TradingTerminal.Core.Configuration;
+using TradingTerminal.Core.Execution;
 using TradingTerminal.Core.Events;
 using TradingTerminal.Core.MarketData;
 using TradingTerminal.Core.Session;
@@ -201,6 +202,8 @@ public static class DependencyInjection
             "REST — Canadian and US stocks. Paste a refresh token; Level 1 polled, candles.");
         AddSessionBroker<RealRobinhoodCryptoClient, RobinhoodCryptoSignIn>(services, BrokerKind.RobinhoodCrypto, "Robinhood (crypto)",
             "Crypto Trading API — best bid and ask polled, signed with your Ed25519 key.");
+
+        AddOrderRoutes(services);
 
         // Tradier — a sandbox token is free and immediate, so this is one of the fastest to verify.
         services.AddSingleton<IBrokerClient>(sp =>
@@ -416,6 +419,59 @@ public static class DependencyInjection
         AddPublicVenue<RealMexcClient>(services, BrokerKind.Mexc, "MEXC");
 
         return services;
+    }
+
+    /// <summary>
+    /// The order routes (2026-09-25): every broker whose API takes orders, behind <c>IBrokerOrderRoute</c>.
+    /// The execution console turns each into a broker card. Registering a route arms nothing — it starts
+    /// in PAPER, or disabled for a broker without a paper environment, and LIVE needs the owner option,
+    /// stored credentials and the typed confirmation for the exact account. Every route was written from
+    /// its broker's published API; none has placed an order on a real account yet.
+    /// </summary>
+    private static void AddOrderRoutes(IServiceCollection services)
+    {
+        services.AddSingleton<IBrokerOrderRoute, BinanceOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, BybitOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, OkxOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, KrakenOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, CoinbaseOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, DeribitOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, BitgetOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, KuCoinOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, GateIoOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, GeminiOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, CryptoComOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, UpbitOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, BithumbOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, BitfinexOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, BitstampOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, BitvavoOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, HtxOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, MexcOrderRoute>();
+
+        // US and global. The session brokers' routes share one session keeper with their market-data clients.
+        services.AddSingleton<IBrokerOrderRoute, TradierOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, OandaOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, SchwabOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, TradeStationOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, TastytradeOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, ETradeOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, TradovateOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, SaxoOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, IgOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, QuestradeOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, RobinhoodCryptoOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, IronBeamOrderRoute>();
+
+        // India: live only, delivery equity, the day's session.
+        services.AddSingleton<IBrokerOrderRoute, ZerodhaOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, UpstoxOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, AngelOneOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, DhanOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, FyersOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, FivePaisaOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, AliceBlueOrderRoute>();
+        services.AddSingleton<IBrokerOrderRoute, IciciBreezeOrderRoute>();
     }
 
     /// <summary>One broker with a sign-in step: its client behind the API meter, its connection mode, and

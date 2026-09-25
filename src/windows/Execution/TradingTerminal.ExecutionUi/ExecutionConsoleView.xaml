@@ -29,6 +29,25 @@
         <DataTemplate DataType="{x:Type loginForms:IbLoginFormViewModel}">
             <loginForms:IbLoginForm />
         </DataTemplate>
+        <!-- Routed brokers (2026-09-25): the same forms the login window shows. -->
+        <DataTemplate DataType="{x:Type loginForms:KeyedCryptoLoginFormBase}">
+            <loginForms:KeyedCryptoLoginForm />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type loginForms:SessionBrokerLoginFormViewModel}">
+            <loginForms:SessionLoginForm />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type loginForms:TradierLoginFormViewModel}">
+            <loginForms:TradierLoginForm />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type loginForms:OandaLoginFormViewModel}">
+            <loginForms:OandaLoginForm />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type loginForms:IronBeamLoginFormViewModel}">
+            <loginForms:IronBeamLoginForm />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type loginForms:UpstoxLoginFormViewModel}">
+            <loginForms:UpstoxLoginForm />
+        </DataTemplate>
 
         <Style x:Key="Execution.Card" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Background.Surface}" />

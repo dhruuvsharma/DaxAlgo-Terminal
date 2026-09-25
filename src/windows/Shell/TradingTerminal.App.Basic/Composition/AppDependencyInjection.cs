@@ -21,6 +21,7 @@ using TradingTerminal.Execution.Alpaca;
 using TradingTerminal.Execution.CTrader;
 using TradingTerminal.Execution.InteractiveBrokers;
 using TradingTerminal.Execution.Oms;
+using TradingTerminal.Execution.Routing;
 using TradingTerminal.ExecutionUi;
 using TradingTerminal.UI;
 // Feature-module extensions used by this edition.
@@ -98,6 +99,11 @@ public static class AppDependencyInjection
         services.AddInteractiveBrokersExecution(
             options => configuration.GetSection(InteractiveBrokersExecutionOptions.SectionName).Bind(options),
             confirmationStore: liveConfirmationStore);
+        // Every other broker with an order API, through one generic adapter (2026-09-25). The routes are
+        // registered by the infrastructure layer; this binds their shared options — LIVE stays off until
+        // Execution:Routes:AllowLiveExecution is true, and even then needs the typed confirmation.
+        services.AddRoutedExecution(
+            options => configuration.GetSection(RoutedExecutionOptions.SectionName).Bind(options));
         services.AddExecutionConsole();
 
         return services;

@@ -42,6 +42,13 @@ public interface IExecutionClient : IDisposable
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads the account a routed broker's LIVE credentials reach, enabling nothing, so the typed LIVE
+    /// confirmation can name the real account. Default: no routed brokers.
+    /// </summary>
+    ValueTask<ExecutionLiveAccountProbe> ProbeLiveAccountAsync(string adapterId, CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(new ExecutionLiveAccountProbe(false, string.Empty, "This execution client has no routed brokers."));
+
+    /// <summary>
     /// Recreates the books remembered from the last run.
     ///
     /// <para>Default is to restore nothing, so a host with no book store — and every test double —

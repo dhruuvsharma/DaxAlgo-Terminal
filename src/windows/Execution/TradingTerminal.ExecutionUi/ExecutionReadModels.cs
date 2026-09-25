@@ -103,7 +103,8 @@ public sealed record ExecutionAdapterReadModel(
     ExecutionMode Mode = ExecutionMode.Paper,
     string BrokerAccountId = "",
     BrokerKind? LoginBroker = null,
-    IBrokerLoginForm? LoginForm = null)
+    IBrokerLoginForm? LoginForm = null,
+    bool IsRouted = false)
 {
     public bool IsConnected => Status == ExecutionConnectionStatus.Connected;
 
@@ -444,6 +445,9 @@ public sealed record ExecutionBookCreateRequest(
     IReadOnlyList<string> Strategies,
     InstrumentId Instrument = default,
     string Symbol = "");
+
+/// <summary>The account a routed broker's LIVE credentials reach, read before anything is enabled.</summary>
+public sealed record ExecutionLiveAccountProbe(bool IsSuccess, string AccountId, string Message);
 
 public sealed record ExecutionAdapterConnectRequest(
     string AdapterId,

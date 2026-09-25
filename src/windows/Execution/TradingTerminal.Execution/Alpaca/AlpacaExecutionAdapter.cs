@@ -5,6 +5,7 @@ using TradingTerminal.Core.Domain;
 using TradingTerminal.Core.Time;
 using TradingTerminal.Core.Trading;
 using TradingTerminal.Execution.Oms;
+using TradingTerminal.Execution.Routing;
 
 namespace TradingTerminal.Execution.Alpaca;
 
@@ -23,7 +24,7 @@ public sealed record AlpacaNativeCapabilities(
 /// Alpaca Trading API v2 adapter. It is bound to one configured symbol and the exact
 /// gated paper/live endpoint. REST polling is injected and is the production trade-update mechanism.
 /// </summary>
-public sealed class AlpacaExecutionAdapter : IBrokerExecutionAdapter, IDisposable, IAsyncDisposable
+public sealed class AlpacaExecutionAdapter : IBookableExecutionAdapter, IDisposable, IAsyncDisposable
 {
     public const string StableAdapterId = "alpaca-paper";
     public const string LiveAdapterId = "alpaca-live";
@@ -99,6 +100,11 @@ public sealed class AlpacaExecutionAdapter : IBrokerExecutionAdapter, IDisposabl
     }
 
     public string BrokerId => AlpacaExecutionOptions.BrokerId;
+
+    public string DisplayName => "Alpaca";
+
+    /// <summary>US equities: one share is one unit and a one-dollar move is one dollar.</summary>
+    public ScaledRatio ContractMultiplier => new(1, 0);
 
     public ExecutionMode Mode => _endpoint.Mode;
 

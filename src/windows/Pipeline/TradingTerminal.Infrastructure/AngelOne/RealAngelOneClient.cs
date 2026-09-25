@@ -118,9 +118,10 @@ internal sealed class RealAngelOneClient : RestBrokerClient<AngelOneOptions>
         }, ct).ConfigureAwait(false);
         using (doc)
         {
-            // SmartAPI answers a bad token with HTTP 200 and "status": false.
-            if (doc.RootElement.TryGetProperty("status", out var ok) && ok.ValueKind == JsonValueKind.False)
-                throw new InvalidOperationException($"Angel One refused the session: {SignInProof.Text(doc.RootElement, "message")}");
+            // SmartAPI answers a bad token with HTTP 200 and a false flag — "success" on an invalid token
+            // (seen live, 2026-09-25: {"success":false,"message":"Invalid Token","errorCode":"AG8001"}), "status" elsewhere.
+            if (AngelAnswer.IsRefusal(doc.RootElement))
+                throw new InvalidOperationException($"Angel One refused the session: {AngelAnswer.Words(doc.RootElement)}");
         }
     }
 
@@ -252,6 +253,27 @@ internal sealed class RealAngelOneClient : RestBrokerClient<AngelOneOptions>
 }
 
 /// <summary>What an Angel One sign-in issues: the REST token and the SmartStream feed token, stored together.</summary>
+/// <summary>
+/// How SmartAPI says no. It answers with HTTP 200 and a false flag, and the flag's name depends on who refused:
+/// an invalid token is <c>{"success":false,"message","errorCode"}</c>, an order or data refusal
+/// <c>{"status":false,"message","errorcode"}</c>. Reading only one of them takes the other for success.
+/// </summary>
+internal static class AngelAnswer
+{
+    public static bool IsRefusal(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object &&
+        ((root.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.False) ||
+         (root.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.False));
+
+    /// <summary>The message and the error code, whichever spelling the code arrived under.</summary>
+    public static string? Words(JsonElement root)
+    {
+        var message = SignInProof.Text(root, "message");
+        var code = SignInProof.Text(root, "errorcode") is { Length: > 0 } lower ? lower : SignInProof.Text(root, "errorCode");
+        return string.IsNullOrWhiteSpace(message) ? code : string.IsNullOrWhiteSpace(code) ? message : $"{message} ({code})";
+    }
+}
+
 internal readonly record struct AngelSession(string Jwt, string Feed)
 {
     public string Write() => JsonSerializer.Serialize(new Dictionary<string, string> { ["jwt"] = Jwt, ["feed"] = Feed });

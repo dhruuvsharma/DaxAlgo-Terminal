@@ -67,12 +67,19 @@ public sealed record ReconciliationCycleResult(
 /// Immutable ledger opening balance used to reconcile a real broker account. The default remains
 /// the simulation account's zero SIM balance. Available cash can be observational only when a venue
 /// reports margin buying power that cannot be derived exactly from fills.
+///
+/// <para><see cref="CompareTotal"/> false makes cash observational altogether: recorded as evidence in
+/// every cycle, never a mismatch. For a real broker account the ledger cannot derive cash exactly — fees
+/// charged in another asset, funding, interest, other symbols traded in the same account — so an exact
+/// comparison would stop every book at its first fill. Orders and positions are still compared exactly;
+/// they are what a wrong order changes.</para>
 /// </summary>
 public sealed record ReconciliationCashBasis(
     string Currency,
     ScaledMoney OpeningTotal,
     ScaledMoney OpeningAvailable,
-    bool CompareAvailable = true)
+    bool CompareAvailable = true,
+    bool CompareTotal = true)
 {
     /// <summary>The legacy deterministic-simulation basis.</summary>
     public static ReconciliationCashBasis SimulationZero { get; } =
@@ -652,6 +659,8 @@ public sealed class ReconciliationEngine
                        ExactEquals(local.Available, broker.Available))
                         ? ReconciliationCaseKind.Matched
                         : ReconciliationCaseKind.QuantityMismatch;
+            if (!cashBasis.CompareTotal)
+                kind = ReconciliationCaseKind.Matched;
             observations.Add(new Observation(
                 ReconciliationSubjectKind.Cash,
                 currency,

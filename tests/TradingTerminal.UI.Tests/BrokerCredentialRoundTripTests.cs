@@ -66,6 +66,28 @@ public sealed class BrokerCredentialRoundTripTests : IDisposable
     }
 
     [Fact]
+    public void Ironbeam_and_Upstox_keys_in_their_own_named_fields_reach_the_credential_source()
+    {
+        // Both logins predate the per-broker map and still write named fields; the order routes and the
+        // execution console read credentials only through the source, so it has to see them.
+        var store = Store();
+        var stored = store.Load();
+        stored.IronBeamUsername = "ib-user";
+        stored.IronBeamApiKey = "ib-key";
+        stored.IronBeamIsLive = true;
+        stored.UpstoxApiKey = "upstox-key";
+        stored.UpstoxApiSecret = "upstox-secret";
+        stored.UpstoxAccessToken = "upstox-day-token";
+        store.Save(stored);
+
+        var ironbeam = Source(store).For(BrokerKind.IronBeam);
+        Assert.Equal(("ib-user", "ib-key", "live"), (ironbeam.Key, ironbeam.Secret, ironbeam.Extra));
+        var upstox = Source(store).For(BrokerKind.Upstox);
+        Assert.Equal(("upstox-key", "upstox-secret", "upstox-day-token"), (upstox.Key, upstox.Secret, upstox.Session));
+        Assert.True(upstox.HasSession);
+    }
+
+    [Fact]
     public void A_broker_with_nothing_stored_reports_nothing_rather_than_throwing()
     {
         // The ordinary state for every broker the user has not set up. A client asks, gets nothing,

@@ -101,7 +101,7 @@ public sealed class GlobalBrokerSignInTests
 
         new TradeStationSignIn().SignInUrl(new BrokerCredential("cid"), "http://localhost:3000")
             .Should().Contain("audience=https%3A%2F%2Fapi.tradestation.com")
-            .And.Contain("scope=openid%20offline_access%20MarketData%20ReadAccount");
+            .And.Contain("scope=openid%20offline_access%20MarketData%20ReadAccount%20Trade");
     }
 
     [Fact]

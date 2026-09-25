@@ -80,6 +80,23 @@ internal sealed class SessionKeeper
     private string? _adoptedFrom;
     private string? _written;
 
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IBrokerCredentialSource,
+        System.Collections.Concurrent.ConcurrentDictionary<BrokerKind, SessionKeeper>> SharedKeepers = new();
+
+    /// <summary>
+    /// The one keeper for <paramref name="broker"/> over this credential store — created on first use, then
+    /// shared by the broker's market-data client and its order route.
+    ///
+    /// <para><b>Why one.</b> Saxo and Questrade spend a refresh token when they renew. Two keepers renewing
+    /// the same session would each spend the same token; the second is refused, and whichever lost would
+    /// report a dead session that is in fact fine. Keyed by the credential source instance, so the
+    /// application shares keepers and each test's fake gets its own.</para>
+    /// </summary>
+    public static SessionKeeper Shared(
+        BrokerKind broker, IBrokerCredentialSource credentials, IBrokerSessionStore store,
+        Func<BrokerCredential, KeptSession, CancellationToken, Task<KeptSession>> renew, ILogger logger, TimeProvider? time = null) =>
+        SharedKeepers.GetOrCreateValue(credentials).GetOrAdd(broker, _ => new SessionKeeper(broker, credentials, store, renew, logger, time));
+
     /// <summary>A keeper for <paramref name="broker"/>'s session, read from <paramref name="credentials"/>
     /// and written back to <paramref name="store"/>. <paramref name="renew"/> renews it — a refresh-token
     /// grant, or a fresh sign-in from the stored credentials — and throws when the broker refuses.</summary>

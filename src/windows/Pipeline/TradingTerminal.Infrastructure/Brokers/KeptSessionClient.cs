@@ -27,7 +27,7 @@ internal abstract class KeptSessionClient<TOptions> : RestBrokerClient<TOptions>
         ILogger logger, TOptions options, IBrokerCredentialSource credentials, IBrokerSessionStore store, BrokerKind kind)
         : base(logger, options, credentials)
     {
-        Keeper = new SessionKeeper(kind, credentials, store, RenewAsync, logger);
+        Keeper = SessionKeeper.Shared(kind, credentials, store, RenewAsync, logger);
     }
 
     protected SessionKeeper Keeper { get; }

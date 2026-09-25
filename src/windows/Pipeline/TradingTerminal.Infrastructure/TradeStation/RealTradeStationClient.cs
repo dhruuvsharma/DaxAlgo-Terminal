@@ -17,8 +17,8 @@ namespace TradingTerminal.Infrastructure.TradeStation;
 /// streams — responses that never end, carrying one JSON object after another.
 ///
 /// <para><b>Session.</b> OAuth 2 through TradeStation's Auth0 tenant: a browser sign-in returns a code,
-/// exchanged for a 20-minute access token and a refresh token that the keeper spends to renew it. Only
-/// market-data and read-account scopes are requested.</para>
+/// exchanged for a 20-minute access token and a refresh token that the keeper spends to renew it. The
+/// market-data, read-account and trade scopes are requested — trade for the order route.</para>
 ///
 /// <para><b>Streams.</b> A quote stream sends the whole quote first and then only the fields that changed,
 /// so quotes are merged; it also sends heartbeats, and a <c>GoAway</c> that asks the client to reconnect.
