@@ -16,18 +16,35 @@ namespace TradingTerminal.Infrastructure.Strategies.Authoring;
 public static class AiModelCatalog
 {
     /// <summary>Anthropic model ids — the same strings Claude Code's <c>--model</c> accepts, so the API
-    /// provider and the installed CLI offer the same list (the CLI also takes the short aliases).</summary>
+    /// provider and the installed CLI offer the same list (the CLI also takes the short aliases).
+    /// <para>The first entry is what a provider with no model configured opens on.</para></summary>
     private static readonly string[] AnthropicModels =
     [
-        "claude-opus-5",      // current Opus flagship — the default for hard strategy work
+        "claude-opus-5-5",    // current Opus flagship — the default for hard strategy work
+        "claude-fable-5-1",   // most capable overall; premium pricing, thinking always on
         "claude-sonnet-5",    // near-Opus quality on coding, cheaper
-        "claude-opus-4-8",    // the previous Opus tier, kept for anyone pinned to it
-        "claude-opus-4-7",
-        "claude-haiku-4-5",   // fastest / cheapest; no effort or thinking support
-        "claude-fable-5",     // most capable overall; premium pricing
+        "claude-opus-5",      // the previous Opus tier, kept for anyone pinned to it
+        "claude-haiku-4-5",   // fastest / cheapest; takes no effort setting
     ];
 
-    public static IReadOnlyList<string> For(string providerId) => providerId.ToLowerInvariant() switch
+    /// <summary>The model a signed-in or keyed Anthropic provider uses when none is configured.</summary>
+    public static string AnthropicDefault => AnthropicModels[0];
+
+    /// <summary>
+    /// The vendor a provider id stands for, where two ids reach the same models.
+    ///
+    /// <para><b>The signed-in Anthropic provider is Anthropic.</b> Every switch below asked about
+    /// <c>anthropic</c> and never about <c>anthropic-oauth</c>, so signing in instead of pasting a key
+    /// quietly cost the picker every model but one, Research its effort setting, and the critics their
+    /// picture. The credential changes who is billed, not what the models can do.</para>
+    /// </summary>
+    private static string Vendor(string providerId) => providerId.ToLowerInvariant() switch
+    {
+        "anthropic-oauth" => "anthropic",
+        var id => id,
+    };
+
+    public static IReadOnlyList<string> For(string providerId) => Vendor(providerId) switch
     {
         "anthropic" or "claude-cli" => AnthropicModels,
 
@@ -64,9 +81,18 @@ public static class AiModelCatalog
     /// parameter it would reject).
     /// </summary>
     public static bool SupportsEffort(string providerId, string? model) =>
-        SupportsEffort(providerId)
-        || (providerId.Equals("nvidia", StringComparison.OrdinalIgnoreCase)
-            && NimEffortModels.Any(m => (model ?? string.Empty).Contains(m, StringComparison.OrdinalIgnoreCase)));
+        !RefusesEffort(model)
+        && (SupportsEffort(providerId)
+            || (providerId.Equals("nvidia", StringComparison.OrdinalIgnoreCase)
+                && NimEffortModels.Any(m => (model ?? string.Empty).Contains(m, StringComparison.OrdinalIgnoreCase))));
+
+    /// <summary>
+    /// A model that rejects the effort parameter on a provider that otherwise takes it. Haiku 4.5 answers
+    /// <c>output_config.effort</c> with a 400, which reads to a user as a bad key — so neither Research
+    /// nor the step-down retries may send it there.
+    /// </summary>
+    private static bool RefusesEffort(string? model) =>
+        model is not null && model.Contains("claude-haiku-4", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// NVIDIA NIM models measured to take <c>reasoning_effort</c> and still answer — 2026-09-19, DeepSeek
@@ -76,7 +102,7 @@ public static class AiModelCatalog
     private static readonly string[] NimEffortModels = ["deepseek-v4", "nemotron-3", "glm-5.3", "kimi-k3"];
 
     /// <summary>Whether the provider as a whole takes a reasoning-effort setting.</summary>
-    public static bool SupportsEffort(string providerId) => providerId.ToLowerInvariant() switch
+    public static bool SupportsEffort(string providerId) => Vendor(providerId) switch
     {
         "anthropic" or "claude-cli" or "openai" or "xai" or "openrouter" => true,
 
@@ -139,7 +165,7 @@ public static class AiModelCatalog
         // Model first: a gateway's ceiling is a property of what is behind it, not of the gateway.
         if (Measured(model) is { } measured) return measured;
 
-        return providerId.ToLowerInvariant() switch
+        return Vendor(providerId) switch
         {
             // Extended thinking, and the CLI carries the user's own subscription rather than a budget
             // this account has to afford.
@@ -209,7 +235,7 @@ public static class AiModelCatalog
             || id.Contains("codestral", StringComparison.Ordinal))
             return false;
 
-        return providerId.ToLowerInvariant() switch
+        return Vendor(providerId) switch
         {
             // Every current model in these families reads images.
             "anthropic" or "claude-cli" or "openai" or "xai" => true,
@@ -287,6 +313,9 @@ public static class AiModelCatalog
 
         // Accepted, then silent. See the remarks above.
         if (id.Contains("glm-5.3", StringComparison.Ordinal)) return CodegenEffort.Default;
+
+        // Refused outright — see RefusesEffort. Research there runs at the model's default and says so.
+        if (RefusesEffort(id)) return CodegenEffort.Default;
 
         return null;
     }

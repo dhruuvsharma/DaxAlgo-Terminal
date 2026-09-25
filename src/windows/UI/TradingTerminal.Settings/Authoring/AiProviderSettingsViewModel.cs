@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -37,7 +39,41 @@ public sealed partial class AiProviderSetupRow : ObservableObject
         Mark = brand.Mark;
         Accent = brand.Accent;
         Blurb = brand.Blurb;
+
+        // The shortlist the app already knows, so the model box is a dropdown from the first moment
+        // rather than an empty field — the provider's own list replaces it once it has been asked.
+        foreach (var model in client.KnownModels) AvailableModels.Add(model);
     }
+
+    /// <summary>
+    /// The dropdown's pick, written straight through to <see cref="Model"/>.
+    ///
+    /// <para>Separate from <see cref="Model"/> because the box is editable: its text commits when focus
+    /// leaves, which is right for typing and wrong for a click on the list — a pick has to count the
+    /// moment it is made. A blank pick is the box losing its match while somebody types, not a choice,
+    /// so it is ignored.</para>
+    /// </summary>
+    public string? PickedModel
+    {
+        get => null;
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value)) Model = value;
+        }
+    }
+
+    /// <summary>True while the provider is being asked what it serves.</summary>
+    [ObservableProperty] private bool _isLoadingModels;
+
+    /// <summary>Whether Anthropic's CLI is on this machine — what decides between "press Sign in" and
+    /// "install this first". Only meaningful when <see cref="SupportsSignIn"/>.</summary>
+    public bool CliInstalled { get; init; }
+
+    /// <summary>What the last sign-in check found: true, false, or null when it has not run yet.</summary>
+    public bool? SignInState { get; init; }
+
+    /// <summary>Who is signed in — <c>you@example.com (Org)</c> — when that is known.</summary>
+    public string? SignedInAccount { get; init; }
 
     /// <summary>The badge monogram — see <see cref="AiProviderBranding"/> for why it is not a logo.</summary>
     public string Mark { get; }
@@ -166,8 +202,14 @@ public sealed partial class AiProviderSetupRow : ObservableObject
     /// <summary>What the row says about itself, in the user's terms rather than the config's.</summary>
     public string StatusText => IsSignIn
         ? SignInAvailable
-            ? "Signed in. Billed per token to that organisation — API access, not a Pro subscription."
-            : "Not signed in yet. This needs the Anthropic CLI (ant) installed."
+            ? SignInState == true
+                ? (SignedInAccount is { } who ? $"Signed in as {who}." : "Signed in.")
+                  + " Billed per token to that organisation — API access, not a Claude subscription."
+                : "Anthropic's CLI is installed — checking whether you are signed in…"
+            : CliInstalled
+                ? "Not signed in. Press Sign in: your browser opens, you approve, and you are done."
+                : "Signing in needs Anthropic's CLI (ant), which is not installed yet. Get it below, "
+                  + "or switch to API key."
         : HasKey
             ? "Key saved, encrypted for this Windows account only."
             : "No key yet. Paste one to enable this provider.";
@@ -247,11 +289,86 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
     /// <summary>Whether the sign-in button can do anything: the `ant` CLI has to be installed.</summary>
     public bool CanSignIn => _oauth.IsInstalled;
 
+    /// <summary>True once a check has confirmed somebody is signed in — what swaps the Sign in button
+    /// for the account and a Sign out.</summary>
+    public bool IsSignedIn => _oauth.IsInstalled && _oauth.SignedIn == true;
+
+    /// <summary>True when the Sign in button belongs on screen: the CLI is there and nobody is known
+    /// to be signed in.</summary>
+    public bool ShowSignInButton => _oauth.IsInstalled && !IsSignedIn;
+
+    /// <summary>Who is signed in, for the line above Sign out.</summary>
+    public string SignedInAccount => _oauth.Account is { } account
+        ? $"Signed in as {account}"
+        : "Signed in";
+
+    /// <summary>True while the pane is asking the CLI who is signed in.</summary>
+    [ObservableProperty] private bool _isCheckingSignIn;
+
     /// <summary>What the sign-in half says about itself.</summary>
-    public string SignInHint => _oauth.IsInstalled
-        ? "Billed per token to the organisation you pick — API access, not a Claude Pro or Max subscription."
-        : "Signing in is handled by Anthropic's own CLI, which is not installed. Paste an API key "
-          + "instead, or install the CLI and press Recheck.";
+    public string SignInHint => !_oauth.IsInstalled
+        ? "Signing in is handled by Anthropic's own CLI, which is not installed. Download it, run the "
+          + "installer or put ant.exe on your PATH, then press Recheck — or paste an API key instead."
+        : IsSignedIn
+            ? "Billed per token to this organisation — API access, not a Claude Pro or Max subscription."
+            : "Your browser opens; approve access and come back here. Billed per token to the "
+              + "organisation you pick — API access, not a Claude Pro or Max subscription.";
+
+    /// <summary>
+    /// Asks the CLI who is signed in, then rebuilds the rows from the answer.
+    ///
+    /// <para>Run when the pane opens. Before it, "installed" was reported as "signed in", so a machine
+    /// with the CLI and no sign-in showed a Ready provider whose every request failed.</para>
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckSignInAsync()
+    {
+        if (!_oauth.IsInstalled || IsCheckingSignIn) return;
+
+        IsCheckingSignIn = true;
+        try
+        {
+            await _oauth.IsSignedInAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // IsSignedInAsync already swallows a missing or hung CLI; anything else is still "we could
+            // not tell", which must not take the pane down.
+            _logger?.LogWarning(ex, "Checking the Anthropic sign-in failed.");
+        }
+        finally
+        {
+            IsCheckingSignIn = false;
+        }
+
+        Refresh();
+        RaiseSignInChanged();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Opens the CLI's download page — the way to the Sign in button for anyone without Go.</summary>
+    [RelayCommand]
+    private void OpenCliDownload()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(AnthropicOAuthCli.DownloadUrl) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Could not open {Url}", AnthropicOAuthCli.DownloadUrl);
+            Status = $"Could not open the browser. The CLI is at {AnthropicOAuthCli.DownloadUrl}";
+        }
+    }
+
+    private void RaiseSignInChanged()
+    {
+        OnPropertyChanged(nameof(CanSignIn));
+        OnPropertyChanged(nameof(IsSignedIn));
+        OnPropertyChanged(nameof(ShowSignInButton));
+        OnPropertyChanged(nameof(SignedInAccount));
+        OnPropertyChanged(nameof(SignInHint));
+    }
 
     /// <summary>
     /// The documented way to get the CLI, shown beside the disabled button so the dead end is a next
@@ -291,6 +408,8 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
                 Refresh();
                 Changed?.Invoke(this, EventArgs.Empty);
             }
+
+            RaiseSignInChanged();
         }
         catch (Exception ex)
         {
@@ -312,6 +431,7 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
             : "Could not sign out — the CLI reported a failure.";
 
         Refresh();
+        RaiseSignInChanged();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -375,10 +495,13 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
             _options.Providers.TryGetValue(client.ProviderId, out var config);
             var hasKey = _keys?.HasKey(client.ProviderId) ?? false;
 
-            Providers.Add(new AiProviderSetupRow(client, hasKey, config)
+            Add(new AiProviderSetupRow(client, hasKey, config)
             {
                 SupportsSignIn = carriesSignIn,
                 SignInAvailable = carriesSignIn && signIn!.IsAvailable,
+                CliInstalled = carriesSignIn && _oauth.IsInstalled,
+                SignInState = carriesSignIn ? _oauth.SignedIn : null,
+                SignedInAccount = carriesSignIn ? _oauth.Account : null,
 
                 // Sign in only when signing in is actually POSSIBLE.
                 //
@@ -387,8 +510,11 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
                 // The user got a dead button and no key box, on the one row they needed to configure:
                 // "I'm unable to click on sign in with Anthropic, it's blocked". Defaulting into a half
                 // that cannot be used is worse than not offering it.
+                //
+                // INSTALLED, not signed in: a signed-out CLI still has a working Sign in button, and
+                // that button is the easiest way there is to set this row up.
                 UseSignIn = carriesSignIn
-                    && (signedInIsDefault || (!hasKey && signIn!.IsAvailable)),
+                    && (signedInIsDefault || (!hasKey && _oauth.IsInstalled)),
 
                 IsDefault = client.ProviderId.Equals(_options.DefaultProvider, StringComparison.OrdinalIgnoreCase)
                     || (carriesSignIn && signedInIsDefault),
@@ -400,19 +526,115 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
         if (signIn is not null && !Providers.Any(r => r.SupportsSignIn))
         {
             _options.Providers.TryGetValue(signIn.ProviderId, out var signInConfig);
-            Providers.Add(new AiProviderSetupRow(signIn, hasKey: false, signInConfig)
+            Add(new AiProviderSetupRow(signIn, hasKey: false, signInConfig)
             {
                 SupportsSignIn = true,
                 SignInAvailable = signIn.IsAvailable,
+                CliInstalled = _oauth.IsInstalled,
+                SignInState = _oauth.SignedIn,
+                SignedInAccount = _oauth.Account,
                 UseSignIn = true,
                 IsDefault = signedInIsDefault,
             });
         }
 
         Selected = Providers.FirstOrDefault(p => p.ProviderId == selectedId)
-            ?? Providers.FirstOrDefault(p => p.IsAvailable)
+            ?? Providers.FirstOrDefault(p => p.IsReady)
             ?? Providers.FirstOrDefault();
     }
+
+    /// <summary>Lists a row, with the models the provider already said it serves and a watch on its
+    /// model so a pick is saved without a Save button.</summary>
+    private void Add(AiProviderSetupRow row)
+    {
+        if (_liveModels.TryGetValue(ListingId(row), out var live) && live.Count > 0)
+        {
+            row.AvailableModels.Clear();
+            foreach (var model in live) row.AvailableModels.Add(model);
+        }
+
+        row.PropertyChanged += OnRowPropertyChanged;
+        Providers.Add(row);
+    }
+
+    // -- The model --------------------------------------------------------------------------------
+
+    /// <summary>
+    /// What each provider answered when asked what it serves, by the id it was asked under.
+    ///
+    /// <para>Kept across <see cref="Refresh"/>, which rebuilds every row after any save — without it,
+    /// saving a key would throw away the list the user had just been shown and ask the network again.</para>
+    /// </summary>
+    private readonly Dictionary<string, IReadOnlyList<string>> _liveModels = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The provider id to ask for a row's models: the SIGN-IN client when the row is on its sign-in half.
+    ///
+    /// <para>Asking under the row's own id built the keyed client, which on the sign-in half has no key
+    /// — so Refresh answered "returned no models" to a user who was signed in and could reach all of
+    /// them.</para>
+    /// </summary>
+    private static string ListingId(AiProviderSetupRow row) =>
+        row.IsSignIn && !row.ProviderId.Equals(StrategyCodegenClientFactory.AnthropicOAuthId, StringComparison.OrdinalIgnoreCase)
+            ? StrategyCodegenClientFactory.AnthropicOAuthId
+            : row.ProviderId;
+
+    /// <summary>A model picked or typed is the model — saved the moment it is committed.</summary>
+    private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AiProviderSetupRow.Model) && sender is AiProviderSetupRow row)
+            SaveModel(row);
+    }
+
+    /// <summary>
+    /// Writes a row's model to the live options and the user file.
+    ///
+    /// <para>No <see cref="Refresh"/>: rebuilding every row here would pull the list out from under the
+    /// dropdown the user is still looking at. The model is read at build time, so the options object
+    /// is all that has to change for the next generation to use it.</para>
+    /// </summary>
+    private void SaveModel(AiProviderSetupRow row)
+    {
+        var model = row.Model?.Trim() ?? string.Empty;
+
+        if (!_options.Providers.TryGetValue(row.ProviderId, out var config))
+        {
+            config = new AiCodegenProvider { Kind = row.Kind };
+            _options.Providers[row.ProviderId] = config;
+        }
+
+        if (string.Equals(config.Model, model, StringComparison.Ordinal)) return;
+        config.Model = model;
+
+        try
+        {
+            AiCodegenUserFile.SaveProvider(row.ProviderId, config);
+            Status = model.Length == 0
+                ? $"{row.DisplayName} will use its own default model."
+                : $"{row.DisplayName} will build with {model}.";
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Could not persist the model for {Provider}", row.ProviderId);
+            Status = $"Using {model} for this session, but it could not be saved: {ex.Message}";
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Fills a row's dropdown from the provider the first time it is opened, so the list is what this
+    /// key can actually call rather than one compiled in advance.
+    ///
+    /// <para>On OPENING THE DROPDOWN, not on opening the pane or selecting the row: listing costs a
+    /// network call, and the moment somebody asks to see the list is the one moment it is wanted. The
+    /// shortlist is on screen meanwhile, so nothing waits on the answer.</para>
+    /// </summary>
+    [RelayCommand]
+    private Task LoadModelsOnDemandAsync(AiProviderSetupRow? row) =>
+        row is { IsReady: true } && !_liveModels.ContainsKey(ListingId(row))
+            ? LoadModelsAsync(row, quiet: true)
+            : Task.CompletedTask;
 
     // -- Adding a provider the app never heard of -----------------------------------------------
 
@@ -548,14 +770,50 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
     /// told apart before a whole generation is spent finding out.</para>
     /// </summary>
     [RelayCommand]
-    private async Task RefreshModelsAsync(AiProviderSetupRow? row)
-    {
-        if (row is null) return;
+    private Task RefreshModelsAsync(AiProviderSetupRow? row) =>
+        row is null ? Task.CompletedTask : LoadModelsAsync(row, quiet: false);
 
-        var client = _builder.WithSettings(row.ProviderId, row.Model, CodegenEffort.Default);
+    /// <summary>
+    /// Asks the row's provider what it serves and puts the answer in the row's dropdown.
+    /// </summary>
+    /// <param name="quiet">True for the automatic load when a row's dropdown is opened: it says nothing
+    /// unless it finds something, and an empty answer leaves the shortlist in place rather than an empty
+    /// box.</param>
+    private async Task LoadModelsAsync(AiProviderSetupRow row, bool quiet)
+    {
+        if (row.IsLoadingModels) return;
+
+        var client = _builder.WithSettings(ListingId(row), row.Model, CodegenEffort.Default);
         if (client is null)
         {
-            Status = $"{row.DisplayName} is not configured yet.";
+            if (!quiet) Status = $"{row.DisplayName} is not configured yet.";
+            return;
+        }
+
+        if (quiet)
+        {
+            row.IsLoadingModels = true;
+            try
+            {
+                var found = await client.ListModelsAsync().ConfigureAwait(true);
+                if (found.Count == 0) return;
+
+                _liveModels[ListingId(row)] = found;
+                row.AvailableModels.Clear();
+                foreach (var model in found) row.AvailableModels.Add(model);
+                if (string.IsNullOrWhiteSpace(row.Model)) row.Model = found[0];
+            }
+            catch (Exception ex)
+            {
+                // Never thrown by contract; a fake or a future client that does must not surface as an
+                // unobserved task exception from a row the user only clicked on.
+                _logger?.LogDebug(ex, "Listing models for {Provider} failed", row.ProviderId);
+            }
+            finally
+            {
+                row.IsLoadingModels = false;
+            }
+
             return;
         }
 
@@ -584,19 +842,30 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
 
         // Never throws by contract - a failed lookup is an empty list - so the two outcomes are "some
         // models" and "none", and neither needs a catch here.
-        var models = await client.ListModelsAsync().ConfigureAwait(true);
+        IReadOnlyList<string> models;
+        row.IsLoadingModels = true;
+        try
+        {
+            models = await client.ListModelsAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            row.IsLoadingModels = false;
+        }
 
         row.AvailableModels.Clear();
         foreach (var model in models) row.AvailableModels.Add(model);
 
         if (models.Count == 0)
         {
+            _liveModels.Remove(ListingId(row));
             Status = row.HasKey || row.IsSignIn
                 ? $"{row.DisplayName} returned no models. Check the base URL and the wire kind, and that the key belongs to this endpoint."
                 : $"{row.DisplayName} returned no models - it has no key yet.";
             return;
         }
 
+        _liveModels[ListingId(row)] = models;
         if (string.IsNullOrWhiteSpace(row.Model)) row.Model = models[0];
         Status = $"{row.DisplayName} serves {models.Count} model(s).";
     }
@@ -731,10 +1000,14 @@ public sealed partial class AiProviderSettingsViewModel : ObservableObject
     /// <summary>Re-probes PATH and the key store. What the user presses after installing a CLI in another
     /// window, so being told it worked does not require restarting the terminal.</summary>
     [RelayCommand]
-    private void Recheck()
+    private async Task RecheckAsync()
     {
+        // The sign-in too: "I signed in from a terminal, now what?" is answered by this button.
+        if (_oauth.IsInstalled) await _oauth.IsSignedInAsync().ConfigureAwait(true);
+        RaiseSignInChanged();
+
         Refresh();
-        var ready = Providers.Count(p => p.IsAvailable);
+        var ready = Providers.Count(p => p.IsReady);
         Status = ready == 0
             ? "Still nothing set up — add an API key, or install an agent CLI and sign in with it."
             : $"{ready} provider(s) ready.";

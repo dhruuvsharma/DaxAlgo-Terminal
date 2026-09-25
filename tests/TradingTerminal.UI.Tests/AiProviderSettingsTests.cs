@@ -91,11 +91,109 @@ public sealed class AiProviderSettingsTests : IDisposable
     };
 
     private static AiProviderSettingsViewModel Pane(
-        FakeKeyStore? keys = null, AiCodegenOptions? options = null)
+        FakeKeyStore? keys = null, AiCodegenOptions? options = null, AnthropicOAuthCli? oauth = null)
     {
         options ??= Options();
         return new AiProviderSettingsViewModel(
-            new FakeBuilder(options, keys), Microsoft.Extensions.Options.Options.Create(options), keys);
+            new FakeBuilder(options, keys), Microsoft.Extensions.Options.Options.Create(options), keys,
+            oauth: oauth);
+    }
+
+    /// <summary>An Anthropic CLI that is "installed" without being the real one.</summary>
+    private static AnthropicOAuthCli InstalledCli() => new(
+        resolveOnPath: name => name == "ant" ? @"C:\no-such-dir\ant.exe" : null,
+        searchDirectories: () => []);
+
+    // -- the model, up front ----------------------------------------------------------------------
+
+    /// <summary>
+    /// A model picked is a model saved. It used to sit in a collapsed "Endpoint &amp; model" and only
+    /// counted once "Save settings" was pressed, so a pick that looked made was lost on Close.
+    /// </summary>
+    [Fact]
+    public void PickingAModelSavesItWithoutASaveButton()
+    {
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+        var row = pane.Providers.Single(p => p.ProviderId == "openai");
+
+        row.PickedModel = "gpt-5-codex";
+
+        Assert.Equal("gpt-5-codex", row.Model);
+        Assert.Equal("gpt-5-codex", options.Providers["openai"].Model);
+        Assert.Contains("gpt-5-codex", File.ReadAllText(AiCodegenUserFile.Path));
+    }
+
+    /// <summary>The dropdown losing its match while somebody types is not a choice of nothing.</summary>
+    [Fact]
+    public void ABlankPickIsNotAChoice()
+    {
+        var options = Options();
+        var pane = Pane(new FakeKeyStore(), options);
+        var row = pane.Providers.Single(p => p.ProviderId == "openai");
+
+        row.PickedModel = null;
+        row.PickedModel = " ";
+
+        Assert.Equal("gpt-4o-mini", row.Model);
+        Assert.Equal("gpt-4o-mini", options.Providers["openai"].Model);
+    }
+
+    /// <summary>
+    /// On the sign-in half, the list comes from the SIGN-IN client. It came from the keyed one, which
+    /// has no key there, so a signed-in user was told the provider "returned no models".
+    /// </summary>
+    [Fact]
+    public async Task TheSignInHalfListsWhatTheSignInCanReach()
+    {
+        var pane = Pane(new FakeKeyStore(), oauth: InstalledCli());
+        var row = pane.Providers.Single(p => p.SupportsSignIn);
+        Assert.True(row.IsSignIn, "no key and the CLI installed: the row opens on signing in");
+
+        await pane.RefreshModelsCommand.ExecuteAsync(row);
+
+        Assert.Equal(["claude-signed-in"], row.AvailableModels);
+    }
+
+    /// <summary>
+    /// Opening the dropdown asks the provider once; a row that is not set up is never asked, and
+    /// opening the pane asks nothing at all.
+    /// </summary>
+    [Fact]
+    public async Task OpeningTheDropdownAsksAReadyProviderOnce()
+    {
+        var keys = new FakeKeyStore();
+        keys.Set("openai", "sk-test");
+        var pane = Pane(keys);
+        var row = pane.Providers.Single(p => p.ProviderId == "openai");
+
+        Assert.DoesNotContain("model-a", row.AvailableModels);
+
+        await pane.LoadModelsOnDemandCommand.ExecuteAsync(row);
+        Assert.Equal(["model-a", "model-b"], row.AvailableModels);
+        Assert.Equal("gpt-4o-mini", row.Model);
+
+        // Kept across the rebuild every save does, so nothing is asked twice.
+        pane.Refresh();
+        Assert.Equal(["model-a", "model-b"], pane.Providers.Single(p => p.ProviderId == "openai").AvailableModels);
+
+        var notSetUp = pane.Providers.Single(p => p.ProviderId == "anthropic");
+        notSetUp.UseApiKey = true;
+        await pane.LoadModelsOnDemandCommand.ExecuteAsync(notSetUp);
+        Assert.Empty(notSetUp.AvailableModels);
+    }
+
+    /// <summary>With the CLI installed and nobody known to be signed in, the button is Sign in and the
+    /// row says what pressing it does — not "Signed in".</summary>
+    [Fact]
+    public void AnInstalledCliOffersTheSignInButton()
+    {
+        var pane = Pane(new FakeKeyStore(), oauth: InstalledCli());
+        var row = pane.Providers.Single(p => p.SupportsSignIn);
+
+        Assert.True(pane.ShowSignInButton);
+        Assert.False(pane.IsSignedIn);
+        Assert.DoesNotContain("Signed in", row.StatusText);
     }
 
     [Fact]
@@ -583,7 +681,12 @@ public sealed class AiProviderSettingsTests : IDisposable
         /// <summary>Only the shipped provider answers, so a test can tell "this endpoint serves
         /// models" from "this endpoint answered nothing" without a network.</summary>
         public Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default) =>
-            Task.FromResult<IReadOnlyList<string>>(id == "openai" ? ["model-a", "model-b"] : []);
+            Task.FromResult<IReadOnlyList<string>>(id switch
+            {
+                "openai" => ["model-a", "model-b"],
+                StrategyCodegenClientFactory.AnthropicOAuthId => ["claude-signed-in"],
+                _ => [],
+            });
 
         public Task<StrategyCodegenResponse> GenerateAsync(
             StrategyCodegenRequest request, CancellationToken ct = default) =>

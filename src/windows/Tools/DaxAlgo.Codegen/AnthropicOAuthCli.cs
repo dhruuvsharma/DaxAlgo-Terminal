@@ -48,6 +48,29 @@ public sealed class AnthropicOAuthCli(
     public bool IsInstalled => Locate() is not null;
 
     /// <summary>
+    /// What the last status check found: true signed in, false signed out, null never asked.
+    ///
+    /// <para>Remembered because asking launches a process, and "is this provider usable?" is asked every
+    /// time a picker is built. Refreshed by <see cref="IsSignedInAsync"/>, and set by signing in or out,
+    /// which are the only two things in this application that change it.</para>
+    /// </summary>
+    public bool? SignedIn { get; private set; }
+
+    /// <summary>Who is signed in — <c>you@example.com (Org)</c> — or null when nobody is, or the CLI
+    /// printed a status this could not read.</summary>
+    public string? Account { get; private set; }
+
+    /// <summary>
+    /// Whether the signed-in provider can be offered as working.
+    ///
+    /// <para><b>Installed is not signed in.</b> This used to be <see cref="IsInstalled"/> alone, so a
+    /// machine with the CLI and no sign-in showed the provider as Ready and the row said "Signed in" —
+    /// until the first request failed on a token that was never issued. Unknown still counts as usable,
+    /// because the check costs a process and a stale "no" would hide a sign-in that works.</para>
+    /// </summary>
+    public bool IsUsable => SignedIn != false && IsInstalled;
+
+    /// <summary>
     /// The CLI, on PATH or in a place the documented installers put it.
     ///
     /// <para><b>`go install` is the documented route on Windows, and it does not touch PATH.</b> It
@@ -86,6 +109,9 @@ public sealed class AnthropicOAuthCli(
         }
     }
 
+    /// <summary>The CLI's release downloads — a prebuilt <c>ant.exe</c>, for anyone without Go.</summary>
+    public const string DownloadUrl = "https://github.com/anthropics/anthropic-cli/releases";
+
     /// <summary>Where to get it, for a pane that has to explain an unavailable button.</summary>
     public const string InstallHint =
         "Install the Anthropic CLI (`ant`) and press Recheck, or paste an API key instead.";
@@ -101,7 +127,32 @@ public sealed class AnthropicOAuthCli(
         var (ok, stdout, _) = await RunAsync(["auth", "status"], TimeSpan.FromSeconds(20), ct)
             .ConfigureAwait(false);
 
-        return ok && ReportsSignedIn(stdout);
+        var signedIn = ok && ReportsSignedIn(stdout);
+        SignedIn = signedIn;
+        Account = signedIn ? DescribeAccount(stdout) : null;
+        return signedIn;
+    }
+
+    /// <summary>
+    /// <c>you@example.com (Org)</c> from a status that says <c>Logged in to Org as you@example.com</c>,
+    /// or null when it says nothing of the kind.
+    ///
+    /// <para>Shown on the row because "signed in" alone does not answer the question a user actually
+    /// has, which is WHOSE organisation this is about to bill. Static and pure for the same reason
+    /// <see cref="ReportsSignedIn"/> is.</para>
+    /// </summary>
+    public static string? DescribeAccount(string? status)
+    {
+        if (status is not { Length: > 0 }) return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(
+            status, @"Logged in to\s+(?<org>.+?)\s+as\s+(?<who>\S+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!match.Success) return null;
+
+        var org = match.Groups["org"].Value.Trim().Trim('"', '\'');
+        var who = match.Groups["who"].Value.Trim().TrimEnd('.', ',').Trim('"', '\'');
+        return org.Length == 0 ? who : $"{who} ({org})";
     }
 
     /// <summary>
@@ -138,7 +189,9 @@ public sealed class AnthropicOAuthCli(
         }
 
         return await IsSignedInAsync(ct).ConfigureAwait(false)
-            ? new AnthropicSignInResult(true, "Signed in. Requests are billed to that organisation.")
+            ? new AnthropicSignInResult(true, Account is { } account
+                ? $"Signed in as {account}. Requests are billed to that organisation."
+                : "Signed in. Requests are billed to that organisation.")
             : new AnthropicSignInResult(false, "The sign-in finished but no active profile was stored.");
     }
 
@@ -147,6 +200,13 @@ public sealed class AnthropicOAuthCli(
     {
         var (ok, _, _) = await RunAsync(["auth", "logout"], TimeSpan.FromSeconds(30), ct)
             .ConfigureAwait(false);
+
+        if (ok)
+        {
+            SignedIn = false;
+            Account = null;
+        }
+
         return ok;
     }
 

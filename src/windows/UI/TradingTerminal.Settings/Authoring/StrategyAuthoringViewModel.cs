@@ -978,6 +978,7 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
             var previous = SelectedModel;
             Models.Clear();
             foreach (var model in live) Models.Add(model);
+            ShowLiveModels(choice, live);
             SelectedModel = live.Contains(previous ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                 ? previous
                 : live[0];
@@ -2910,15 +2911,66 @@ public sealed partial class StrategyAuthoringViewModel : ViewModelBase, IDisposa
         if (_ai is null) return;
 
         var selectedId = SelectedAiProvider?.ProviderId;
+        var selectedModel = SelectedModel;
 
         AiProviders.Clear();
         foreach (var provider in _ai.Providers) AiProviders.Add(new AiProviderChoice(provider));
+
+        // THE FLYOUT TOO. Only the provider rows were rebuilt, so the model flyout — which lists
+        // AllModels, not AiProviders — went on showing a provider greyed out after its key was saved,
+        // and on offering a model the setup window had just changed, until the terminal restarted.
+        // Rebuilt before the provider is re-selected, which is what points the flyout at a row.
+        AllModels.Clear();
+        foreach (var choice in _ai.AllModels()) AllModels.Add(choice);
 
         SelectedAiProvider = AiProviders.FirstOrDefault(p => p.ProviderId == selectedId)
             ?? AiProviders.FirstOrDefault(p => p.IsAvailable)
             ?? AiProviders.FirstOrDefault();
 
+        // Re-selecting the provider re-seeds its configured model, which quietly undid the model the
+        // user had picked just by opening and closing provider setup. Keep it while it is still one
+        // the same provider offers, or one they typed.
+        if (selectedModel is { Length: > 0 } && SelectedAiProvider?.ProviderId == selectedId &&
+            !string.Equals(SelectedModel, selectedModel, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Models.Contains(selectedModel, StringComparer.OrdinalIgnoreCase)) Models.Insert(0, selectedModel);
+            SelectedModel = selectedModel;
+        }
+
+        SyncModelChoice();
         OnPropertyChanged(nameof(AiHasProvider));
+    }
+
+    /// <summary>
+    /// Puts a provider's live model list into the flyout in place of its shortlist rows.
+    ///
+    /// <para>The ↻ in the flyout filled <see cref="Models"/>, which nothing on screen shows — the flyout
+    /// lists <see cref="AllModels"/> — so it reported "N model(s) available" and changed nothing the
+    /// user could see.</para>
+    /// </summary>
+    private void ShowLiveModels(AiProviderChoice choice, IReadOnlyList<string> live)
+    {
+        var at = AllModels.ToList().FindIndex(c => c.ProviderId == choice.ProviderId);
+        var rows = live.Select(model => new AiModelChoice(choice.ProviderId, choice.DisplayName, model)
+        {
+            IsAvailable = choice.IsAvailable,
+        }).ToList();
+
+        _syncingModelChoice = true;
+        try
+        {
+            for (var i = AllModels.Count - 1; i >= 0; i--)
+                if (AllModels[i].ProviderId == choice.ProviderId) AllModels.RemoveAt(i);
+
+            var insertAt = at < 0 ? AllModels.Count : Math.Min(at, AllModels.Count);
+            foreach (var row in rows) AllModels.Insert(insertAt++, row);
+        }
+        finally
+        {
+            _syncingModelChoice = false;
+        }
+
+        SyncModelChoice();
     }
 
     /// <summary>Backs out of the review — nothing was registered, the compile result is discarded.</summary>

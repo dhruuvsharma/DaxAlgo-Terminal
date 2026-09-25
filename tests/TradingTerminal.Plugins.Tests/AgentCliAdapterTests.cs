@@ -314,7 +314,7 @@ public sealed class AgentCliAdapterTests
         // is precisely why it could sit there unnoticed.
         var models = AiModelCatalog.For("anthropic");
 
-        models.Should().Contain("claude-opus-5");
+        models.Should().Contain("claude-opus-5-5");
         models.Should().OnlyHaveUniqueItems();
         models.Should().NotContain(string.Empty);
 

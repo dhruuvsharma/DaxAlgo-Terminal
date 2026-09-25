@@ -141,8 +141,12 @@ public sealed class StrategyCodegenClientFactory
         var configured = _options.Providers
             .FirstOrDefault(p => p.Key.Equals(AnthropicOAuthId, StringComparison.OrdinalIgnoreCase)).Value;
 
+        // ONE Anthropic row in the settings pane, so one model: the row saves it under `anthropic`, and a
+        // model picked while the row was on its sign-in half used to be ignored here, because only an
+        // `anthropic-oauth` section was read. That section still wins when somebody wrote one by hand.
         var effectiveModel = Blank(model)
-            ? (Blank(configured?.Model) ? AiModelCatalog.For("anthropic").FirstOrDefault() ?? string.Empty : configured!.Model)
+            ? FirstSet(configured?.Model, ConfiguredModel(AnthropicCodegenClient.KeyProviderId))
+              ?? AiModelCatalog.AnthropicDefault
             : model!;
 
         var effectiveEffort = effort == CodegenEffort.Default
@@ -156,9 +160,11 @@ public sealed class StrategyCodegenClientFactory
             http,
             configured?.BaseUrl ?? string.Empty,
             effectiveModel,
-            AnthropicCredential.OAuth(_oauth.AccessTokenAsync, () => _oauth.IsInstalled),
+            AnthropicCredential.OAuth(_oauth.AccessTokenAsync, () => _oauth.IsUsable),
             effectiveEffort);
     }
+
+    private static string? FirstSet(params string?[] values) => values.FirstOrDefault(v => !Blank(v));
 
     private IStrategyCodegenClient BuildKeyed(
         string id, AiCodegenProvider provider, string? model, CodegenEffort effort = CodegenEffort.Default)

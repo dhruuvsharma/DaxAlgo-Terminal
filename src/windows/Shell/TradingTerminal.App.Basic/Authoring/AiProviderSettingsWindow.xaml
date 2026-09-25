@@ -110,11 +110,14 @@
                                       Visibility="{Binding SupportsSignIn, Converter={StaticResource B2V}}" />
 
                         <!--
-                            Sign in — but only offered as a button when it can actually be pressed.
+                            Sign in — three states, and each shows only what can be done in it.
 
                             A disabled CTA with the reason somewhere else is a dead end: the user clicks,
-                            nothing happens, and the pane has said nothing about why. When the CLI is
-                            missing the button is REPLACED by what to do about it.
+                            nothing happens, and the pane has said nothing about why. So: no CLI → how to
+                            get it (a download button, not just a command line); CLI but nobody signed in
+                            → the Sign in button; signed in → WHO, and Sign out. "Signed in" without an
+                            account never answered the one question that matters, whose organisation
+                            this is about to bill.
                         -->
                         <StackPanel Visibility="{Binding IsSignIn, Converter={StaticResource B2V}}">
                           <Border CornerRadius="{StaticResource HYP.Radius.S}" Padding="10,8"
@@ -132,9 +135,16 @@
                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
                                              TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
                                              Foreground="{DynamicResource Text.Primary}" />
+                                  <Button Content="Download the Anthropic CLI" HorizontalAlignment="Left"
+                                          Margin="0,8,0,0" Style="{StaticResource HYP.CtaButton}"
+                                          Command="{Binding DataContext.OpenCliDownloadCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                          ToolTip="Opens the release page in your browser. Install it, then press Recheck." />
+                                  <TextBlock Text="OR, WITH GO INSTALLED" Style="{StaticResource HYP.SectionLabel}"
+                                             Margin="0,10,0,0" />
                                   <TextBox Text="{Binding DataContext.SignInInstallHint, Mode=OneWay,
                                            RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                           IsReadOnly="True" Margin="0,7,0,0" Padding="7,5"
+                                           IsReadOnly="True" Margin="0,4,0,0" Padding="7,5"
                                            FontFamily="{DynamicResource Font.Data}" FontSize="10.5"
                                            TextWrapping="Wrap"
                                            Background="{DynamicResource Background.Elevated}"
@@ -142,37 +152,49 @@
                               </StackPanel>
                           </Border>
 
-                          <DockPanel Visibility="{Binding DataContext.CanSignIn,
+                          <!-- Signed in: who, and the way out. -->
+                          <DockPanel Visibility="{Binding DataContext.IsSignedIn,
                                      RelativeSource={RelativeSource AncestorType=ListBox},
                                      Converter={StaticResource B2V}}">
                             <Button DockPanel.Dock="Right" Content="Sign out" Style="{StaticResource HYP.Button}"
-                                    Margin="6,0,0,0"
+                                    Margin="6,0,0,0" VerticalAlignment="Center"
                                     Command="{Binding DataContext.SignOutCommand,
-                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                    IsEnabled="{Binding DataContext.CanSignIn,
-                                                RelativeSource={RelativeSource AncestorType=ListBox}}" />
-
-                            <Button HorizontalAlignment="Left"
-                                    Command="{Binding DataContext.SignInCommand,
-                                              RelativeSource={RelativeSource AncestorType=ListBox}}">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource HYP.CtaButton}">
-                                        <Setter Property="Content" Value="Sign in with Anthropic" />
-                                        <Setter Property="IsEnabled"
-                                                Value="{Binding DataContext.CanSignIn,
-                                                        RelativeSource={RelativeSource AncestorType=ListBox}}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding DataContext.IsSigningIn,
-                                                         RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                         Value="True">
-                                                <Setter Property="Content" Value="Waiting for your browser…" />
-                                                <Setter Property="IsEnabled" Value="False" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
+                                              RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                            <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Ai.Text.Brush}">
+                                <Run Text="✓ " /><Run Text="{Binding DataContext.SignedInAccount, Mode=OneWay,
+                                                            RelativeSource={RelativeSource AncestorType=ListBox}}" />
+                            </TextBlock>
                           </DockPanel>
+
+                          <!-- Installed, nobody signed in: the one button. -->
+                          <Button HorizontalAlignment="Left"
+                                  Visibility="{Binding DataContext.ShowSignInButton,
+                                               RelativeSource={RelativeSource AncestorType=ListBox},
+                                               Converter={StaticResource B2V}}"
+                                  Command="{Binding DataContext.SignInCommand,
+                                            RelativeSource={RelativeSource AncestorType=ListBox}}">
+                              <Button.Style>
+                                  <Style TargetType="Button" BasedOn="{StaticResource HYP.CtaButton}">
+                                      <Setter Property="Content" Value="Sign in with Anthropic" />
+                                      <Style.Triggers>
+                                          <DataTrigger Binding="{Binding DataContext.IsCheckingSignIn,
+                                                       RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                       Value="True">
+                                              <Setter Property="Content" Value="Checking your sign-in…" />
+                                              <Setter Property="IsEnabled" Value="False" />
+                                          </DataTrigger>
+                                          <DataTrigger Binding="{Binding DataContext.IsSigningIn,
+                                                       RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                       Value="True">
+                                              <Setter Property="Content" Value="Waiting for your browser…" />
+                                              <Setter Property="IsEnabled" Value="False" />
+                                          </DataTrigger>
+                                      </Style.Triggers>
+                                  </Style>
+                              </Button.Style>
+                          </Button>
 
                           <TextBlock Text="{Binding DataContext.SignInHint,
                                      RelativeSource={RelativeSource AncestorType=ListBox}}"
@@ -207,6 +229,34 @@
                         <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap"
                                    Style="{StaticResource HYP.GhostText}" Margin="0,7,0,0" />
 
+                        <!--
+                            The model, up front. It used to live inside a collapsed "Endpoint & model",
+                            so the one setting that decides what Hyperion builds with was a click behind
+                            the one almost nobody needs. A pick saves itself: the dropdown fills from the
+                            provider the first time it is opened, and a typed id commits on leaving the box.
+                        -->
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock DockPanel.Dock="Right" Text="asking the provider…"
+                                       Style="{StaticResource HYP.GhostText}" FontSize="10"
+                                       Visibility="{Binding IsLoadingModels, Converter={StaticResource B2V}}" />
+                            <TextBlock Text="{Binding ModelLabel}" Style="{StaticResource HYP.SectionLabel}" />
+                        </DockPanel>
+                        <DockPanel Margin="0,4,0,0">
+                            <Button DockPanel.Dock="Right" Content="↻" Style="{StaticResource HYP.Button}"
+                                    Margin="6,0,0,0"
+                                    ToolTip="Ask the provider which models this key or sign-in can call"
+                                    Command="{Binding DataContext.RefreshModelsCommand,
+                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                    CommandParameter="{Binding}" />
+                            <ComboBox IsEditable="True" ItemsSource="{Binding AvailableModels}"
+                                      Text="{Binding Model, UpdateSourceTrigger=LostFocus}"
+                                      SelectedItem="{Binding PickedModel, Mode=OneWayToSource}"
+                                      DropDownOpened="OnModelDropDownOpened"
+                                      FontFamily="{DynamicResource Font.Data}"
+                                      FontSize="11.5" Padding="6,4"
+                                      ToolTip="Pick a model, or type any id this provider accepts." />
+                        </DockPanel>
+
                         <!-- The one thing most people came to do. -->
                         <Button Content="Use this provider" Margin="0,10,0,0"
                                 HorizontalAlignment="Left"
@@ -216,25 +266,11 @@
                                 CommandParameter="{Binding}"
                                 Visibility="{Binding CanBecomeDefault, Converter={StaticResource B2V}}" />
 
-                        <!-- Endpoint, model, api-version: for the few who need them. -->
-                        <Expander Header="Endpoint &amp; model" Margin="0,10,0,0" FontSize="10.5"
+                        <!-- Endpoint and api-version: for the few who need them. -->
+                        <Expander Header="Endpoint" Margin="0,10,0,0" FontSize="10.5"
                                   Foreground="{DynamicResource Text.Secondary}">
                             <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="{Binding ModelLabel}"
-                                           Style="{StaticResource HYP.SectionLabel}" />
-                                <DockPanel Margin="0,4,0,0">
-                                    <Button DockPanel.Dock="Right" Content="Refresh" Style="{StaticResource HYP.Button}"
-                                            Margin="6,0,0,0"
-                                            Command="{Binding DataContext.RefreshModelsCommand,
-                                                      RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                            CommandParameter="{Binding}" />
-                                    <ComboBox IsEditable="True" ItemsSource="{Binding AvailableModels}"
-                                              Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}"
-                                              FontSize="11.5" Padding="6,4" />
-                                </DockPanel>
-
-                                <TextBlock Text="ENDPOINT" Style="{StaticResource HYP.SectionLabel}"
-                                           Margin="0,10,0,0" />
+                                <TextBlock Text="ENDPOINT" Style="{StaticResource HYP.SectionLabel}" />
                                 <TextBox Style="{StaticResource HYP.Field}"
                                          Text="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}"
                                          Margin="0,4,0,0" FontSize="11"
@@ -359,7 +395,7 @@
 
             <Button DockPanel.Dock="Right" Content="Recheck" Style="{StaticResource HYP.Button}" Margin="0,0,8,0"
                     Command="{Binding RecheckCommand}"
-                    ToolTip="Look again for stored keys and an Anthropic sign-in" />
+                    ToolTip="Look again for stored keys, the Anthropic CLI, and who is signed in" />
 
             <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
                        Style="{StaticResource HYP.GhostText}" Text="{Binding Status}" />

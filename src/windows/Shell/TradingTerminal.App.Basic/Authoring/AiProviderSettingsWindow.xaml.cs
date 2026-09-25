@@ -5,9 +5,10 @@ using MahApps.Metro.Controls;
 namespace TradingTerminal.App.Authoring;
 
 /// <summary>
-/// Provider setup. Code-behind is PasswordBox plumbing and the close button only — <c>Password</c> is
-/// deliberately not a dependency property (a bindable one would sit in the binding engine's memory), so
-/// the established pattern in this shell is to push it into the view-model on change.
+/// Provider setup. Code-behind is PasswordBox plumbing, two event-to-command hops and the close button
+/// only — <c>Password</c> is deliberately not a dependency property (a bindable one would sit in the
+/// binding engine's memory), so the established pattern in this shell is to push it into the view-model
+/// on change.
 /// </summary>
 public partial class AiProviderSettingsWindow : MetroWindow
 {
@@ -15,6 +16,20 @@ public partial class AiProviderSettingsWindow : MetroWindow
     {
         InitializeComponent();
         DataContext = viewModel;
+
+        // After the window is up, not before: the check launches the CLI, and the pane should open at
+        // once and correct itself a moment later rather than open late.
+        Loaded += (_, _) => viewModel.CheckSignInCommand.Execute(null);
+    }
+
+    private void OnModelDropDownOpened(object? sender, EventArgs e)
+    {
+        // The row from the BOX, for the same reason as the key: every card carries its own dropdown.
+        if (sender is ComboBox { DataContext: AiProviderSetupRow row }
+            && DataContext is AiProviderSettingsViewModel viewModel)
+        {
+            viewModel.LoadModelsOnDemandCommand.Execute(row);
+        }
     }
 
     private void OnKeyChanged(object sender, RoutedEventArgs e)
