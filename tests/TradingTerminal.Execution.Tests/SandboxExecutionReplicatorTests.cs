@@ -170,6 +170,42 @@ public sealed class SandboxExecutionReplicatorTests
         Assert.Equal(CanonicalOrderType.Market, CanonicalOrderInstruction.EntryOrderTypeOf(intent));
     }
 
+    [Fact]
+    public async Task AFractionalStrategyPositionIsCopiedWhenTheBooksSizeMakesItWhole()
+    {
+        // 0.1 through a double is 0.1000000000000000055…; read through decimal it is 0.1, and 0.1 × 30 is 3.
+        var source = new ManualPortfolioSource();
+        var intake = new RecordingIntake(ExecutionTargetSubmissionResult.Success("accepted"));
+        await using var replicator = new SandboxExecutionReplicator(
+            source, intake, new SandboxExecutionReplicationOptions("book-1", "sandbox-42", UnitsPerStrategyUnit: 30));
+
+        source.Publish(Snapshot(0.1d, null, null));
+        Assert.True((await intake.NextOutcome.Task.WaitAsync(TestTimeouts.Deadlock)).IsSuccess);
+
+        Assert.True(Assert.Single(intake.Intents).SignedUnits.TryGetWholeUnits(out var units));
+        Assert.Equal(3, units);
+    }
+
+    [Fact]
+    public async Task AFractionalPositionTheSizeDoesNotMakeWholeIsRefusedAndSaysWhy()
+    {
+        var source = new ManualPortfolioSource();
+        var intake = new RecordingIntake(ExecutionTargetSubmissionResult.Success("accepted"));
+        await using var replicator = new SandboxExecutionReplicator(
+            source, intake, new SandboxExecutionReplicationOptions("book-1", "sandbox-42", UnitsPerStrategyUnit: 2));
+
+        source.Publish(Snapshot(0.25d, null, null));
+        var deadline = DateTime.UtcNow + TestTimeouts.Deadlock;
+        while (replicator.LastOutcome is null && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+
+        Assert.Empty(intake.Intents);
+        var outcome = Assert.IsType<SandboxExecutionReplicationOutcome>(replicator.LastOutcome);
+        Assert.Null(outcome.Intent);
+        Assert.Contains("0.25 units", outcome.Result.Message, StringComparison.Ordinal);
+        Assert.Contains("not a whole number of book units", outcome.Result.Message, StringComparison.Ordinal);
+    }
+
     private static SandboxPortfolioSnapshot PendingSnapshot(
         double triggerPrice,
         double signedTargetUnits,

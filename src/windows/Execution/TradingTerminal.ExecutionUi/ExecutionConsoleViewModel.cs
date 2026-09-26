@@ -42,6 +42,7 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     [NotifyPropertyChangedFor(nameof(CanKill))]
     [NotifyPropertyChangedFor(nameof(IntakeToggleLabel))]
     [NotifyPropertyChangedFor(nameof(IsSelectedBookLive))]
+    [NotifyPropertyChangedFor(nameof(TicketInstrumentLabel))]
     private ExecutionBookNavigationReadModel? _selectedBookEntry;
 
     [ObservableProperty]
@@ -51,10 +52,7 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     private ExecutionTimeRange _selectedRange = ExecutionTimeRange.ThirtyDays;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPositionsTab))]
-    [NotifyPropertyChangedFor(nameof(IsOpenOrdersTab))]
-    [NotifyPropertyChangedFor(nameof(IsHistoryTab))]
-    private ExecutionDetailTab _selectedTab = ExecutionDetailTab.Positions;
+    private ExecutionDetailTab _selectedTab = ExecutionDetailTab.Overview;
 
     [ObservableProperty]
     private ExecutionMetricResult _metrics = EmptyMetrics();
@@ -157,12 +155,17 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         IExecutionConfirmationService confirmation,
         IBrokerLoginFormFactory loginFormFactory,
         ExecutionModeStatusProjection? executionModeStatus = null,
-        IStrategyFactory? strategies = null)
+        IStrategyFactory? strategies = null,
+        TradingTerminal.UI.Strategies.IStrategyKernelRegistry? kernels = null,
+        TradingTerminal.Blocks.Runtime.IBlocksUnitRegistry? blocks = null)
     {
+        _blocks = blocks;
         // Optional so the console still composes in a host that registers no catalog; the picker is
-        // then simply empty, which is the truth rather than a fabricated list.
-        AvailableStrategies = Array.AsReadOnly(
-            (strategies?.All ?? []).Select(item => item.DisplayName).ToArray());
+        // then simply empty, which is the truth rather than a fabricated list. Authored strategies (the
+        // kernel registry) are listed beside installed ones: those are what a strategy window runs.
+        _strategyFactory = strategies;
+        _kernels = kernels;
+        RefreshStrategyChoices();
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _confirmation = confirmation ?? throw new ArgumentNullException(nameof(confirmation));
         _loginFormFactory = loginFormFactory ?? throw new ArgumentNullException(nameof(loginFormFactory));
@@ -223,14 +226,11 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     public ExecutionTone ExecutionModeBannerTone =>
         HasLiveExecution ? ExecutionTone.Negative : ExecutionTone.Info;
 
-    public bool IsPositionsTab => SelectedTab == ExecutionDetailTab.Positions;
+    public string ExecutionModeShortLabel => HasLiveExecution ? "LIVE" : "PAPER";
 
-    public bool IsOpenOrdersTab => SelectedTab == ExecutionDetailTab.OpenOrders;
-
-    public bool IsHistoryTab => SelectedTab == ExecutionDetailTab.History;
-
-    public string AnalyticsProvenanceLabel =>
-        "SAMPLE-ONLY portfolio analytics use representative in-memory trade outcomes; operational history and execution quality are exact OMS projections.";
+    public string ExecutionModeDetail => HasLiveExecution
+        ? "real-money orders enabled"
+        : "safe default · arm REAL in the login window";
 
     partial void OnSelectedBookEntryChanged(ExecutionBookNavigationReadModel? value) => ApplyDashboard();
 
@@ -249,7 +249,7 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
 
     /// <summary>Installed strategies, for the New Book picker. Empty until an artifact is installed —
     /// the console does not invent names.</summary>
-    public IReadOnlyList<string> AvailableStrategies { get; } = Array.Empty<string>();
+    public IReadOnlyList<string> AvailableStrategies { get; private set; } = Array.Empty<string>();
 
     /// <summary>A Real book needs a broker account; a Paper book never leaves the process.</summary>
     public bool NewBookNeedsBroker =>
@@ -261,6 +261,7 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
     [RelayCommand]
     private void NewBook()
     {
+        RefreshStrategyChoices();
         IsNewBookOpen = true;
         SelectedNewBookMode ??= "Paper";
         SelectedNewBookStrategy ??= AvailableStrategies.FirstOrDefault();
@@ -293,13 +294,27 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         // here - it used to send a label that matched no registered adapter - fails validation and the
         // book is never created.
         var adapterId = NewBookNeedsBroker ? SelectedNewBookAdapter!.Id : "paper";
-        var strategies = string.IsNullOrWhiteSpace(SelectedNewBookStrategy)
-            ? Array.Empty<string>()
-            : new[] { SelectedNewBookStrategy! };
+        // A book is a name, an account and the strategy it copies. The strategy picks the instrument: the book
+        // binds to whatever the strategy's window runs on, and says so if its account cannot trade it.
+        if (string.IsNullOrWhiteSpace(SelectedNewBookStrategy))
+        {
+            NewBookError = AvailableStrategies.Count == 0
+                ? "A book copies a strategy, and none is installed or authored yet. Build one first."
+                : "Pick the strategy this book copies.";
+            return;
+        }
+
+        if (!long.TryParse(NewBookSize?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var size) || size <= 0)
+        {
+            NewBookError = "Units per strategy unit must be a whole number, 1 or more.";
+            return;
+        }
+
         var request = new ExecutionBookCreateRequest(
             NewBookName,
             adapterId,
-            Array.AsReadOnly(strategies));
+            Array.AsReadOnly([SelectedNewBookStrategy.Trim()]),
+            UnitsPerStrategyUnit: size);
         var result = await RunCommandAsync(token => _client.CreateBookAsync(request, token));
         if (result.IsSuccess)
         {
@@ -560,31 +575,29 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
                                      item.Id == SelectedNewBookAdapter?.Id) ??
                                  AvailableAdapters.FirstOrDefault();
 
-        var allPeriod = snapshot.PortfolioAnalytics.Period(ExecutionTimeRange.ThirtyDays);
+        var totalPnl = snapshot.Books.Sum(book => book.RealizedProfitAndLoss + book.UnrealizedProfitAndLoss);
         var entries = new List<ExecutionBookNavigationReadModel>
         {
             new(
                 "all",
                 "All books",
                 $"{snapshot.Books.Count} books  |  {snapshot.Adapters.Count(item => item.IsRegistered)} execution adapters",
-                allPeriod.Metrics.NetProfitAndLossDisplay,
-                allPeriod.Metrics.ProfitAndLossTone,
+                ExecutionFormatting.SignedMoney(totalPnl),
+                ExecutionFormatting.ToneOf(totalPnl),
                 IsAllBooks: true,
-                Book: null),
+                Book: null)
+            {
+                Detail = snapshot.Books.Count == 1 ? "1 book · portfolio view" : $"{snapshot.Books.Count} books · portfolio view",
+            },
         };
-        entries.AddRange(snapshot.Books.Select(book => new ExecutionBookNavigationReadModel(
-            book.Id,
-            book.Name,
-            book.Summary,
-            book.ProfitAndLoss,
-            book.ProfitAndLossTone,
-            IsAllBooks: false,
-            book)));
+        entries.AddRange(snapshot.Books.Select(NavigationEntry));
         BookEntries = Array.AsReadOnly(entries.ToArray());
         SelectedBookEntry = BookEntries.FirstOrDefault(item => item.Id == selectedId) ?? BookEntries[0];
 
         ConnectionSummary = $"{snapshot.Adapters.Count(item => item.IsConnected)} connected  |  " +
                             $"{snapshot.Adapters.Count(item => item.IsUnavailable)} unavailable";
+        Desk = BuildDeskSummary(snapshot);
+        RefreshVisibleAdapters();
         if (!string.IsNullOrWhiteSpace(snapshot.LastOperationMessage))
             OperationMessage = snapshot.LastOperationMessage;
         ApplyDashboard();
@@ -654,6 +667,7 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
             LeaseTone = held == selectedBooks.Length ? ExecutionTone.Positive : ExecutionTone.Warning;
         }
 
+        ApplyDeskSelection(selectedEntry, selectedBooks);
         OnPropertyChanged(nameof(SelectedBook));
         OnPropertyChanged(nameof(CanIssueCommands));
         OnPropertyChanged(nameof(CanKill));
@@ -667,6 +681,8 @@ public sealed partial class ExecutionConsoleViewModel : ViewModelBase, IDisposab
         OnPropertyChanged(nameof(HasLiveExecution));
         OnPropertyChanged(nameof(ExecutionModeBannerLabel));
         OnPropertyChanged(nameof(ExecutionModeBannerTone));
+        OnPropertyChanged(nameof(ExecutionModeShortLabel));
+        OnPropertyChanged(nameof(ExecutionModeDetail));
     }
 
     private IReadOnlyList<ExecutionAdapterReadModel> AttachLoginForms(

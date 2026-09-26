@@ -32,6 +32,10 @@ public static class ExecutionConsoleServiceCollectionExtensions
         // TryAdd, so a shell that binds the PaperAccount configuration section wins over this default.
         services.TryAddSingleton(new PaperAccountOptions());
         services.AddSingleton<IExecutionClient, InProcessExecutionClient>();
+        // The same engine, seen from a strategy window: running strategies attach here and the books that name
+        // them copy their positions (2026-09-25).
+        services.AddSingleton<IStrategyExecutionBridge>(provider =>
+            provider.GetRequiredService<IExecutionClient>() as IStrategyExecutionBridge ?? NoStrategyExecution.Instance);
         // App lifetime, like the engine it watches: the header chip lives as long as the shell does.
         services.AddSingleton<ExecutionBooksChipViewModel>();
         services.AddTransient<ExecutionConsoleViewModel>();
@@ -44,6 +48,23 @@ public static class ExecutionConsoleServiceCollectionExtensions
 /// Process-shared, fail-closed fencing generations for the in-process console. The fixed capacities
 /// prevent repeated console lifetimes from turning lease history into an unbounded collection.
 /// </summary>
+/// <summary>For an execution client that is not the in-process engine: strategies run, and reach no book.</summary>
+internal sealed class NoStrategyExecution : IStrategyExecutionBridge
+{
+    public static NoStrategyExecution Instance { get; } = new();
+
+    public IDisposable Attach(string strategyName, TradingTerminal.Sandbox.Runtime.IModelPortfolioSource portfolio) => Nothing.Instance;
+
+    private sealed class Nothing : IDisposable
+    {
+        public static Nothing Instance { get; } = new();
+
+        public void Dispose()
+        {
+        }
+    }
+}
+
 internal sealed class ExecutionConsoleLeaseStore : IExecutionLeaseStore
 {
     internal const int MaximumAccounts = 256;

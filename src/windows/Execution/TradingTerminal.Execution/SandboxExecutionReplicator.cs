@@ -34,13 +34,19 @@ public interface IExecutionBookTargetIntake
 ///
 /// <para><see cref="Enabled"/> remains settable so a test can bind a replicator and assert it stays
 /// quiet, but production composition leaves it on.</para>
+///
+/// <para><b><see cref="UnitsPerStrategyUnit"/></b> is the book's size: how many of the book's units one unit
+/// of the strategy's model position stands for. A book unit is the broker's own step — a share, a contract,
+/// 0.01 lot on cTrader, 0.00001 BTC on Binance — so the same strategy means very different exposure on
+/// different books, and the owner of each book says how much. Whole numbers only: a target is never rounded.</para>
 /// </summary>
 public sealed record SandboxExecutionReplicationOptions(
     string BookId,
     string StrategyId,
     bool Enabled = true,
     string PolicyVersion = SandboxExecutionReplicator.DefaultPolicyVersion,
-    ScaledMoney EstimatedRoundTripCostPerUnit = default);
+    ScaledMoney EstimatedRoundTripCostPerUnit = default,
+    long UnitsPerStrategyUnit = 1);
 
 /// <summary>One attempted replication and its gated intake result.</summary>
 public readonly record struct SandboxExecutionReplicationOutcome(
@@ -85,6 +91,8 @@ public sealed class SandboxExecutionReplicator : IDisposable, IAsyncDisposable
             throw new ArgumentException("Stable sandbox strategy provenance is required.", nameof(options));
         if (string.IsNullOrWhiteSpace(options.PolicyVersion))
             throw new ArgumentException("A sandbox replication policy version is required.", nameof(options));
+        if (options.UnitsPerStrategyUnit <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "Units per strategy unit must be a positive whole number.");
         if (!options.EstimatedRoundTripCostPerUnit.IsValid ||
             options.EstimatedRoundTripCostPerUnit.Coefficient < 0)
         {
@@ -263,12 +271,15 @@ public sealed class SandboxExecutionReplicator : IDisposable, IAsyncDisposable
         failure = string.Empty;
         if (snapshot.Instrument.IsNone)
         {
-            failure = "Sandbox replication refused an unresolved instrument.";
+            failure = "The strategy is not on one single instrument: it holds positions in several at once, or watches " +
+                      "several and holds none yet. A book copies one instrument, and binds when the strategy holds one.";
             return false;
         }
-        if (!TryWholeUnits(snapshot.PositionUnits, out var units))
+        if (!TryBookUnits(snapshot.PositionUnits, out var units))
         {
-            failure = "Sandbox replication requires exact whole target units; no re-sizing or rounding is allowed.";
+            failure = $"The strategy holds {snapshot.PositionUnits:0.########} units, which times this book's size " +
+                      $"({_options.UnitsPerStrategyUnit}) is not a whole number of book units. Nothing is rounded: " +
+                      "give the book a size that makes it whole.";
             return false;
         }
         if (!TryPrice(snapshot.ProtectiveStopPrice, out var stop))
@@ -289,9 +300,9 @@ public sealed class SandboxExecutionReplicator : IDisposable, IAsyncDisposable
         ScaledPrice? entryStop = null;
         if (snapshot.PendingEntry is { } pending)
         {
-            if (!TryWholeUnits(pending.SignedTargetUnits, out units))
+            if (!TryBookUnits(pending.SignedTargetUnits, out units))
             {
-                failure = "Sandbox replication requires exact whole pending-entry units.";
+                failure = "The strategy's pending entry, times this book's size, is not a whole number of book units.";
                 return false;
             }
             if (!TryPrice(pending.TriggerPrice, out var trigger) || trigger is null)
@@ -320,20 +331,30 @@ public sealed class SandboxExecutionReplicator : IDisposable, IAsyncDisposable
         return true;
     }
 
-    private static bool TryWholeUnits(double value, out long units)
+    /// <summary>
+    /// The strategy's units in the book's units: <paramref name="value"/> × the book's size, exactly. A fractional
+    /// model position is fine when the product is whole (0.5 × 10 = 5); nothing is ever rounded. The double is read
+    /// through decimal, which keeps the fifteen digits it was written with, so 0.1 × 10 is 1 and not 1.0000000000000002.
+    /// </summary>
+    private bool TryBookUnits(double value, out long units)
     {
         units = 0;
-        if (!double.IsFinite(value) || Math.Truncate(value) != value)
+        if (!double.IsFinite(value))
             return false;
+        decimal scaled;
         try
         {
-            units = checked((long)value);
+            scaled = (decimal)value * _options.UnitsPerStrategyUnit;
         }
         catch (OverflowException)
         {
             return false;
         }
-        return (double)units == value;
+
+        if (decimal.Truncate(scaled) != scaled || scaled > long.MaxValue || scaled < long.MinValue)
+            return false;
+        units = (long)scaled;
+        return true;
     }
 
     private static bool TryPrice(double? value, out ScaledPrice? price)

@@ -75,8 +75,11 @@ public sealed class RoutedExecutionAdapterTests
         public Task<RoutePosition> PositionAsync(RouteEnvironment environment, string symbol, CancellationToken ct) =>
             Task.FromResult(new RoutePosition(symbol, Position));
 
+        /// <summary>What the broker quotes; null for a broker with no price call.</summary>
+        public RoutePrice? Price { get; set; } = new(50_000m, Now);
+
         public Task<RoutePrice?> PriceAsync(RouteEnvironment environment, string symbol, CancellationToken ct) =>
-            Task.FromResult<RoutePrice?>(new RoutePrice(50_000m, Now));
+            Task.FromResult(Price);
 
         /// <summary>Moves order <paramref name="orderId"/> to a new broker state.</summary>
         public void Set(string orderId, RouteOrderStatus status, decimal filled, decimal? average, decimal fee = 0, string feeCurrency = "")
@@ -106,6 +109,28 @@ public sealed class RoutedExecutionAdapterTests
         book.EventReceived += events.Add;
         await book.ConnectAsync();
         return (card, book, scheduler, events);
+    }
+
+    [Fact]
+    public async Task A_broker_with_no_price_call_takes_the_terminals_own_quote_for_the_books_instrument()
+    {
+        var route = new FakeRoute { Price = null };
+        await using var card = new RoutedExecutionAdapter(route, ExecutionMode.Paper, Options(), hasCredentials: true, Clock())
+        {
+            ReferencePriceFallback = instrument => instrument == Instrument ? new RoutePrice(123.45m, Now) : null,
+        };
+        await card.ConnectAsync();
+        await using var book = card.CreateBookAdapter(Instrument, "BTCUSDT", new ControllableAdapterEventScheduler());
+        await book.ConnectAsync();
+
+        await book.RefreshReferencePriceAsync();
+
+        Assert.Equal(new ScaledPrice(12_345, 2), book.LatestReferencePrice);
+        Assert.Equal(Now, book.LatestReferencePriceObservedAtUtc);
+
+        route.Price = new RoutePrice(50_000m, Now);
+        await book.RefreshReferencePriceAsync();
+        Assert.Equal(new ScaledPrice(50_000, 0), book.LatestReferencePrice);
     }
 
     private static BrokerAdapterCommandResult Submit(RoutedExecutionAdapter adapter, string clientOrderId, long units) =>

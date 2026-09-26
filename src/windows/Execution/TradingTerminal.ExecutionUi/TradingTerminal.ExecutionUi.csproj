@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TradingTerminal.Execution\TradingTerminal.Execution.csproj" />
+    <!-- Strategies written against the Blocks SDK are offered to books beside authored and installed ones. -->
+    <ProjectReference Include="..\..\..\..\src\windows\Sandbox\TradingTerminal.Blocks.Runtime\TradingTerminal.Blocks.Runtime.csproj" />
     <ProjectReference Include="..\..\..\..\src\windows\Shell\TradingTerminal.Login\TradingTerminal.Login.csproj" />
     <ProjectReference Include="..\..\..\..\src\windows\UI\TradingTerminal.UI.Core\TradingTerminal.UI.Core.csproj" />
     <ProjectReference Include="..\..\..\..\src\windows\Shell\TradingTerminal.UI\TradingTerminal.UI.csproj" />

@@ -38,11 +38,16 @@ public enum ExecutionTimeRange
     YearToDate,
 }
 
+/// <summary>The views of the selected book (or of all books).</summary>
 public enum ExecutionDetailTab
 {
+    Overview,
     Positions,
-    OpenOrders,
-    History,
+    Orders,
+    Fills,
+    Quality,
+    Risk,
+    Audit,
 }
 
 public enum ExecutionManualOrderSide
@@ -126,6 +131,14 @@ public sealed record ExecutionAdapterReadModel(
 
     public string ModeSwitchLabel => IsLive ? "Switch to PAPER" : "Switch to LIVE";
 
+    /// <summary>The environment as a chip: LIVE when real money moves, else the broker's own name for its test
+    /// environment (DEMO, TESTNET, SANDBOX, PAPER), or LIVE ONLY for a broker that has none.</summary>
+    public string ChipLabel => IsLive ? "LIVE" : EnvironmentLabel.Length > 0 ? EnvironmentLabel : "PAPER";
+
+    public ExecutionTone ChipTone => IsLive
+        ? ExecutionTone.Negative
+        : string.Equals(EnvironmentLabel, "LIVE ONLY", StringComparison.Ordinal) ? ExecutionTone.Warning : ExecutionTone.Info;
+
     public string ConfirmationAccountLabel => string.IsNullOrWhiteSpace(BrokerAccountId)
         ? AccountLabel
         : BrokerAccountId;
@@ -168,6 +181,51 @@ public sealed record ExecutionBookReadModel(
         Array.Empty<ExecutionTradableInstrumentReadModel>();
 
     public bool SupportsKill { get; init; } = true;
+
+    /// <summary>Every fill the book received this session, newest first, with its cost against the price at send.</summary>
+    public IReadOnlyList<ExecutionFillReadModel> Fills { get; init; } = Array.Empty<ExecutionFillReadModel>();
+
+    /// <summary>What one of this book's units is, and the latest price it has for its instrument.</summary>
+    public ExecutionBookUnitReadModel Unit { get; init; } = ExecutionBookUnitReadModel.None;
+
+    /// <summary>Book units per unit of a bound strategy's position.</summary>
+    public long UnitsPerStrategyUnit { get; init; } = 1;
+
+    /// <summary>The book's net position in its own units (its single instrument, or the sum across a paper
+    /// book's instruments).</summary>
+    public decimal PositionUnits { get; init; }
+
+    /// <summary>Opening equity plus realized P&amp;L plus open P&amp;L at the latest price.</summary>
+    public decimal NetAssetValue { get; init; }
+
+    public decimal RealizedProfitAndLoss { get; init; }
+
+    public decimal UnrealizedProfitAndLoss { get; init; }
+
+    /// <summary>Realized today (UTC).</summary>
+    public decimal DayRealizedProfitAndLoss { get; init; }
+
+    public decimal GrossExposure { get; init; }
+
+    public decimal NetExposure { get; init; }
+
+    /// <summary>The running strategy this book copies, when one is bound.</summary>
+    public ExecutionStrategyLinkReadModel? StrategyLink { get; init; }
+
+    /// <summary>Why the selected strategy cannot be used on this book — the account cannot trade its instrument, the
+    /// card is not connected, another book holds the symbol — or empty when it can.</summary>
+    public string StrategyWarning { get; init; } = string.Empty;
+
+    public bool HasStrategyWarning => StrategyWarning.Length > 0;
+
+    /// <summary>The book copies a strategy but has not been told its instrument yet: the strategy's window has not
+    /// run since the book was created.</summary>
+    public bool IsAwaitingInstrument { get; init; }
+
+    public int WorkingOrderCount => Orders.Count(order => order.IsOpen);
+
+    public int OpenReconciliationCaseCount =>
+        ReconciliationCases.Count(item => !string.Equals(item.Status, "Resolved", StringComparison.Ordinal));
 
     public bool CanSubmitManualOrder => AdmissionOpen && TradableInstruments.Count > 0;
 
@@ -214,7 +272,81 @@ public sealed record ExecutionBookNavigationReadModel(
     string ProfitAndLoss,
     ExecutionTone Tone,
     bool IsAllBooks,
-    ExecutionBookReadModel? Book);
+    ExecutionBookReadModel? Book)
+{
+    /// <summary>Broker and symbol (<c>cTrader · EURUSD</c>), or how many books "All books" covers.</summary>
+    public string Detail { get; init; } = string.Empty;
+
+    /// <summary>The book's net position in its units, signed.</summary>
+    public string Position { get; init; } = string.Empty;
+
+    /// <summary>The bound strategy and the book's size (<c>EMA Cross ×1,000</c>), or "Manual only".</summary>
+    public string Strategy { get; init; } = string.Empty;
+
+    /// <summary>Something that needs attention (<c>1 recon case</c>, <c>intake paused</c>), or empty.</summary>
+    public string Alert { get; init; } = string.Empty;
+
+    public bool HasAlert => Alert.Length > 0;
+}
+
+/// <summary>The whole desk at a glance: every book's value, today's result, exposure, risk and what needs attention.</summary>
+public sealed record ExecutionDeskSummary(
+    string NetAssetValue,
+    string BooksLine,
+    string DayRealized,
+    ExecutionTone DayRealizedTone,
+    string OpenProfitAndLoss,
+    ExecutionTone OpenProfitAndLossTone,
+    string GrossNet,
+    string Leverage,
+    string ValueAtRisk,
+    string ValueAtRiskDetail,
+    int WorkingOrders,
+    string WorkingOrdersDetail,
+    int OpenReconciliationCases,
+    int UnknownOutcomes)
+{
+    public static readonly ExecutionDeskSummary Empty = new(
+        "$0.00", "no books", "$0.00", ExecutionTone.Neutral, "$0.00", ExecutionTone.Neutral,
+        "$0 / $0", "0.00× leverage", "n/a", "no history", 0, "none", 0, 0);
+
+    public bool HasReconciliationCases => OpenReconciliationCases > 0;
+
+    public bool HasUnknownOutcomes => UnknownOutcomes > 0;
+
+    public string ReconciliationLabel => OpenReconciliationCases == 1 ? "1 recon case" : $"{OpenReconciliationCases} recon cases";
+
+    public string UnknownLabel => $"{UnknownOutcomes} unknown";
+}
+
+/// <summary>The selected book's (or all books') value and P&amp;L split, for the overview.</summary>
+public sealed record ExecutionSelectionSummary(
+    string NetAssetValue,
+    string Realized,
+    ExecutionTone RealizedTone,
+    string Unrealized,
+    ExecutionTone UnrealizedTone,
+    string DayRealized,
+    ExecutionTone DayRealizedTone,
+    string GrossExposure,
+    string NetExposure,
+    string Leverage)
+{
+    public static readonly ExecutionSelectionSummary Empty = new(
+        "$0.00", "$0.00", ExecutionTone.Neutral, "$0.00", ExecutionTone.Neutral, "$0.00", ExecutionTone.Neutral,
+        "$0", "$0", "0.00×");
+}
+
+/// <summary>One pre-trade check on the ticket: passed, a caution, or a stop.</summary>
+public sealed record ExecutionTicketCheck(string Text, ExecutionTone Tone)
+{
+    public string Glyph => Tone switch
+    {
+        ExecutionTone.Positive => "✓",
+        ExecutionTone.Negative => "✕",
+        _ => "!",
+    };
+}
 
 public sealed record ExecutionPositionReadModel(
     string BookName,
@@ -234,6 +366,19 @@ public sealed record ExecutionPositionReadModel(
     ExecutionTone ProfitAndLossTone)
 {
     public ExecutionTone Tone => HasDivergence ? ExecutionTone.Warning : ProfitAndLossTone;
+
+    /// <summary>The position in the broker's own quantity (units × the book's unit size).</summary>
+    public string NativeQuantity { get; init; } = "-";
+
+    /// <summary>Position × latest price × multiplier, in the account currency.</summary>
+    public string MarketValue { get; init; } = "-";
+
+    /// <summary>Market value as a share of the book's net asset value.</summary>
+    public string PercentOfNav { get; init; } = "-";
+
+    public ExecutionTone UnrealizedTone { get; init; } = ExecutionTone.Neutral;
+
+    public ExecutionTone RealizedTone { get; init; } = ExecutionTone.Neutral;
 }
 
 public sealed record ExecutionOrderReadModel(
@@ -253,6 +398,127 @@ public sealed record ExecutionOrderReadModel(
     public ExecutionTone Tone => StateTone;
 
     public bool IsOpen => State is "Working" or "PartiallyFilled" or "PendingCancel" or "PendingReplace";
+
+    public string TimeInForce { get; init; } = "-";
+
+    public string LimitPrice { get; init; } = "-";
+
+    public string StopPrice { get; init; } = "-";
+
+    public string Filled { get; init; } = "-";
+
+    /// <summary>Manual, Kill, Flatten, or the strategy that sent it.</summary>
+    public string Source { get; init; } = "-";
+
+    public DateTime PlacedAtUtc { get; init; }
+
+    public string Placed => PlacedAtUtc == default
+        ? "-"
+        : PlacedAtUtc.ToString("MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+}
+
+/// <summary>One fill on the blotter. Slippage is against the price the order was sent against: positive is a
+/// cost, negative an improvement.</summary>
+public sealed record ExecutionFillReadModel(
+    DateTime OccurredAtUtc,
+    string BookName,
+    string ClientOrderId,
+    string BrokerOrderId,
+    string Instrument,
+    string Side,
+    ExecutionTone SideTone,
+    string Units,
+    string Quantity,
+    string Price,
+    string ArrivalPrice,
+    double? SlippageBasisPoints,
+    string Fee,
+    string RealizedProfitAndLoss,
+    ExecutionTone RealizedTone,
+    string Source)
+{
+    public string Time => OccurredAtUtc.ToString("MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+
+    public string Slippage => SlippageBasisPoints is { } bps ? $"{bps:+0.0;-0.0;0.0} bps" : "-";
+
+    public ExecutionTone SlippageTone => SlippageBasisPoints switch
+    {
+        > 0d => ExecutionTone.Negative,
+        < 0d => ExecutionTone.Positive,
+        _ => ExecutionTone.Neutral,
+    };
+}
+
+/// <summary>
+/// What one of a book's units is: <paramref name="UnitSize"/> of <paramref name="UnitAsset"/> (1 share, 0.01 lot
+/// = 1,000 EUR, 0.00001 BTC), worth <paramref name="ValuePerPoint"/> in <paramref name="Currency"/> per price point,
+/// and the latest price the book has for its instrument.
+/// </summary>
+public sealed record ExecutionBookUnitReadModel(
+    string Symbol,
+    decimal UnitSize,
+    string UnitAsset,
+    decimal ValuePerPoint,
+    string Currency,
+    decimal? ReferencePrice,
+    DateTime? ReferencePriceObservedAtUtc)
+{
+    public static readonly ExecutionBookUnitReadModel None = new(string.Empty, 1m, string.Empty, 1m, string.Empty, null, null);
+
+    public bool HasPrice => ReferencePrice is > 0m;
+
+    public string UnitLabel => UnitSize == 1m && UnitAsset.Length == 0
+        ? "1 unit = 1 share or contract"
+        : $"1 unit = {ExecutionFormatting.Units(UnitSize)}{AssetSuffix}";
+
+    public string PriceDisplay => ReferencePrice is { } price && price > 0m ? ExecutionFormatting.Price(price) : "no price";
+
+    /// <summary><paramref name="units"/> in the broker's own quantity.</summary>
+    public string Native(decimal units) => $"{ExecutionFormatting.Units(units * UnitSize)}{AssetSuffix}";
+
+    /// <summary>Account-currency value of <paramref name="units"/> at the latest price, or null without one.</summary>
+    public decimal? Notional(decimal units) => ReferencePrice is { } price && price > 0m ? Math.Abs(units) * price * ValuePerPoint : null;
+
+    public string PriceAge(DateTime nowUtc)
+    {
+        if (ReferencePriceObservedAtUtc is not { } observed)
+            return HasPrice ? "age unknown" : "no price";
+        var age = nowUtc - observed;
+        return age.TotalSeconds < 1d ? "under 1 s old"
+            : age.TotalSeconds < 120d ? $"{age.TotalSeconds:0} s old"
+            : age.TotalMinutes < 120d ? $"{age.TotalMinutes:0} min old"
+            : "stale";
+    }
+
+    private string AssetSuffix => UnitAsset.Length == 0 ? string.Empty : $" {UnitAsset}";
+}
+
+/// <summary>The running strategy a book copies and what became of its last target.</summary>
+public sealed record ExecutionStrategyLinkReadModel(
+    string Strategy,
+    bool IsRunning,
+    long? LastTargetUnits,
+    string LastOutcome,
+    bool LastOutcomeSucceeded,
+    DateTime? LastAtUtc)
+{
+    /// <summary>Why the strategy's position could not be turned into a target at all (no single instrument, a size
+    /// that does not divide it), or empty. Shown as the book's warning.</summary>
+    public string Problem { get; init; } = string.Empty;
+
+    public string Status => IsRunning ? "Running" : "Window closed";
+
+    public ExecutionTone StatusTone => IsRunning ? ExecutionTone.Positive : ExecutionTone.Neutral;
+
+    public string LastTargetDisplay => LastTargetUnits is { } units
+        ? $"{units.ToString("+#,##0;-#,##0;0", CultureInfo.InvariantCulture)} units"
+        : "none yet";
+
+    public string LastAtDisplay => LastAtUtc is { } at ? at.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + " UTC" : "-";
+
+    public ExecutionTone OutcomeTone => LastAtUtc is null
+        ? ExecutionTone.Neutral
+        : LastOutcomeSucceeded ? ExecutionTone.Positive : ExecutionTone.Warning;
 }
 
 public sealed record ExecutionHistoryReadModel(
@@ -307,6 +573,13 @@ public sealed record ExecutionEquityPointReadModel(DateTime TimestampUtc, decima
 
 public sealed record ExecutionDailyPnlPointReadModel(DateTime DateUtc, decimal RealizedProfitAndLoss);
 
+/// <summary>
+/// A period's performance. Trades are closed trades — each fill that reduced a position, net of its fees and its
+/// share of the opening fees — so win rate, profit factor and expectancy are after costs.
+/// <paramref name="ValueAtRisk95"/> is one-day historical VaR at 95% from the period's daily P&amp;L, measured
+/// only once <see cref="MinimumRiskObservations"/> active days exist (<paramref name="RiskObservations"/> says
+/// how many there were).
+/// </summary>
 public sealed record ExecutionMetricResult(
     decimal Equity,
     decimal NetProfitAndLoss,
@@ -317,8 +590,58 @@ public sealed record ExecutionMetricResult(
     int OpenPositions,
     decimal NetExposure,
     int TradeCount,
-    int WinningTrades)
+    int WinningTrades,
+    decimal GrossProfit = 0m,
+    decimal GrossLoss = 0m,
+    int LosingTrades = 0,
+    double Sortino = 0d,
+    double AnnualizedReturnPercent = 0d,
+    decimal ValueAtRisk95 = 0m,
+    int RiskObservations = 0)
 {
+    /// <summary>Fewer active days than this and a 5th percentile is one or two observations: not reported.</summary>
+    public const int MinimumRiskObservations = 20;
+
+    public bool HasValueAtRisk => RiskObservations >= MinimumRiskObservations;
+
+    public string SortinoDisplay => Sortino.ToString("0.00", CultureInfo.InvariantCulture);
+
+    /// <summary>Annualised return over the depth of the worst drawdown.</summary>
+    public string CalmarDisplay => MaxDrawdownPercent < 0m
+        ? (AnnualizedReturnPercent / (double)-MaxDrawdownPercent).ToString("0.00", CultureInfo.InvariantCulture)
+        : "n/a";
+
+    public string ProfitFactorDisplay => GrossLoss < 0m
+        ? (GrossProfit / -GrossLoss).ToString("0.00", CultureInfo.InvariantCulture)
+        : GrossProfit > 0m ? "∞" : "n/a";
+
+    public decimal Expectancy => TradeCount == 0 ? 0m : (GrossProfit + GrossLoss) / TradeCount;
+
+    public string ExpectancyDisplay => TradeCount == 0 ? "n/a" : ExecutionFormatting.SignedMoney(Expectancy);
+
+    public ExecutionTone ExpectancyTone => Expectancy switch
+    {
+        > 0m => ExecutionTone.Positive,
+        < 0m => ExecutionTone.Negative,
+        _ => ExecutionTone.Neutral,
+    };
+
+    public string AverageWinLossDisplay =>
+        $"{(WinningTrades == 0 ? "-" : ExecutionFormatting.Money(GrossProfit / WinningTrades))} / " +
+        $"{(LosingTrades == 0 ? "-" : ExecutionFormatting.Money(GrossLoss / LosingTrades))}";
+
+    public string PayoffDisplay => WinningTrades > 0 && LosingTrades > 0 && GrossLoss < 0m
+        ? $"payoff {(GrossProfit / WinningTrades / (-GrossLoss / LosingTrades)).ToString("0.00", CultureInfo.InvariantCulture)}"
+        : "payoff n/a";
+
+    public string TradesDisplay => $"{TradeCount.ToString("N0", CultureInfo.InvariantCulture)} closed · {WinningTrades.ToString("N0", CultureInfo.InvariantCulture)} won";
+
+    public string ValueAtRiskDisplay => HasValueAtRisk ? ExecutionFormatting.Money(ValueAtRisk95) : "n/a";
+
+    public string ValueAtRiskDetail => HasValueAtRisk
+        ? Equity > 0m ? $"{ValueAtRisk95 / Equity * 100m:0.00}% of equity · {RiskObservations} days" : $"{RiskObservations} days"
+        : $"{RiskObservations} of {MinimumRiskObservations} days needed";
+
     public string EquityDisplay => ExecutionFormatting.Money(Equity);
 
     public string NetProfitAndLossDisplay => ExecutionFormatting.SignedMoney(NetProfitAndLoss);
@@ -375,6 +698,11 @@ public sealed record ExecutionExposureReadModel(
     };
 }
 
+/// <summary>
+/// How orders were worked. The basis-point figures compare each fill with the price its order was sent against
+/// (the price the risk check used): positive is a cost. <paramref name="ImplementationShortfall"/> is that
+/// difference in money across every measured fill, plus all fees.
+/// </summary>
 public sealed record ExecutionQualityReadModel(
     int Orders,
     int FilledOrders,
@@ -385,8 +713,48 @@ public sealed record ExecutionQualityReadModel(
     int SlippageObservationCount,
     double TotalSlippageTicks,
     int AcknowledgementObservationCount,
-    double TotalAcknowledgementLatencyMilliseconds)
+    double TotalAcknowledgementLatencyMilliseconds,
+    int Fills = 0,
+    int SlippageBasisPointObservations = 0,
+    double TotalSlippageBasisPoints = 0d,
+    decimal Fees = 0m,
+    decimal ImplementationShortfall = 0m,
+    decimal Turnover = 0m)
 {
+    public double CancelRatePercent => Orders == 0 ? 0d : Cancels * 100d / Orders;
+
+    public string CancelRateDisplay => $"{CancelRatePercent:0.0}%";
+
+    public double AverageSlippageBasisPoints =>
+        SlippageBasisPointObservations == 0 ? 0d : TotalSlippageBasisPoints / SlippageBasisPointObservations;
+
+    public string AverageSlippageBasisPointsDisplay =>
+        SlippageBasisPointObservations == 0 ? "n/a" : $"{AverageSlippageBasisPoints:+0.0;-0.0;0.0} bps";
+
+    public ExecutionTone SlippageTone => SlippageBasisPointObservations == 0
+        ? ExecutionTone.Neutral
+        : AverageSlippageBasisPoints > 0d ? ExecutionTone.Negative : ExecutionTone.Positive;
+
+    public string FeesDisplay => ExecutionFormatting.Money(Fees);
+
+    public string FeesDetail => Turnover > 0m ? $"{Fees / Turnover * 10_000m:0.00} bps of volume" : "no volume";
+
+    public string ImplementationShortfallDisplay =>
+        SlippageBasisPointObservations == 0 && Fees == 0m ? "n/a" : ExecutionFormatting.SignedMoney(ImplementationShortfall);
+
+    public ExecutionTone ImplementationShortfallTone => ImplementationShortfall switch
+    {
+        > 0m => ExecutionTone.Negative,
+        < 0m => ExecutionTone.Positive,
+        _ => ExecutionTone.Neutral,
+    };
+
+    public string TurnoverDisplay => ExecutionFormatting.CompactMoney(Turnover);
+
+    public string FillsDetail => $"{Fills.ToString("N0", CultureInfo.InvariantCulture)} fills · {SlippageBasisPointObservations.ToString("N0", CultureInfo.InvariantCulture)} measured";
+
+    public string OrdersDetail => $"{FilledOrders.ToString("N0", CultureInfo.InvariantCulture)} of {Orders.ToString("N0", CultureInfo.InvariantCulture)} orders";
+
     public double FillRatePercent => Orders == 0 ? 0d : FilledOrders * 100d / Orders;
 
     public double RejectRatePercent => Orders == 0 ? 0d : Rejects * 100d / Orders;
@@ -439,12 +807,15 @@ public sealed record ExecutionBookBreakdownReadModel(
     string Sharpe,
     string Trades);
 
+/// <summary>A new book. <paramref name="UnitsPerStrategyUnit"/> is its size: how many of the book's own units
+/// (a share, a contract, the broker's volume step) one unit of a bound strategy's position stands for.</summary>
 public sealed record ExecutionBookCreateRequest(
     string Name,
     string AdapterId,
     IReadOnlyList<string> Strategies,
     InstrumentId Instrument = default,
-    string Symbol = "");
+    string Symbol = "",
+    long UnitsPerStrategyUnit = 1);
 
 /// <summary>The account a routed broker's LIVE credentials reach, read before anything is enabled.</summary>
 public sealed record ExecutionLiveAccountProbe(bool IsSuccess, string AccountId, string Message);
@@ -583,6 +954,27 @@ internal static class ExecutionFormatting
         > 0m => $"+{value:0.0}%",
         < 0m => $"{value:0.0}%",
         _ => "0.0%",
+    };
+
+    /// <summary>A price with its own precision: no rounding, no trailing zeros, thousands separated.</summary>
+    internal static string Price(decimal value) =>
+        (value / 1.000000000000000000000000000000000m).ToString("#,##0.##########", CultureInfo.InvariantCulture);
+
+    internal static string Units(decimal value) =>
+        (value / 1.000000000000000000000000000000000m).ToString("#,##0.##########", CultureInfo.InvariantCulture);
+
+    internal static string SignedUnits(decimal value) => value switch
+    {
+        > 0m => $"+{Units(value)}",
+        < 0m => $"-{Units(-value)}",
+        _ => "0",
+    };
+
+    internal static ExecutionTone ToneOf(decimal value) => value switch
+    {
+        > 0m => ExecutionTone.Positive,
+        < 0m => ExecutionTone.Negative,
+        _ => ExecutionTone.Neutral,
     };
 
     internal static string CompactMoney(decimal value, bool signed = false)

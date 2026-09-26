@@ -39,12 +39,20 @@ public sealed partial class MainWindowViewModel
             var session = BlocksUnitSession.Create(registration, host, LogSink, SelectableInstruments());
             chrome = session.Unit;
 
+            // A Blocks strategy trades like an authored one: every execution book that names it copies its
+            // position while the window is open (2026-09-26). The name is the catalog's, which is what the
+            // Execution console's strategy list shows.
+            var execution = session.ModelBook is { } book
+                ? _services.GetService<TradingTerminal.ExecutionUi.IStrategyExecutionBridge>()?.Attach(registration.DisplayName, book)
+                : null;
+
             var window = ToolHostWindow.Create(registration.DisplayName, new AuthoredUnitView { DataContext = session.Unit.Presenter });
             window.Owner = Application.Current.MainWindow;
             TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
             window.Closed += async (_, _) =>
             {
                 _host.Unregister(capturedId);
+                execution?.Dispose();
                 await session.DisposeAsync();
             };
 

@@ -88,6 +88,24 @@ public sealed class BrokerCredentialRoundTripTests : IDisposable
     }
 
     [Fact]
+    public void The_ctrader_login_rows_named_fields_reach_the_order_route_through_the_credential_source()
+    {
+        var store = Store();
+        var stored = store.Load();
+        stored.CTraderClientId = "ct-client";
+        stored.CTraderClientSecret = "ct-secret";
+        stored.CTraderAccessToken = "ct-token";
+        stored.CTraderAccountId = 4_600_001;
+        stored.CTraderIsLive = false;
+        store.Save(stored);
+
+        var credential = Source(store).For(BrokerKind.CTrader);
+
+        Assert.Equal(("ct-client", "ct-secret", "ct-token"), (credential.Key, credential.Secret, credential.Session));
+        Assert.Equal(("4600001", "demo"), (credential.Account, credential.Extra));
+    }
+
+    [Fact]
     public void A_broker_with_nothing_stored_reports_nothing_rather_than_throwing()
     {
         // The ordinary state for every broker the user has not set up. A client asks, gets nothing,

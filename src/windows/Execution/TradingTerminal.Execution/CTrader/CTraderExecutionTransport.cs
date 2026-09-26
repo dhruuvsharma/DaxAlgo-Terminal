@@ -96,6 +96,15 @@ public static class CTraderOpenApiProtocol
             ProtoOAMarginChangedEvent => (uint)ProtoOAPayloadType.ProtoOaMarginChangedEvent,
             ProtoOAOrderListReq => (uint)ProtoOAPayloadType.ProtoOaOrderListReq,
             ProtoOAOrderListRes => (uint)ProtoOAPayloadType.ProtoOaOrderListRes,
+            // The order route's additions (2026-09-25): symbols by name, live spots, closing a hedged position.
+            ProtoOASymbolsListReq => (uint)ProtoOAPayloadType.ProtoOaSymbolsListReq,
+            ProtoOASymbolsListRes => (uint)ProtoOAPayloadType.ProtoOaSymbolsListRes,
+            ProtoOASubscribeSpotsReq => (uint)ProtoOAPayloadType.ProtoOaSubscribeSpotsReq,
+            ProtoOASubscribeSpotsRes => (uint)ProtoOAPayloadType.ProtoOaSubscribeSpotsRes,
+            ProtoOAUnsubscribeSpotsReq => (uint)ProtoOAPayloadType.ProtoOaUnsubscribeSpotsReq,
+            ProtoOAUnsubscribeSpotsRes => (uint)ProtoOAPayloadType.ProtoOaUnsubscribeSpotsRes,
+            ProtoOASpotEvent => (uint)ProtoOAPayloadType.ProtoOaSpotEvent,
+            ProtoOAClosePositionReq => (uint)ProtoOAPayloadType.ProtoOaClosePositionReq,
             _ => throw new ArgumentException($"Unsupported cTrader Open API message type '{message.GetType().Name}'.", nameof(message)),
         };
         var envelope = new ProtoMessage
@@ -144,6 +153,14 @@ public static class CTraderOpenApiProtocol
             (uint)ProtoOAPayloadType.ProtoOaMarginChangedEvent => ProtoOAMarginChangedEvent.Parser.ParseFrom(envelope.Payload),
             (uint)ProtoOAPayloadType.ProtoOaOrderListReq => ProtoOAOrderListReq.Parser.ParseFrom(envelope.Payload),
             (uint)ProtoOAPayloadType.ProtoOaOrderListRes => ProtoOAOrderListRes.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaSymbolsListReq => ProtoOASymbolsListReq.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaSymbolsListRes => ProtoOASymbolsListRes.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaSubscribeSpotsReq => ProtoOASubscribeSpotsReq.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaSubscribeSpotsRes => ProtoOASubscribeSpotsRes.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaUnsubscribeSpotsReq => ProtoOAUnsubscribeSpotsReq.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaUnsubscribeSpotsRes => ProtoOAUnsubscribeSpotsRes.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaSpotEvent => ProtoOASpotEvent.Parser.ParseFrom(envelope.Payload),
+            (uint)ProtoOAPayloadType.ProtoOaClosePositionReq => ProtoOAClosePositionReq.Parser.ParseFrom(envelope.Payload),
             _ => null,
         };
     }

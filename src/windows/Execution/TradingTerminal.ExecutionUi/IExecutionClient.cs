@@ -64,4 +64,25 @@ public interface IExecutionClient : IDisposable
     ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
         ExecutionManualOrderRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Requests cancellation of one working order in a book.</summary>
+    ValueTask<ExecutionCommandResult> CancelOrderAsync(
+        string bookId,
+        string clientOrderId,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(ExecutionCommandResult.Failure("This execution client cannot cancel single orders."));
+
+    /// <summary>
+    /// Changes a working order in place: its total quantity in book units and, for an order that has them, its
+    /// limit and stop prices (null keeps the current one). The change passes a fresh risk check; a broker that
+    /// cannot replace refuses it.
+    /// </summary>
+    ValueTask<ExecutionCommandResult> ReplaceOrderAsync(
+        string bookId,
+        string clientOrderId,
+        long units,
+        TradingTerminal.Execution.ScaledPrice? limitPrice,
+        TradingTerminal.Execution.ScaledPrice? stopPrice,
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(ExecutionCommandResult.Failure("This execution client cannot change orders."));
 }

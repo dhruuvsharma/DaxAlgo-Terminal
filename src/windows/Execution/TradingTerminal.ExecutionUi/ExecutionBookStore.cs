@@ -16,12 +16,17 @@ namespace TradingTerminal.ExecutionUi;
 /// <param name="Symbol">The instrument symbol the book was created for.</param>
 /// <param name="Strategies">Strategy ids attached at creation. May be empty.</param>
 /// <param name="IsPaused">Whether new-order intake was paused when the app last closed.</param>
+/// <param name="Instrument">The canonical instrument id a broker book trades; 0 for none. A broker book cannot
+/// be recreated without it.</param>
+/// <param name="UnitsPerStrategyUnit">The book's size: book units per unit of a bound strategy's position.</param>
 public sealed record PersistedExecutionBook(
     string Name,
     string AdapterId,
     string Symbol,
     IReadOnlyList<string> Strategies,
-    bool IsPaused);
+    bool IsPaused,
+    int Instrument = 0,
+    long UnitsPerStrategyUnit = 1);
 
 /// <summary>Where the engine's books are remembered between runs.</summary>
 public interface IExecutionBookStore

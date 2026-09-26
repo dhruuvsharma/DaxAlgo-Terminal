@@ -704,6 +704,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             runtime.SnapshotChanged += PushBook;
             if (runtime.CurrentSnapshot is { } seed) PushBook(seed);
 
+            // Every execution book that names this strategy copies its model book to that book's broker
+            // while the window is open (2026-09-25). Nothing is sent unless a book names the strategy, and
+            // every copy goes through the book's guarded engine and the Paper/Real gates.
+            var execution = _services.GetService<TradingTerminal.ExecutionUi.IStrategyExecutionBridge>()?.Attach(name, runtime);
+
             var window = ToolHostWindow.Create(name, new AuthoredUnitView { DataContext = unit.Presenter });
             window.Owner = Application.Current.MainWindow;
             TradingTerminal.UI.StrategyWindowPlacementStore.Attach(window, capturedId);
@@ -711,6 +716,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase, IShellOverlayPr
             {
                 _host.Unregister(capturedId);
                 runtime.SnapshotChanged -= PushBook;
+                execution?.Dispose();
                 unit.Dispose();
                 feed.Dispose();
                 await runtime.DisposeAsync();

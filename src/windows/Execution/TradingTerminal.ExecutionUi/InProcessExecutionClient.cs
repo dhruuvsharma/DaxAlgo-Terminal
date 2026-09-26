@@ -20,7 +20,7 @@ namespace TradingTerminal.ExecutionUi;
 /// books construct only <see cref="SimulatedExecutionAdapter"/>; an explicitly registered and
 /// authenticated live-safety-gated broker adapter can be attached without changing the default composition.
 /// </summary>
-public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookTargetIntake
+public sealed partial class InProcessExecutionClient : IExecutionClient, IExecutionBookTargetIntake
 {
     private const int MaximumBooks = 12;
     private static readonly SemaphoreSlim ExecutionModeChangeGate = new(1, 1);
@@ -38,6 +38,7 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
     private readonly Func<InteractiveBrokersExecutionEndpoint, TimeSpan, IInteractiveBrokersExecutionTransport>?
         _interactiveBrokersTransportFactory;
     private readonly IClock? _executionClock;
+    private readonly TradingTerminal.Core.MarketData.IInstrumentRegistry? _instrumentRegistry;
     private readonly IExecutionLeaseStore _executionLeaseStore;
     private readonly IExecutionBookStore _bookStore;
     private readonly IExecutionModeStatusPublisher? _modeStatusPublisher;
@@ -74,8 +75,14 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
         ExecutionModeSelection? tradingMode = null,
         IEnumerable<IBrokerOrderRoute>? orderRoutes = null,
         RoutedExecutionOptions? routedOptions = null,
-        IBrokerCredentialSource? brokerCredentials = null)
+        IBrokerCredentialSource? brokerCredentials = null,
+        TradingTerminal.Core.MarketData.IMarketDataHub? marketData = null,
+        TradingTerminal.Core.MarketData.IInstrumentRegistry? instruments = null)
     {
+        // Names a strategy's instrument and finds its symbol on a broker when a book binds to it.
+        _instrumentRegistry = instruments;
+        // A broker book whose broker has no price call reads the terminal's own live quote for its instrument.
+        _hubPrices = marketData is null ? null : new HubReferencePrices(marketData);
         // The application-wide arm/disarm, handed to every coordinator this client builds. Null here
         // is not "ungated" — the coordinator substitutes a fresh selection, which is Paper, so a shell
         // that fails to register one refuses live dispatch instead of running without the outer gate.
@@ -104,7 +111,10 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
             // PAPER needs no gate and reaches no money; a card is only a connection until a book binds a symbol.
             var card = new RoutedExecutionAdapter(
                 route, ExecutionMode.Paper, _routedOptions, HasRouteCredentials(route), ExecutionClock,
-                confirmationStore: _liveConfirmationStore);
+                confirmationStore: _liveConfirmationStore)
+            {
+                ReferencePriceFallback = HubPrice,
+            };
             _registeredAdapters.Add(card);
             _ownedAdapters.Add(card);
         }
@@ -138,9 +148,10 @@ public sealed class InProcessExecutionClient : IExecutionClient, IExecutionBookT
     public ExecutionConsoleSnapshot GetSnapshot()
     {
         ThrowIfDisposed();
+        var links = StrategyLinks();
         lock (_gate)
         {
-            var books = _books.Select(entry => entry.BuildReadModel()).ToArray();
+            var books = _books.Select(entry => WithStrategyLink(entry.BuildReadModel(), links)).ToArray();
             var readOnlyBooks = Array.AsReadOnly(books);
             return new ExecutionConsoleSnapshot(
                 BuildAdapterReadModels(),
@@ -653,6 +664,8 @@ FinishConnect:
             _lastOperationMessage = result.Message;
         }
         Invalidate();
+        if (result.IsSuccess)
+            await RestoreWaitingBooksAsync(adapterId, cancellationToken).ConfigureAwait(false);
         return result;
     }
 
@@ -737,12 +750,13 @@ FinishConnect:
         foreach (var book in remembered)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await CreateBookAsync(
-                new ExecutionBookCreateRequest(book.Name, book.AdapterId, book.Strategies, Symbol: book.Symbol),
-                cancellationToken).ConfigureAwait(false);
+            var result = await CreateBookAsync(RequestFor(book), cancellationToken).ConfigureAwait(false);
 
             if (!result.IsSuccess)
             {
+                // Kept, not forgotten: a broker book usually fails here only because its card is not connected
+                // yet at startup, and it is restored when that card connects.
+                KeepUnrestored(book);
                 failures.Add($"{book.Name} ({result.Message})");
                 continue;
             }
@@ -758,8 +772,7 @@ FinishConnect:
                 entry.IsPaused = true;
         }
 
-        // Rewritten from what actually came back, so a book whose adapter has gone away stops being
-        // retried on every launch.
+        // Rewritten from what came back plus what is waiting for its card, so the file stays the owner's list.
         PersistBooks();
         Invalidate();
 
@@ -791,8 +804,11 @@ FinishConnect:
                     book.Configuration.AdapterId,
                     book.Configuration.Instruments.Count > 0 ? book.Configuration.Instruments[0].Symbol : string.Empty,
                     book.Configuration.Strategies,
-                    book.IsPaused))
+                    book.IsPaused,
+                    book.Configuration.Instruments.Count > 0 ? book.Configuration.Instruments[0].InstrumentId : 0,
+                    book.Configuration.UnitsPerStrategyUnit))
                 .ToArray();
+            snapshot = [.. snapshot, .. UnrestoredBooks(snapshot)];
         }
 
         _bookStore.Save(snapshot);
@@ -863,17 +879,24 @@ FinishConnect:
             {
                 validationFailure = ExecutionCommandResult.Failure("Book instrument symbols are capped at 32 characters.");
             }
+            else if (request.UnitsPerStrategyUnit is <= 0 or > 1_000_000_000)
+            {
+                validationFailure = ExecutionCommandResult.Failure(
+                    "Units per strategy unit must be a whole number from 1 to 1,000,000,000.");
+            }
             else if (!IsAdapterAvailable(adapterId))
             {
                 validationFailure = ExecutionCommandResult.Failure(
                     "Select an available registered execution adapter. Unavailable broker cards cannot create books.");
             }
-            else if (FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter && request.Instrument.IsNone)
+            else if (FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter && request.Instrument.IsNone && strategies.Length == 0)
             {
+                // A broker book trades what its strategy trades, so with neither there is nothing it could trade.
                 validationFailure = ExecutionCommandResult.Failure(
-                    "A book on a broker trades one instrument; choose it before creating the book.");
+                    "A broker book copies a strategy: pick the strategy it trades.");
             }
             else if (FindRegisteredAdapter(adapterId) is RoutedExecutionAdapter &&
+                     !request.Instrument.IsNone &&
                      _books.Any(book =>
                          string.Equals(book.Configuration.AdapterId, adapterId, StringComparison.Ordinal) &&
                          book.Configuration.Instruments.Count > 0 &&
@@ -899,20 +922,25 @@ FinishConnect:
                     isPaper ? "Paper" : AdapterDisplayName(adapterId),
                     strategies,
                     request.Instrument,
-                    symbol);
+                    symbol) with { UnitsPerStrategyUnit = request.UnitsPerStrategyUnit };
                 routedCard = isPaper ? null : FindRegisteredAdapter(adapterId) as RoutedExecutionAdapter;
                 runtime = isPaper
-                    ? InProcessBookRuntime.CreateEmpty(id, _paperAccount, _executionLeaseStore, _tradingMode)
+                    ? InProcessBookRuntime.CreateEmpty(id, _paperAccount, _executionLeaseStore, _tradingMode,
+                        instrument => HubPrice(new InstrumentId(instrument)))
                     : FindRegisteredAdapter(adapterId) is AlpacaExecutionAdapter alpaca
                         ? new BrokerBookRuntime(id, alpaca, _executionLeaseStore, _tradingMode)
                         : null;
             }
         }
 
-        // A routed book binds its own adapter to the symbol and connects it — reading the instrument's rules
-        // and the position already held — before a runtime can exist. Outside the lock: it talks to the broker.
+        // A routed book that already knows its instrument (one restored from the last run) binds its own adapter to
+        // the symbol and connects it — reading the instrument's rules and the position already held — before a
+        // runtime can exist. One that does not waits for its strategy to name it. Outside the lock: it talks to the
+        // broker.
         ExecutionCommandResult? routedFailure = null;
-        if (validationFailure is null && configuration is not null && routedCard is not null)
+        var awaitsStrategy = validationFailure is null && configuration is not null && routedCard is not null &&
+                             configuration.Instruments.Count == 0;
+        if (validationFailure is null && configuration is not null && routedCard is not null && !awaitsStrategy)
         {
             RoutedExecutionAdapter? bound = null;
             try
@@ -944,6 +972,20 @@ FinishConnect:
         else if (routedFailure is { } routedError)
         {
             result = routedError;
+        }
+        else if (awaitsStrategy && configuration is not null)
+        {
+            // No runtime yet: the book binds to its strategy's instrument when the strategy's first target arrives.
+            lock (_gate)
+            {
+                if (Volatile.Read(ref _disposed) != 0)
+                    throw new ObjectDisposedException(nameof(InProcessExecutionClient));
+                _books.Add(new BookEntry(configuration, runtime: null));
+            }
+
+            result = ExecutionCommandResult.Success(
+                $"Created book '{configuration.Name}' on {configuration.AdapterName}. It trades the instrument " +
+                $"{configuration.Strategies[0]} runs on: open the strategy's window to start.");
         }
         else if (configuration is null || runtime is null)
         {
@@ -1002,7 +1044,14 @@ FinishConnect:
         }
         lock (_gate)
             _lastOperationMessage = result.Message;
+        if (result.IsSuccess)
+        {
+            ForgetUnrestored(request.Name);
+            _hubPrices?.Watch(request.Instrument);
+        }
         PersistBooks();
+        if (result.IsSuccess)
+            SyncStrategyBindings();
         Invalidate();
         return result;
     }
@@ -1077,10 +1126,10 @@ FinishConnect:
             entry = FindBook(bookId.Trim());
 
         ExecutionCommandResult result;
-        if (entry?.Runtime is null)
+        if (entry is null)
         {
             result = ExecutionCommandResult.Failure(
-                "Sandbox target refused because the bound book has no attached execution runtime.");
+                "Sandbox target refused because the bound book no longer exists.");
         }
         else if (!entry.Configuration.Strategies.Any(strategy =>
                      string.Equals(strategy, intent.StrategyId, StringComparison.Ordinal)))
@@ -1097,15 +1146,26 @@ FinishConnect:
         {
             try
             {
+                // The strategy names the instrument: bind the book to it first, or say why it cannot be.
+                var binding = NeedsInstrument(entry, intent.Instrument)
+                    ? await BindToStrategyInstrumentAsync(entry, intent.Instrument, operationToken).ConfigureAwait(false)
+                    : ExecutionCommandResult.Success(string.Empty);
+                SetStrategyWarning(entry, binding.IsSuccess ? null : binding.Message);
                 bool paused;
                 lock (_gate)
                     paused = entry.IsPaused;
-                result = paused
+                result = !binding.IsSuccess
                     ? ExecutionCommandResult.Failure(
-                        "Sandbox target refused because intake is paused for the bound book.")
-                    : await entry.Runtime
-                        .SubmitTargetAsync(entry.Configuration, intent, operationToken)
-                        .ConfigureAwait(false);
+                        $"{intent.StrategyId} cannot be used on '{entry.Configuration.Name}': {binding.Message}")
+                    : paused
+                        ? ExecutionCommandResult.Failure(
+                            "Sandbox target refused because intake is paused for the bound book.")
+                        : entry.Runtime is not { } runtime
+                            ? ExecutionCommandResult.Failure(
+                                "Sandbox target refused because the bound book has no attached execution runtime.")
+                            : await runtime
+                                .SubmitTargetAsync(entry.Configuration, intent, operationToken)
+                                .ConfigureAwait(false);
             }
             finally
             {
@@ -1143,6 +1203,10 @@ FinishConnect:
     {
         if (_brokerCredentials is null)
             return false;
+        // Interactive Brokers signs in inside TWS or IB Gateway; there is nothing to store, and the route proves
+        // the session by connecting to it.
+        if (route.Broker == BrokerKind.InteractiveBrokers)
+            return true;
         var credential = _brokerCredentials.For(route.Broker);
         return credential.IsConfigured || credential.HasSession;
     }
@@ -1218,7 +1282,10 @@ FinishConnect:
         new(new RoutedExecutionAdapter(
             route, mode, _routedOptions, HasRouteCredentials(route), ExecutionClock,
             confirmationStore: _liveConfirmationStore,
-            expectedAccountId: mode == ExecutionMode.Live ? accountId : string.Empty));
+            expectedAccountId: mode == ExecutionMode.Live ? accountId : string.Empty)
+        {
+            ReferencePriceFallback = HubPrice,
+        });
 
     /// <summary>Enables a broker that has only a live environment: read back the account, persist the typed
     /// confirmation for it, and construct the adapter through the gate — in that order, undoing the
@@ -2050,6 +2117,8 @@ FinishConnect:
         try
         {
             _disposeCancellation.Cancel();
+            DisposeStrategyBindings();
+            _hubPrices?.Dispose();
             lock (_gate)
             {
                 foreach (var book in _books)
@@ -2080,6 +2149,17 @@ FinishConnect:
 
         ValueTask<ExecutionCommandResult> KillAsync(CancellationToken cancellationToken);
 
+        /// <summary>Requests cancellation of one working order through the guarded engine.</summary>
+        ValueTask<ExecutionCommandResult> CancelOrderAsync(string clientOrderId, CancellationToken cancellationToken);
+
+        /// <summary>Replaces one working order's quantity and prices through the guarded engine.</summary>
+        ValueTask<ExecutionCommandResult> ReplaceOrderAsync(
+            string clientOrderId,
+            long units,
+            ScaledPrice? limitPrice,
+            ScaledPrice? stopPrice,
+            CancellationToken cancellationToken);
+
         ValueTask<ExecutionCommandResult> SubmitManualOrderAsync(
             BookConfiguration configuration,
             ExecutionManualOrderRequest request,
@@ -2097,11 +2177,17 @@ FinishConnect:
     {
         private int _operationInProgress;
 
-        internal BookConfiguration Configuration { get; } = configuration;
+        /// <summary>Replaced (under <c>_gate</c>, inside the operation slot) when the book binds to its strategy's
+        /// instrument.</summary>
+        internal BookConfiguration Configuration { get; set; } = configuration;
 
-        internal IBookRuntime? Runtime { get; } = runtime;
+        /// <summary>Null for a broker book that has not been bound to an instrument yet.</summary>
+        internal IBookRuntime? Runtime { get; set; } = runtime;
 
         internal bool IsPaused { get; set; }
+
+        /// <summary>Why the book's strategy cannot be used on it, or null.</summary>
+        internal string? StrategyWarning { get; set; }
 
         internal bool TryBeginOperation() =>
             Interlocked.CompareExchange(ref _operationInProgress, 1, 0) == 0;
@@ -2118,9 +2204,14 @@ FinishConnect:
         }
 
         internal ExecutionBookReadModel BuildReadModel() =>
-            Runtime is null
+            (Runtime is null
                 ? Configuration.BuildUnavailableReadModel(IsPaused)
-                : Runtime.BuildReadModel(Configuration, IsPaused);
+                : Runtime.BuildReadModel(Configuration, IsPaused)) with
+            {
+                StrategyWarning = StrategyWarning ?? string.Empty,
+                IsAwaitingInstrument = Configuration.Instruments.Count == 0 && Configuration.Strategies.Count > 0,
+                UnitsPerStrategyUnit = Configuration.UnitsPerStrategyUnit,
+            };
     }
 
     private sealed class InProcessBookRuntime : IBookRuntime
@@ -2162,14 +2253,22 @@ FinishConnect:
 
         private readonly ExecutionModeSelection? _tradingMode;
 
+        /// <summary>The terminal's own latest quote for an instrument, which a paper book trades at.</summary>
+        private readonly Func<int, RoutePrice?>? _livePrice;
+
+        private readonly decimal _openingEquity;
+        private readonly string _currency;
+
         private InProcessBookRuntime(
             string bookId,
             IEnumerable<VenueSubmitPlan> plans,
             DateTime seedStartUtc,
             PaperAccountOptions paperAccount,
             IExecutionLeaseStore executionLeaseStore,
-            ExecutionModeSelection? tradingMode = null)
+            ExecutionModeSelection? tradingMode = null,
+            Func<int, RoutePrice?>? livePrice = null)
         {
+            _livePrice = livePrice;
             // This book's adapter is the in-process simulator, whose Mode is Paper, so the app-wide
             // gate never fires here today. Threaded anyway: if this runtime is ever pointed at
             // something that reports Live, the gate should already be in place rather than needing
@@ -2195,9 +2294,12 @@ FinishConnect:
             // Opened with the terminal's paper balance. Before this the adapter fell back to its own
             // default — zero, in a currency called SIM — so a book could accept an order and then have
             // nothing to settle it with, which is not what "paper trading" is supposed to mean.
+            var openingCash = PaperAccount.OpeningCash(paperAccount, seedStartUtc);
+            _openingEquity = ToDecimal(openingCash.Total);
+            _currency = openingCash.Currency;
             _adapter = new SimulatedExecutionAdapter(
                 _venue, _clock, _scheduler, session,
-                cash: [PaperAccount.OpeningCash(paperAccount, seedStartUtc)]);
+                cash: [openingCash]);
             var acquired = ExecutionLease.Acquire(
                 account,
                 executionLeaseStore,
@@ -2239,9 +2341,10 @@ FinishConnect:
             string bookId,
             PaperAccountOptions paperAccount,
             IExecutionLeaseStore executionLeaseStore,
-            ExecutionModeSelection? tradingMode = null) =>
+            ExecutionModeSelection? tradingMode = null,
+            Func<int, RoutePrice?>? livePrice = null) =>
             new(bookId, Array.Empty<VenueSubmitPlan>(), DateTime.UtcNow, paperAccount,
-                executionLeaseStore, tradingMode);
+                executionLeaseStore, tradingMode, livePrice);
 
         public BrokerExecutionAccount Account => _adapter.Account;
 
@@ -2255,23 +2358,58 @@ FinishConnect:
             var realPositions = adapterSnapshot.Positions.ToDictionary(
                 position => position.Instrument.Value,
                 position => ToDecimal(position.Quantity));
+            var projections = _oms.ReadAllProjections();
+            string SymbolOf(int instrument) =>
+                configuration.Instruments.FirstOrDefault(item => item.InstrumentId == instrument)?.Symbol ??
+                $"#{instrument.ToString(CultureInfo.InvariantCulture)}";
+            var accounting = ExecutionBookAccounting.Replay(
+                ExecutionBookAccounting.FillsFrom(_ledger.ReadOutbox().Select(entry => entry.Event), projections),
+                SymbolOf);
+            var marks = configuration.Instruments
+                .GroupBy(instrument => instrument.InstrumentId)
+                .ToDictionary(group => group.Key, group => (decimal?)ToDecimal(ReferencePrice(group.Key)));
+            var unrealized = accounting.Instruments.Values.Sum(account =>
+                account.UnrealizedProfitAndLoss(marks.GetValueOrDefault(account.Instrument)));
+            var netAssetValue = _openingEquity + accounting.RealizedProfitAndLoss + unrealized;
+            var first = configuration.Instruments.FirstOrDefault();
+            var unit = new ExecutionBookUnitReadModel(
+                first?.Symbol ?? string.Empty,
+                1m,
+                string.Empty,
+                1m,
+                _currency,
+                first is null ? null : marks.GetValueOrDefault(first.InstrumentId),
+                first is not null && _livePrice?.Invoke(first.InstrumentId) is { } quote ? quote.ObservedAtUtc : null);
             var positions = configuration.Instruments
-                .Select(instrument => BuildPosition(configuration.Name, instrument, realPositions))
+                .Select(instrument =>
+                {
+                    realPositions.TryGetValue(instrument.InstrumentId, out var units);
+                    return ExecutionBookAccounting.Priced(
+                        BuildPosition(configuration.Name, instrument, realPositions),
+                        accounting.For(instrument.InstrumentId),
+                        units,
+                        marks.GetValueOrDefault(instrument.InstrumentId),
+                        unit,
+                        netAssetValue);
+                })
                 .ToArray();
-            var orders = _oms.ReadAllProjections()
+            var orders = projections
                 .OrderByDescending(projection => LastEventTime(projection.ClientOrderId))
                 .Take(OperationalTableCapacity)
-                .Select(projection => BuildOrder(configuration, projection))
+                .Select(projection => ExecutionBookAccounting.Described(
+                    BuildOrder(configuration, projection),
+                    projection,
+                    _oms.ReadEvents(projection.ClientOrderId).First().OccurredAtUtc))
                 .ToArray();
             var materialCases = LatestMaterialCases();
             var cases = BuildReconciliationCases(configuration, materialCases);
-            var (longExposure, shortExposure) = CalculateExposure(configuration, realPositions);
-            var quality = BuildExecutionQuality(materialCases.Count);
+            var (longExposure, shortExposure) = CalculateExposure(configuration, realPositions, marks);
+            var quality = ExecutionBookAccounting.WithFills(BuildExecutionQuality(materialCases.Count), accounting);
             var analytics = ExecutionAnalyticsProjector.BuildBook(
                 configuration.Id,
                 configuration.Name,
-                configuration.OpeningEquity,
-                configuration.AnalyticsHistory,
+                _openingEquity,
+                [.. configuration.AnalyticsHistory, .. accounting.ClosedTrades],
                 realPositions.Values.Count(quantity => quantity != 0m),
                 longExposure,
                 shortExposure,
@@ -2310,6 +2448,18 @@ FinishConnect:
                         new InstrumentId(instrument.InstrumentId),
                         instrument.Symbol))
                     .ToArray()),
+                Fills = ExecutionBookAccounting.FillRows(accounting, configuration.Name, SymbolOf, unit, OperationalTableCapacity),
+                Unit = unit,
+                UnitsPerStrategyUnit = configuration.UnitsPerStrategyUnit,
+                PositionUnits = realPositions.Values.Sum(),
+                NetAssetValue = netAssetValue,
+                RealizedProfitAndLoss = accounting.RealizedProfitAndLoss,
+                UnrealizedProfitAndLoss = unrealized,
+                DayRealizedProfitAndLoss = accounting.ClosedTrades
+                    .Where(trade => trade.ClosedAtUtc.Date == observedAtUtc.Date)
+                    .Sum(trade => trade.RealizedProfitAndLoss),
+                GrossExposure = longExposure - shortExposure,
+                NetExposure = longExposure + shortExposure,
             };
         }
 
@@ -2487,9 +2637,23 @@ FinishConnect:
                 return ExecutionCommandResult.Failure("The current position is not an exact whole quantity.");
             var referencePrice = request.LimitPrice ?? request.StopPrice ?? ReferencePrice(request.Instrument.Value);
             var instruction = CreateManualInstruction(request);
+            // A market order fills at once at the book's price, as a sandbox target does. Without a plan the
+            // paper venue only accepts it, and a market order that rests forever is not a paper trade. Resting
+            // orders (limit, stop) stay working: the paper venue has no order book to match them against.
+            if (request.OrderType == ExecutionManualOrderType.Market &&
+                !_venue.TryAddSubmitPlan(FilledPlan(
+                    instruction.Identity.ClientOrderId.Value, requestedUnits, referencePrice, ScaledMoney.Zero)))
+            {
+                return ExecutionCommandResult.Failure("Order refused because its paper fill could not be reserved.");
+            }
+
+            // The exposure already held, as a strategy target states it: a zero here contradicts the position the
+            // same snapshot reports, and the risk check refuses every order once the book holds anything.
+            if (!TryCalculateGrossExposure(snapshot, out var grossExposure))
+                return ExecutionCommandResult.Failure("The exact simulated gross exposure cannot be represented safely.");
             var response = Submit(
                 instruction,
-                RiskSnapshot(instruction, position.TryGetWholeUnits(out var current) ? current : 0, referencePrice, 0));
+                RiskSnapshot(instruction, position.TryGetWholeUnits(out var current) ? current : 0, referencePrice, grossExposure));
             return response.IsSuccess
                 ? ExecutionCommandResult.Success(
                     $"Order {instruction.Identity.ClientOrderId} reached {response.State?.ToString() ?? "the OMS"} through the book's execution route.")
@@ -2782,6 +2946,80 @@ FinishConnect:
                 new CausationId($"console:{clientOrderId}:{operation}"),
                 new DeduplicationKey($"console:{clientOrderId}:{operation}"));
 
+        public ValueTask<ExecutionCommandResult> CancelOrderAsync(string clientOrderId, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            var projection = _oms.ReadAllProjections()
+                .FirstOrDefault(item => string.Equals(item.ClientOrderId.Value, clientOrderId, StringComparison.Ordinal));
+            if (projection is null)
+                return ValueTask.FromResult(ExecutionCommandResult.Failure($"This book has no order {clientOrderId}."));
+            if (!IsCancellable(projection))
+            {
+                return ValueTask.FromResult(ExecutionCommandResult.Failure(
+                    $"Order {clientOrderId} is {projection.State}; only a working order can be cancelled."));
+            }
+
+            var cancel = _engine.Handle(new ExecutionServiceRequest(
+                ExecutionServiceProtocol.CurrentVersion,
+                NextRequestId("cancel"),
+                ExecutionServiceRequestKind.Cancel,
+                _adapter.Account,
+                _lease.Grant.LeaseId,
+                _lease.Grant.FencingToken,
+                Cancel: new ExecutionCancelRequest(projection.ClientOrderId)));
+            return ValueTask.FromResult(cancel.Response.IsSuccess
+                ? ExecutionCommandResult.Success($"Cancel requested for {clientOrderId} ({cancel.Response.State}).")
+                : ExecutionCommandResult.Failure(
+                    $"Cancel of {clientOrderId} refused: {cancel.Response.Reason ?? cancel.Response.Fault.ToString()}."));
+        }
+
+        public ValueTask<ExecutionCommandResult> ReplaceOrderAsync(
+            string clientOrderId,
+            long units,
+            ScaledPrice? limitPrice,
+            ScaledPrice? stopPrice,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            _clock.SetTo(DateTime.UtcNow);
+            var projection = _oms.ReadAllProjections()
+                .FirstOrDefault(item => string.Equals(item.ClientOrderId.Value, clientOrderId, StringComparison.Ordinal));
+            if (projection is null)
+                return ValueTask.FromResult(ExecutionCommandResult.Failure($"This book has no order {clientOrderId}."));
+            if (!IsCancellable(projection))
+            {
+                return ValueTask.FromResult(ExecutionCommandResult.Failure(
+                    $"Order {clientOrderId} is {projection.State}; only a working order can be changed."));
+            }
+
+            var instrument = projection.Instruction.TradeIntent.Instrument;
+            var snapshot = _adapter.CaptureReconciliationSnapshot();
+            var position = snapshot.Positions.FirstOrDefault(item => item.Instrument == instrument)?.Quantity ?? ScaledQuantity.Zero;
+            if (!position.TryGetWholeUnits(out var currentUnits))
+                return ValueTask.FromResult(ExecutionCommandResult.Failure("The current position is not an exact whole quantity."));
+            if (!TryReplacement(projection, units, limitPrice, stopPrice, currentUnits, out var terms, out var riskIntent, out var failure))
+                return ValueTask.FromResult(ExecutionCommandResult.Failure(failure));
+            if (!TryCalculateGrossExposure(snapshot, out var grossExposure))
+                return ValueTask.FromResult(ExecutionCommandResult.Failure("The exact simulated gross exposure cannot be represented safely."));
+
+            var referencePrice = terms.LimitPrice ?? terms.StopPrice ?? ReferencePrice(instrument.Value);
+            var riskInput = RiskSnapshot(projection.Instruction with { TradeIntent = riskIntent }, currentUnits, referencePrice, grossExposure);
+            var replace = _engine.Handle(new ExecutionServiceRequest(
+                ExecutionServiceProtocol.CurrentVersion,
+                NextRequestId("replace"),
+                ExecutionServiceRequestKind.Replace,
+                _adapter.Account,
+                _lease.Grant.LeaseId,
+                _lease.Grant.FencingToken,
+                Replace: new ExecutionReplaceRequest(projection.ClientOrderId, terms, riskInput)));
+            return ValueTask.FromResult(replace.Response.IsSuccess
+                ? ExecutionCommandResult.Success($"Changed {clientOrderId} ({replace.Response.State}).")
+                : ExecutionCommandResult.Failure(
+                    $"Change of {clientOrderId} refused: {replace.Response.Reason ?? replace.Response.Fault.ToString()}."));
+        }
+
         private string NextRequestId(string operation) =>
             $"console:{BookPrefix()}:{operation}:{++_requestSequence}";
 
@@ -2870,24 +3108,24 @@ FinishConnect:
             IReadOnlyDictionary<int, decimal> realPositions)
         {
             realPositions.TryGetValue(instrument.InstrumentId, out var real);
-            var delta = real - instrument.TargetQuantity;
-            var isFlat = real == 0m;
+            // Target and drift come from the strategy this book copies, when one is running; prices and P&L
+            // from the book's fills (ExecutionBookAccounting.Priced).
             return new ExecutionPositionReadModel(
                 bookName,
                 instrument.Symbol,
                 real > 0m ? "LONG" : real < 0m ? "SHORT" : "FLAT",
                 real > 0m ? ExecutionTone.Positive : real < 0m ? ExecutionTone.Negative : ExecutionTone.Neutral,
                 instrument.ConfiguredRoute,
-                FormatSigned(instrument.ModelUnits, "0.0"),
-                FormatSigned(instrument.TargetQuantity, "0.###"),
+                "-",
+                "-",
                 FormatSigned(real, "0.###"),
-                FormatSigned(delta, "0.###"),
-                delta != 0m,
-                isFlat ? "-" : instrument.AveragePrice,
-                instrument.LastPrice,
-                isFlat ? "$0.00" : instrument.UnrealizedProfitAndLoss,
-                instrument.RealizedProfitAndLoss,
-                isFlat ? ExecutionTone.Neutral : instrument.ProfitAndLossTone);
+                "-",
+                HasDivergence: false,
+                "-",
+                "-",
+                "$0.00",
+                "$0.00",
+                ExecutionTone.Neutral);
         }
 
         private ExecutionOrderReadModel BuildOrder(
@@ -2904,7 +3142,7 @@ FinishConnect:
                 instrument?.Symbol ?? projection.Instruction.TradeIntent.Instrument.ToString(),
                 sideIsBuy ? "BUY" : "SELL",
                 sideIsBuy ? ExecutionTone.Positive : ExecutionTone.Negative,
-                FormatQuantity(ToDecimal(projection.Terms.Quantity)),
+                FormatQuantity(ToDecimal((projection.ReplacementTerms ?? projection.Terms).Quantity)),
                 projection.Terms.OrderType.ToString(),
                 projection.State.ToString(),
                 StateTone(projection.State),
@@ -2915,15 +3153,19 @@ FinishConnect:
 
         private static (decimal Long, decimal Short) CalculateExposure(
             BookConfiguration configuration,
-            IReadOnlyDictionary<int, decimal> realPositions)
+            IReadOnlyDictionary<int, decimal> realPositions,
+            IReadOnlyDictionary<int, decimal?> marks)
         {
             var longExposure = 0m;
             var shortExposure = 0m;
             foreach (var instrument in configuration.Instruments)
             {
-                if (!realPositions.TryGetValue(instrument.InstrumentId, out var quantity))
+                if (!realPositions.TryGetValue(instrument.InstrumentId, out var quantity) ||
+                    marks.GetValueOrDefault(instrument.InstrumentId) is not { } mark)
+                {
                     continue;
-                var exposure = quantity * instrument.ReferencePrice;
+                }
+                var exposure = quantity * mark;
                 if (exposure > 0m)
                     longExposure += exposure;
                 else
@@ -3158,7 +3400,12 @@ FinishConnect:
                 VenueSubmitOutcome.Accepted,
                 [new FillExecution(ScaledQuantity.FromWhole(quantity), price, fee, LiquidityFlag.Taker)]);
 
-        private ScaledPrice ReferencePrice(int instrumentId) => instrumentId switch
+        /// <summary>
+        /// The price a paper order fills at and is marked to: the terminal's own latest quote for the instrument
+        /// when it has one. Without a live quote (no feed for it in this session) the book falls back to a fixed
+        /// price — the paper venue must fill somewhere — which the console shows as the book's price.
+        /// </summary>
+        private ScaledPrice ReferencePrice(int instrumentId) => LivePrice(instrumentId) ?? instrumentId switch
         {
             1001 => Price(61_842.5m),
             1002 => Price(1.08214m),
@@ -3167,6 +3414,22 @@ FinishConnect:
             2002 => Price(2_410m),
             _ => Price(100m),
         };
+
+        private ScaledPrice? LivePrice(int instrumentId)
+        {
+            if (_livePrice?.Invoke(instrumentId) is not { Price: > 0m } quote)
+                return null;
+            try
+            {
+                // A mid can carry more digits than a price needs; ten places is finer than any tick.
+                var price = Price(decimal.Round(quote.Price, 10) / 1.000000000000000000000000000000000m);
+                return price.IsValid && price.Coefficient > 0 ? price : null;
+            }
+            catch (OverflowException)
+            {
+                return null;
+            }
+        }
 
         private static ScaledPrice Price(decimal value)
         {
@@ -3280,6 +3543,10 @@ FinishConnect:
         private readonly ExecutionServiceEngine _engine;
         private readonly string _clientOrderNamespace =
             Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+
+        /// <summary>The account's cash when the book attached: the book's equity starts here.</summary>
+        private decimal? _openingEquity;
+        private string _currency = string.Empty;
         private long _requestSequence;
         private int _submittedOrderCount;
         private bool _disposed;
@@ -3353,6 +3620,8 @@ FinishConnect:
                 throw new InvalidOperationException(
                     $"The {RouteLabel} account did not provide one valid exact opening-cash snapshot.");
             }
+            _openingEquity = ToDecimal(openingCash.Total);
+            _currency = openingCash.Currency;
             _reconciliation = new ReconciliationEngine(
                 _oms,
                 _caseStore,
@@ -3422,61 +3691,82 @@ FinishConnect:
                            TryCalculateExposure(position, exposurePrice, _adapter.ContractMultiplier, out var exactExposure)
                 ? (quantity < 0m ? -1m : 1m) * ToDecimal(exactExposure)
                 : 0m;
+            var outbox = _ledger.ReadOutbox();
+            var allProjections = _oms.ReadAllProjections();
+            var multiplier = _adapter.ContractMultiplier is { Coefficient: > 0 } ratio
+                ? ExecutionBookAccounting.ToDecimal(ratio.Coefficient, ratio.Scale)
+                : 1m;
+            var accounting = ExecutionBookAccounting.Replay(
+                ExecutionBookAccounting.FillsFrom(outbox.Select(entry => entry.Event), allProjections, multiplier),
+                _ => _adapter.Symbol);
+            decimal? mark = reference > 0m ? reference : null;
+            var account = accounting.For(_adapter.Instrument.Value);
+            var unrealized = account?.UnrealizedProfitAndLoss(mark) ?? 0m;
+            var openingEquity = _openingEquity ??
+                                (snapshot.Cash.Count == 1 ? ToDecimal(snapshot.Cash[0].Total) : configuration.OpeningEquity);
+            var netAssetValue = openingEquity + accounting.RealizedProfitAndLoss + unrealized;
+            var unit = BookUnit(mark);
             var positions = Array.AsReadOnly(
             [
-                new ExecutionPositionReadModel(
-                    configuration.Name,
-                    _adapter.Symbol,
-                    quantity > 0m ? "LONG" : quantity < 0m ? "SHORT" : "FLAT",
-                    quantity > 0m ? ExecutionTone.Positive : quantity < 0m ? ExecutionTone.Negative : ExecutionTone.Neutral,
-                    RouteLabel,
-                    "-",
-                    "-",
-                    FormatSigned(quantity, "0.###"),
-                    "-",
-                    HasDivergence: false,
-                    "-",
-                    reference > 0m ? FormatQuantity(reference) : "-",
-                    "$0.00",
-                    "$0.00",
-                    ExecutionTone.Neutral),
+                ExecutionBookAccounting.Priced(
+                    new ExecutionPositionReadModel(
+                        configuration.Name,
+                        _adapter.Symbol,
+                        quantity > 0m ? "LONG" : quantity < 0m ? "SHORT" : "FLAT",
+                        quantity > 0m ? ExecutionTone.Positive : quantity < 0m ? ExecutionTone.Negative : ExecutionTone.Neutral,
+                        RouteLabel,
+                        "-",
+                        "-",
+                        FormatSigned(quantity, "0.###"),
+                        "-",
+                        HasDivergence: false,
+                        "-",
+                        "-",
+                        "$0.00",
+                        "$0.00",
+                        ExecutionTone.Neutral),
+                    account,
+                    quantity,
+                    mark,
+                    unit,
+                    netAssetValue),
             ]);
 
-            var projections = _oms.ReadAllProjections()
+            var projections = allProjections
                 .OrderByDescending(projection => LastEventTime(projection.ClientOrderId))
                 .Take(OperationalTableCapacity)
                 .ToArray();
             var orders = Array.AsReadOnly(projections.Select(projection =>
             {
-                var lastEvent = _oms.ReadEvents(projection.ClientOrderId).Last();
+                var events = _oms.ReadEvents(projection.ClientOrderId);
+                var lastEvent = events.Last();
                 var buy = projection.Terms.Side == OrderSide.Buy;
-                return new ExecutionOrderReadModel(
-                    configuration.Name,
-                    projection.ClientOrderId.Value,
-                    _adapter.Symbol,
-                    buy ? "BUY" : "SELL",
-                    buy ? ExecutionTone.Positive : ExecutionTone.Negative,
-                    FormatQuantity(ToDecimal(projection.Terms.Quantity)),
-                    projection.Terms.OrderType.ToString(),
-                    projection.State.ToString(),
-                    StateTone(projection.State),
-                    RouteLabel,
-                    FormatAge(observedAtUtc - lastEvent.OccurredAtUtc),
-                    lastEvent.OccurredAtUtc);
+                return ExecutionBookAccounting.Described(
+                    new ExecutionOrderReadModel(
+                        configuration.Name,
+                        projection.ClientOrderId.Value,
+                        _adapter.Symbol,
+                        buy ? "BUY" : "SELL",
+                        buy ? ExecutionTone.Positive : ExecutionTone.Negative,
+                        FormatQuantity(ToDecimal((projection.ReplacementTerms ?? projection.Terms).Quantity)),
+                        projection.Terms.OrderType.ToString(),
+                        projection.State.ToString(),
+                        StateTone(projection.State),
+                        RouteLabel,
+                        FormatAge(observedAtUtc - lastEvent.OccurredAtUtc),
+                        lastEvent.OccurredAtUtc),
+                    projection,
+                    events.First().OccurredAtUtc);
             }).ToArray());
 
-            var outbox = _ledger.ReadOutbox();
             var history = BuildHistory(configuration, outbox);
             var cases = BuildReconciliationCases(LatestMaterialCases());
-            var quality = BuildExecutionQuality(projections, outbox, cases.Count);
-            var openingEquity = snapshot.Cash.Count == 1
-                ? ToDecimal(snapshot.Cash[0].Total)
-                : configuration.OpeningEquity;
+            var quality = ExecutionBookAccounting.WithFills(BuildExecutionQuality(projections, outbox, cases.Count), accounting);
             var analytics = ExecutionAnalyticsProjector.BuildBook(
                 configuration.Id,
                 configuration.Name,
                 openingEquity,
-                Array.Empty<ExecutionTradeHistoryPoint>(),
+                accounting.ClosedTrades,
                 quantity == 0m ? 0 : 1,
                 exposure > 0m ? exposure : 0m,
                 exposure < 0m ? exposure : 0m,
@@ -3518,7 +3808,42 @@ FinishConnect:
                     new ExecutionTradableInstrumentReadModel(_adapter.Instrument, _adapter.Symbol),
                 ]),
                 SupportsKill = true,
+                Fills = ExecutionBookAccounting.FillRows(accounting, configuration.Name, _ => _adapter.Symbol, unit, OperationalTableCapacity),
+                Unit = unit,
+                UnitsPerStrategyUnit = configuration.UnitsPerStrategyUnit,
+                PositionUnits = quantity,
+                NetAssetValue = netAssetValue,
+                RealizedProfitAndLoss = accounting.RealizedProfitAndLoss,
+                UnrealizedProfitAndLoss = unrealized,
+                DayRealizedProfitAndLoss = accounting.ClosedTrades
+                    .Where(trade => trade.ClosedAtUtc.Date == observedAtUtc.Date)
+                    .Sum(trade => trade.RealizedProfitAndLoss),
+                GrossExposure = Math.Abs(exposure),
+                NetExposure = exposure,
             };
+        }
+
+        /// <summary>What one of this book's units is. A routed broker says (its volume step, the asset, the value
+        /// of a point); any other bookable adapter trades whole shares or contracts.</summary>
+        private ExecutionBookUnitReadModel BookUnit(decimal? mark)
+        {
+            var observed = _adapter.LatestReferencePriceObservedAtUtc;
+            if (_adapter is RoutedExecutionAdapter { Rules: { } rules })
+            {
+                return new ExecutionBookUnitReadModel(
+                    _adapter.Symbol,
+                    rules.UnitSize,
+                    rules.BaseAsset.Length > 0 ? rules.BaseAsset : rules.UnitSize == 1m ? string.Empty : _adapter.Symbol,
+                    rules.ValuePerPoint,
+                    rules.Currency.Length > 0 ? rules.Currency : _currency,
+                    mark,
+                    observed);
+            }
+
+            var multiplier = _adapter.ContractMultiplier is { Coefficient: > 0 } ratio
+                ? ExecutionBookAccounting.ToDecimal(ratio.Coefficient, ratio.Scale)
+                : 1m;
+            return new ExecutionBookUnitReadModel(_adapter.Symbol, 1m, string.Empty, multiplier, _currency, mark, observed);
         }
 
         public async ValueTask<ExecutionCommandResult> ReconcileAsync(CancellationToken cancellationToken)
@@ -4197,6 +4522,101 @@ FinishConnect:
         private DateTime LastEventTime(ClientOrderId clientOrderId) =>
             _oms.ReadEvents(clientOrderId).Last().OccurredAtUtc;
 
+        public ValueTask<ExecutionCommandResult> CancelOrderAsync(string clientOrderId, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            var projection = _oms.ReadAllProjections()
+                .FirstOrDefault(item => string.Equals(item.ClientOrderId.Value, clientOrderId, StringComparison.Ordinal));
+            if (projection is null)
+                return ValueTask.FromResult(ExecutionCommandResult.Failure($"This book has no order {clientOrderId}."));
+            if (!IsCancellable(projection))
+            {
+                return ValueTask.FromResult(ExecutionCommandResult.Failure(
+                    $"Order {clientOrderId} is {projection.State}; only a working order can be cancelled."));
+            }
+
+            var cancel = _engine.Handle(new ExecutionServiceRequest(
+                ExecutionServiceProtocol.CurrentVersion,
+                NextRequestId("cancel"),
+                ExecutionServiceRequestKind.Cancel,
+                _adapter.Account,
+                _lease.Grant.LeaseId,
+                _lease.Grant.FencingToken,
+                Cancel: new ExecutionCancelRequest(projection.ClientOrderId)));
+            return ValueTask.FromResult(cancel.Response.IsSuccess
+                ? ExecutionCommandResult.Success($"Cancel requested for {clientOrderId} ({cancel.Response.State}).")
+                : ExecutionCommandResult.Failure(
+                    $"Cancel of {clientOrderId} refused: {cancel.Response.Reason ?? cancel.Response.Fault.ToString()}."));
+        }
+
+        public async ValueTask<ExecutionCommandResult> ReplaceOrderAsync(
+            string clientOrderId,
+            long units,
+            ScaledPrice? limitPrice,
+            ScaledPrice? stopPrice,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
+            var projection = _oms.ReadAllProjections()
+                .FirstOrDefault(item => string.Equals(item.ClientOrderId.Value, clientOrderId, StringComparison.Ordinal));
+            if (projection is null)
+                return ExecutionCommandResult.Failure($"This book has no order {clientOrderId}.");
+            if (!IsCancellable(projection))
+                return ExecutionCommandResult.Failure($"Order {clientOrderId} is {projection.State}; only a working order can be changed.");
+            if (!_adapter.Session.CanExecute)
+                return ExecutionCommandResult.Failure($"{RouteLabel} is disconnected or cannot execute.");
+
+            await _adapter.RefreshReconciliationAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = _adapter.CaptureReconciliationSnapshot();
+            _clock.SetTo(snapshot.CapturedAtUtc);
+            var position = snapshot.Positions.FirstOrDefault(item => item.Instrument == _adapter.Instrument)?.Quantity ??
+                           ScaledQuantity.Zero;
+            if (!position.TryGetWholeUnits(out var currentUnits))
+                return ExecutionCommandResult.Failure($"The current {_adapter.DisplayName} position is not an exact whole quantity.");
+            if (!TryReplacement(projection, units, limitPrice, stopPrice, currentUnits, out var terms, out var riskIntent, out var failure))
+                return ExecutionCommandResult.Failure(failure);
+
+            ScaledPrice referencePrice;
+            if ((terms.LimitPrice ?? terms.StopPrice) is { } resting)
+            {
+                referencePrice = resting;
+            }
+            else
+            {
+                await _adapter.RefreshReferencePriceAsync(cancellationToken).ConfigureAwait(false);
+                if (_adapter.LatestReferencePrice is not { IsValid: true, Coefficient: > 0 } latest)
+                    return ExecutionCommandResult.Failure("No reference price is available to check the change against.");
+                referencePrice = latest;
+            }
+
+            if (!TryCalculateGrossExposure(currentUnits, referencePrice, out var grossExposure))
+                return ExecutionCommandResult.Failure($"The exact {_adapter.DisplayName} gross exposure cannot be represented safely.");
+
+            var riskInput = new RiskInputSnapshot(
+                riskIntent,
+                position,
+                referencePrice,
+                _adapter.ContractMultiplier,
+                grossExposure,
+                ScaledMoney.Zero,
+                ScaledMoney.Zero,
+                DateOnly.FromDateTime(_clock.UtcNow));
+            var exchange = _engine.Handle(new ExecutionServiceRequest(
+                ExecutionServiceProtocol.CurrentVersion,
+                NextRequestId("replace"),
+                ExecutionServiceRequestKind.Replace,
+                _adapter.Account,
+                _lease.Grant.LeaseId,
+                _lease.Grant.FencingToken,
+                Replace: new ExecutionReplaceRequest(projection.ClientOrderId, terms, riskInput)));
+            return exchange.Response.IsSuccess
+                ? ExecutionCommandResult.Success($"Change of {clientOrderId} sent to {RouteLabel} ({exchange.Response.State}).")
+                : ExecutionCommandResult.Failure(
+                    $"Change of {clientOrderId} refused: {exchange.Response.Reason ?? exchange.Response.Fault.ToString()}.");
+        }
+
         private string NextRequestId(string operation) =>
             $"console:{_bookId}:{_adapter.BrokerId}:{operation}:{Interlocked.Increment(ref _requestSequence)}";
 
@@ -4335,6 +4755,9 @@ FinishConnect:
         string EscalationLine,
         string UnavailableDetail)
     {
+        /// <summary>Book units per unit of a bound strategy's position.</summary>
+        public long UnitsPerStrategyUnit { get; init; } = 1;
+
         internal static BookConfiguration New(
             string id,
             string name,
@@ -4368,7 +4791,7 @@ FinishConnect:
                             ExecutionTone.Neutral),
                     ]),
                 "Risk escalation not configured",
-                "alternate client not attached");
+                "no instrument yet: its strategy names it");
 
         internal ExecutionBookReadModel BuildUnavailableReadModel(bool isPaused)
         {

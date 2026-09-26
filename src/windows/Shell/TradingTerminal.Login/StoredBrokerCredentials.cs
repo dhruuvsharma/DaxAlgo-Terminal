@@ -64,6 +64,35 @@ public sealed class StoredBrokerCredentials : IBrokerCredentialSource, IBrokerSe
                 };
             }
 
+            // cTrader's row keeps the OAuth app, the access token and the ctid account in named fields too;
+            // the execution console's cTrader route reads them from here (2026-09-25).
+            if (broker == BrokerKind.CTrader && !current.BrokerKeys.ContainsKey(broker.ToString()))
+            {
+                return new BrokerCredential(current.CTraderClientId ?? string.Empty, current.CTraderClientSecret ?? string.Empty)
+                {
+                    Session = current.CTraderAccessToken ?? string.Empty,
+                    Account = current.CTraderAccountId > 0
+                        ? current.CTraderAccountId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : string.Empty,
+                    Extra = current.CTraderIsLive ? "live" : "demo",
+                };
+            }
+
+            // Interactive Brokers signs in inside TWS or IB Gateway, so its row stores where TWS listens rather
+            // than a key: the host as Key, and the port, the API client id and the paper/live choice in Extra. No
+            // secret — there is none, and a fresh store still reads as nothing configured. The order route
+            // connects there (2026-09-25).
+            if (broker == BrokerKind.InteractiveBrokers && !current.BrokerKeys.ContainsKey(broker.ToString()))
+            {
+                return new BrokerCredential(current.Host ?? string.Empty, string.Empty)
+                {
+                    Extra = string.Join('|',
+                        current.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        current.ClientId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        current.AccountType),
+                };
+            }
+
             if (broker == BrokerKind.Upstox && !current.BrokerKeys.ContainsKey(broker.ToString()))
             {
                 return new BrokerCredential(current.UpstoxApiKey ?? string.Empty, current.UpstoxApiSecret ?? string.Empty)

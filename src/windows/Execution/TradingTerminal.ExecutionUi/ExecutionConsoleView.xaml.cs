@@ -105,17 +105,97 @@ public partial class ExecutionConsoleView : UserControl, IDisposable
         if (Volatile.Read(ref _disposed) != 0 || _viewModel is null)
             return;
 
-        DrawEquity(_viewModel.EquitySeries);
+        DrawEquity(_viewModel.EquitySeries, _viewModel.Metrics.Equity - _viewModel.Metrics.NetProfitAndLoss);
+        DrawDrawdown(_viewModel.EquitySeries);
         DrawDailyProfitAndLoss(_viewModel.DailyPnlSeries);
+        DrawSlippage(_viewModel.SlippageSeries);
     }
 
-    private void DrawEquity(IReadOnlyList<ExecutionEquityPointReadModel> series)
+    /// <summary>Underwater curve: how far equity sits below its running peak, in percent, on the equity's x axis.</summary>
+    private void DrawDrawdown(IReadOnlyList<ExecutionEquityPointReadModel> series)
+    {
+        DrawdownPlot.Plot.Clear();
+        if (series.Count > 0)
+        {
+            var xs = series.Select(point => point.TimestampUtc.ToOADate()).ToArray();
+            var ys = new double[series.Count];
+            var peak = double.MinValue;
+            for (var index = 0; index < series.Count; index++)
+            {
+                var equity = (double)series[index].Equity;
+                peak = Math.Max(peak, equity);
+                ys[index] = peak > 0d ? (equity - peak) / peak * 100d : 0d;
+            }
+
+            var bearish = GetPlotColor("Bearish.Brush");
+            var curve = DrawdownPlot.Plot.Add.Scatter(xs, ys);
+            curve.MarkerSize = 0;
+            curve.LineWidth = 1.5f;
+            curve.Color = bearish;
+            curve.FillY = true;
+            curve.FillYValue = 0;
+            curve.FillYColor = bearish.WithAlpha(0.28);
+            DrawdownPlot.Plot.Axes.DateTimeTicksBottom();
+        }
+
+        ApplyPlotTheme(DrawdownPlot);
+        DrawdownPlot.Plot.Axes.AutoScale();
+        DrawdownPlot.Plot.Axes.SetLimitsY(Math.Min(-0.5, DrawdownPlot.Plot.Axes.GetLimits().Bottom), 0.2);
+        DrawdownPlot.Refresh();
+    }
+
+    /// <summary>Histogram of per-fill slippage in basis points: green bars saved money, red ones cost it.</summary>
+    private void DrawSlippage(IReadOnlyList<double> series)
+    {
+        SlippagePlot.Plot.Clear();
+        var reach = 2d;
+        if (series.Count > 0)
+        {
+            // Bins centred on whole multiples of the width, so zero slippage is its own bar at zero.
+            var span = Math.Max(series.Max() - series.Min(), 1d);
+            var width = span <= 6d ? 0.5d : span <= 20d ? 1d : Math.Ceiling(span / 20d);
+            var counts = new SortedDictionary<double, int>();
+            foreach (var value in series)
+            {
+                var centre = Math.Round(value / width) * width;
+                counts[centre] = counts.TryGetValue(centre, out var count) ? count + 1 : 1;
+            }
+
+            var bullish = GetPlotColor("Bullish.Brush");
+            var bearish = GetPlotColor("Bearish.Brush");
+            var neutral = GetPlotColor("Text.Secondary");
+            var bars = counts
+                .Select(pair => new ScottPlot.Bar
+                {
+                    Position = pair.Key,
+                    Value = pair.Value,
+                    Size = width * 0.8d,
+                    FillColor = pair.Key > 0d ? bearish : pair.Key < 0d ? bullish : neutral,
+                    LineWidth = 0,
+                })
+                .ToArray();
+            SlippagePlot.Plot.Add.Bars(bars);
+            SlippagePlot.Plot.Add.VerticalLine(0, 1, GetPlotColor("Border.Strong"));
+            reach = Math.Max(reach, Math.Max(Math.Abs(counts.Keys.First()), Math.Abs(counts.Keys.Last())) + width);
+        }
+
+        ApplyPlotTheme(SlippagePlot);
+        SlippagePlot.Plot.Axes.Bottom.TickGenerator = InvariantTicks();
+        SlippagePlot.Plot.Axes.AutoScale();
+        SlippagePlot.Plot.Axes.SetLimitsX(-reach, reach);
+        SlippagePlot.Plot.Axes.SetLimitsY(0, Math.Max(1d, SlippagePlot.Plot.Axes.GetLimits().Top));
+        SlippagePlot.Refresh();
+    }
+
+    /// <summary>Cumulative realized P&amp;L over the period: equity less where the period started, so a few dollars
+    /// on a large account still reads as a line rather than a flat one at the account's size.</summary>
+    private void DrawEquity(IReadOnlyList<ExecutionEquityPointReadModel> series, decimal equityAtStart)
     {
         EquityPlot.Plot.Clear();
         if (series.Count > 0)
         {
             var xs = series.Select(point => point.TimestampUtc.ToOADate()).ToArray();
-            var ys = series.Select(point => (double)point.Equity).ToArray();
+            var ys = series.Select(point => (double)(point.Equity - equityAtStart)).ToArray();
             var accent = GetPlotColor("Accent.Brush");
 
             var curve = EquityPlot.Plot.Add.Scatter(xs, ys);
@@ -123,8 +203,9 @@ public partial class ExecutionConsoleView : UserControl, IDisposable
             curve.LineWidth = 2;
             curve.Color = accent;
             curve.FillY = true;
-            curve.FillYValue = ys.Min();
+            curve.FillYValue = 0;
             curve.FillYColor = accent.WithAlpha(0.18);
+            EquityPlot.Plot.Add.HorizontalLine(0, 1, GetPlotColor("Border.Strong"));
 
             var endpoint = EquityPlot.Plot.Add.Scatter(new[] { xs[^1] }, new[] { ys[^1] });
             endpoint.LineWidth = 0;
@@ -174,8 +255,10 @@ public partial class ExecutionConsoleView : UserControl, IDisposable
 
     private void ApplyPlotTheme(ScottPlot.WPF.WpfPlot plot)
     {
+        // Charts sit in inset panels on the primary background; the plot area matches so the chart reads as
+        // part of its panel rather than a box inside it.
         var figure = GetPlotColor("Background.Primary");
-        var data = GetPlotColor("Background.Surface");
+        var data = GetPlotColor("Background.Primary");
         var grid = GetPlotColor("Border.Brush");
         var frame = GetPlotColor("Border.Strong");
         var text = GetPlotColor("Text.Secondary");
@@ -191,7 +274,15 @@ public partial class ExecutionConsoleView : UserControl, IDisposable
         plot.Plot.Legend.BackgroundColor = data;
         plot.Plot.Legend.FontColor = text;
         plot.Plot.Legend.OutlineColor = frame;
+        plot.Plot.Axes.Left.TickGenerator = InvariantTicks();
     }
+
+    /// <summary>Value ticks as a desk writes them, whatever the machine's culture: 1,250.5 rather than 1,250.5 in
+    /// one locale and 1.250,5 or 1,25,000 in another.</summary>
+    private static ScottPlot.TickGenerators.NumericAutomatic InvariantTicks() => new()
+    {
+        LabelFormatter = value => value.ToString("#,##0.#####", System.Globalization.CultureInfo.InvariantCulture),
+    };
 
     private ScottPlot.Color GetPlotColor(string resourceKey)
     {
@@ -206,7 +297,9 @@ public partial class ExecutionConsoleView : UserControl, IDisposable
     {
         // WpfPlot.Reset disposes the old ScottPlot.Plot before installing an empty replacement.
         EquityPlot.Reset();
+        DrawdownPlot.Reset();
         DailyPnlPlot.Reset();
+        SlippagePlot.Reset();
     }
 
     public void Dispose()

@@ -1,10 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
+using TradingTerminal.Core.Execution;
+using TradingTerminal.Execution.CTrader;
 
 namespace TradingTerminal.Execution.Routing;
 
 /// <summary>
-/// Registration for routed brokers: the shared options. The routes themselves are registered by the
-/// infrastructure layer as <c>IBrokerOrderRoute</c>, and the execution console turns each into a broker card.
+/// Registration for routed brokers: the shared options, and the cTrader route. The other routes are registered
+/// by the infrastructure layer as <c>IBrokerOrderRoute</c>; cTrader's lives here because its Open API
+/// transport does, and the execution console turns each route into a broker card.
 /// </summary>
 public static class RoutedExecutionServiceCollectionExtensions
 {
@@ -22,6 +25,10 @@ public static class RoutedExecutionServiceCollectionExtensions
         if (fault is not null)
             throw new InvalidOperationException($"{RoutedExecutionOptions.SectionName}: {fault}");
         services.AddSingleton(options.Snapshot());
+        // cTrader through the login row's credentials — demo as PAPER, live behind the gate (2026-09-25).
+        services.AddSingleton<IBrokerOrderRoute, CTraderOrderRoute>();
+        // Interactive Brokers through TWS or IB Gateway where the IB login row says it listens (2026-09-25).
+        services.AddSingleton<IBrokerOrderRoute, TradingTerminal.Execution.InteractiveBrokers.InteractiveBrokersOrderRoute>();
         return services;
     }
 }

@@ -47,6 +47,10 @@ public sealed class BlocksUnitSession : IAsyncDisposable
     /// <summary>The terminal's settings panel beside it, or null when the unit declares nothing to set.</summary>
     public SettingsPanelView? Settings { get; private init; }
 
+    /// <summary>A strategy's book as the execution engine copies it, or null for a visualizer. A shell attaches it to
+    /// the execution books that name the strategy.</summary>
+    public BlocksModelBook? ModelBook { get; private init; }
+
     /// <summary>Builds the session. Nothing runs until <see cref="StartAsync"/>.</summary>
     /// <param name="registration">The unit.</param>
     /// <param name="host">What the terminal lends it: data, clock, log, feeds, state.</param>
@@ -109,6 +113,7 @@ public sealed class BlocksUnitSession : IAsyncDisposable
         var session = new BlocksUnitSession(registration, runtime, unit, page, pageRoot ?? UnitPageFolder.DefaultRoot)
         {
             Settings = settings,
+            ModelBook = registration.IsStrategy ? new BlocksModelBook(runtime) : null,
         };
         if (registration.IsStrategy) runtime.PortfolioChanged += session.PushBook;
         return session;
@@ -131,6 +136,8 @@ public sealed class BlocksUnitSession : IAsyncDisposable
             Unit.Presenter.RunState = "Live";
             Unit.Presenter.IsLive = true;
             if (_registration.IsStrategy) PushBook(Runtime.Portfolio);
+            // The unit's instruments are known now: tell the books copying it which one it runs on.
+            ModelBook?.Refresh();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -145,6 +152,7 @@ public sealed class BlocksUnitSession : IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         Runtime.PortfolioChanged -= PushBook;
+        ModelBook?.Dispose();
         try
         {
             // The unit stops before its page goes, so its last messages never land on a closing browser.

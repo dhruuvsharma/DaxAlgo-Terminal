@@ -54,7 +54,10 @@ public static class ExecutionMetricMath
             periodTrades.Length,
             periodTrades.Count(item => item.RealizedProfitAndLoss > 0m),
             openPositions,
-            netExposure);
+            netExposure,
+            grossProfit: periodTrades.Where(item => item.RealizedProfitAndLoss > 0m).Sum(item => item.RealizedProfitAndLoss),
+            grossLoss: periodTrades.Where(item => item.RealizedProfitAndLoss < 0m).Sum(item => item.RealizedProfitAndLoss),
+            losingTrades: periodTrades.Count(item => item.RealizedProfitAndLoss < 0m));
     }
 
     internal static ExecutionPeriodAnalyticsReadModel CalculateFromDaily(
@@ -64,7 +67,10 @@ public static class ExecutionMetricMath
         int tradeCount,
         int winningTrades,
         int openPositions,
-        decimal netExposure)
+        decimal netExposure,
+        decimal grossProfit = 0m,
+        decimal grossLoss = 0m,
+        int losingTrades = 0)
     {
         var rollingEquity = equityAtStart;
         var peak = equityAtStart;
@@ -92,6 +98,7 @@ public static class ExecutionMetricMath
         var netProfitAndLoss = dailySeries.Sum(item => item.RealizedProfitAndLoss);
         var returnPercent = equityAtStart == 0m ? 0m : netProfitAndLoss / equityAtStart * 100m;
         var winRate = tradeCount == 0 ? 0m : winningTrades * 100m / tradeCount;
+        var (valueAtRisk, riskObservations) = HistoricalValueAtRisk95(dailySeries);
         var metrics = new ExecutionMetricResult(
             rollingEquity,
             netProfitAndLoss,
@@ -102,7 +109,14 @@ public static class ExecutionMetricMath
             openPositions,
             netExposure,
             tradeCount,
-            winningTrades);
+            winningTrades,
+            grossProfit,
+            grossLoss,
+            losingTrades,
+            AnnualizedSortino(returns),
+            returns.Count == 0 ? 0d : returns.Average() * 252d * 100d,
+            valueAtRisk,
+            riskObservations);
 
         return new ExecutionPeriodAnalyticsReadModel(
             range,
@@ -126,6 +140,53 @@ public static class ExecutionMetricMath
         });
         var sampleDeviation = Math.Sqrt(sumSquaredDeviation / (periodicReturns.Count - 1));
         return sampleDeviation <= 1e-12 ? 0d : mean / sampleDeviation * Math.Sqrt(252d);
+    }
+
+    /// <summary>Mean over downside deviation (shortfall below zero, over every period), annualised like
+    /// <see cref="AnnualizedSharpe"/>. Zero with fewer than two periods or no losing period.</summary>
+    public static double AnnualizedSortino(IReadOnlyList<double> periodicReturns)
+    {
+        ArgumentNullException.ThrowIfNull(periodicReturns);
+        if (periodicReturns.Count < 2)
+            return 0d;
+
+        var downside = Math.Sqrt(periodicReturns.Sum(value => value < 0d ? value * value : 0d) / periodicReturns.Count);
+        return downside <= 1e-12 ? 0d : periodicReturns.Average() / downside * Math.Sqrt(252d);
+    }
+
+    /// <summary>
+    /// One-day historical VaR at 95%: the loss at the 5th percentile (nearest rank) of daily P&amp;L, as a positive
+    /// amount, zero when that day was not a loss. Days before the first active day are not observations — a book
+    /// created last week has no history for the three weeks before it. Returns the amount and how many days it
+    /// used; callers report it only from <see cref="ExecutionMetricResult.MinimumRiskObservations"/> days.
+    /// </summary>
+    public static (decimal ValueAtRisk, int Observations) HistoricalValueAtRisk95(
+        IReadOnlyList<ExecutionDailyPnlPointReadModel> dailySeries)
+    {
+        ArgumentNullException.ThrowIfNull(dailySeries);
+        var first = -1;
+        for (var index = 0; index < dailySeries.Count; index++)
+        {
+            if (dailySeries[index].RealizedProfitAndLoss != 0m)
+            {
+                first = index;
+                break;
+            }
+        }
+
+        if (first < 0)
+            return (0m, 0);
+
+        var observed = dailySeries
+            .Skip(first)
+            .Select(point => point.RealizedProfitAndLoss)
+            .OrderBy(value => value)
+            .ToArray();
+        if (observed.Length < ExecutionMetricResult.MinimumRiskObservations)
+            return (0m, observed.Length);
+
+        var rank = (int)Math.Ceiling(0.05d * observed.Length);
+        return (Math.Max(0m, -observed[Math.Max(rank, 1) - 1]), observed.Length);
     }
 
     public static decimal MaximumDrawdownPercent(IReadOnlyList<decimal> equitySeries)
@@ -274,7 +335,10 @@ internal static class ExecutionAnalyticsProjector
                 inputs.Sum(item => item.Metrics.TradeCount),
                 inputs.Sum(item => item.Metrics.WinningTrades),
                 inputs.Sum(item => item.Metrics.OpenPositions),
-                inputs.Sum(item => item.Metrics.NetExposure)));
+                inputs.Sum(item => item.Metrics.NetExposure),
+                inputs.Sum(item => item.Metrics.GrossProfit),
+                inputs.Sum(item => item.Metrics.GrossLoss),
+                inputs.Sum(item => item.Metrics.LosingTrades)));
         }
 
         var exposures = NormalizeExposures(books
@@ -300,7 +364,13 @@ internal static class ExecutionAnalyticsProjector
             values.Sum(item => item.SlippageObservationCount),
             values.Sum(item => item.TotalSlippageTicks),
             values.Sum(item => item.AcknowledgementObservationCount),
-            values.Sum(item => item.TotalAcknowledgementLatencyMilliseconds));
+            values.Sum(item => item.TotalAcknowledgementLatencyMilliseconds),
+            values.Sum(item => item.Fills),
+            values.Sum(item => item.SlippageBasisPointObservations),
+            values.Sum(item => item.TotalSlippageBasisPoints),
+            values.Sum(item => item.Fees),
+            values.Sum(item => item.ImplementationShortfall),
+            values.Sum(item => item.Turnover));
     }
 
     private static IReadOnlyList<ExecutionExposureReadModel> NormalizeExposures(

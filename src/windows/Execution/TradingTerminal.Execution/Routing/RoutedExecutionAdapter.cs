@@ -247,6 +247,13 @@ public sealed class RoutedExecutionAdapter : IBookableExecutionAdapter, IDisposa
     public event Action<BrokerAdapterEvent>? EventReceived;
 
     /// <summary>
+    /// Where a reference price comes from when the broker gives none (Tradovate, tastytrade and IB have no price
+    /// call here): the terminal's own live market data for the book's instrument. Copied into every book adapter
+    /// this card creates. The same freshness rule applies — a price older than the engine allows is refused.
+    /// </summary>
+    public Func<InstrumentId, RoutePrice?>? ReferencePriceFallback { get; set; }
+
+    /// <summary>
     /// A copy of this connection bound to one instrument, for one book. Not connected: the caller connects
     /// it, which reads the instrument's rules and records the baseline position.
     /// </summary>
@@ -261,7 +268,10 @@ public sealed class RoutedExecutionAdapter : IBookableExecutionAdapter, IDisposa
             throw new InvalidOperationException($"Connect {DisplayName} before attaching a book.");
         return new RoutedExecutionAdapter(
             _route, Mode, _options, _hasCredentials, _clock, scheduler, _confirmationStore, _expectedAccountId,
-            instrument, symbol.Trim(), account);
+            instrument, symbol.Trim(), account)
+        {
+            ReferencePriceFallback = ReferencePriceFallback,
+        };
     }
 
     // ── Connection ───────────────────────────────────────────────────────────────────────────────
@@ -398,7 +408,8 @@ public sealed class RoutedExecutionAdapter : IBookableExecutionAdapter, IDisposa
         if (!IsBound)
             throw new InvalidOperationException("A broker connection has no instrument to price.");
         ClearReferencePrice();
-        var price = await _route.PriceAsync(Environment, Symbol, cancellationToken).ConfigureAwait(false);
+        var price = await _route.PriceAsync(Environment, Symbol, cancellationToken).ConfigureAwait(false)
+            ?? ReferencePriceFallback?.Invoke(Instrument);
         if (price is null || price.ObservedAtUtc.Kind != DateTimeKind.Utc || !RouteValues.TryPrice(price.Price, out var exact))
             return;
         LatestReferencePrice = exact;
